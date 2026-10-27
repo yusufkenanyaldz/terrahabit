@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">TerraHabit</string>
+    <string name="title_activity_main">TerraHabit</string>
+    <string name="package_name">com.yusufkenan.terrahabit</string>
+    <string name="custom_url_scheme">com.yusufkenan.terrahabit</string>
+</resources>

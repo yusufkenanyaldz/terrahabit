@@ -1,0 +1,9 @@
+{
+  "appId": "com.yusufkenan.terrahabit",
+  "appName": "TerraHabit",
+  "webDir": "dist",
+  "backgroundColor": "#000000",
+  "android": {
+    "backgroundColor": "#000000"
+  }
+}
