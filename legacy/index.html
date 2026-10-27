@@ -1,0 +1,1095 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <meta name="theme-color" content="#000000">
+  <meta name="mobile-web-app-capable" content="yes">
+  <title>TerraHabit - Gerçekçi Gezegen Motoru</title>
+  <style>
+    :root {
+      --safe-top: env(safe-area-inset-top, 24px);
+      --safe-bottom: env(safe-area-inset-bottom, 16px);
+      --accent: #38bdf8;
+      --bio: #10b981;
+    }
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      font-family: 'Segoe UI', Roboto, system-ui, -apple-system, sans-serif;
+      user-select: none;
+      -webkit-tap-highlight-color: transparent;
+    }
+    body {
+      background: #000000;
+      color: #f8fafc;
+      overflow: hidden;
+      width: 100vw;
+      height: 100dvh;
+      position: fixed;
+    }
+
+    /* %100 Tam Ekran 3D Uzay Sahnesi */
+    #canvas-container {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      z-index: 1;
+      touch-action: none;
+    }
+
+    /* Üst Minimalist Telemetri HUD (TerraGenesis Tarzı) */
+    .top-telemetry {
+      position: absolute;
+      top: calc(var(--safe-top) + 6px);
+      left: 14px;
+      right: 14px;
+      z-index: 10;
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      pointer-events: none;
+    }
+    .planet-header {
+      pointer-events: auto;
+      background: rgba(8, 12, 22, 0.55);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-left: 3px solid var(--accent);
+      border-radius: 14px;
+      padding: 10px 14px;
+    }
+    .planet-header .day-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 2px;
+    }
+    .day-tag {
+      font-size: 0.7rem;
+      font-weight: 800;
+      letter-spacing: 1px;
+      color: var(--accent);
+      text-transform: uppercase;
+    }
+    .drought-dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: #10b981;
+      box-shadow: 0 0 8px #10b981;
+    }
+    .planet-title {
+      font-size: 0.95rem;
+      font-weight: 700;
+      letter-spacing: 0.3px;
+      color: #f1f5f9;
+    }
+    .planet-sub {
+      font-size: 0.68rem;
+      color: #94a3b8;
+      margin-top: 2px;
+    }
+
+    /* Sağ Üst Bilimsel Sensör Hapları */
+    .telemetry-pills {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      align-items: flex-end;
+    }
+    .t-pill {
+      background: rgba(8, 12, 22, 0.55);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 10px;
+      padding: 5px 10px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 0.72rem;
+      font-variant-numeric: tabular-nums;
+    }
+    .t-pill span.lbl { color: #64748b; font-size: 0.65rem; text-transform: uppercase; letter-spacing: 0.5px; }
+    .t-pill span.val { color: #e2e8f0; font-weight: 700; }
+
+    /* Bildirim Hapı */
+    .toast-pill {
+      position: absolute;
+      top: calc(var(--safe-top) + 84px);
+      left: 50%;
+      transform: translateX(-50%) translateY(-10px);
+      z-index: 25;
+      background: rgba(10, 18, 32, 0.85);
+      border: 1px solid rgba(56, 189, 248, 0.45);
+      backdrop-filter: blur(16px);
+      color: #e0f2fe;
+      font-size: 0.76rem;
+      font-weight: 600;
+      padding: 8px 16px;
+      border-radius: 99px;
+      opacity: 0;
+      pointer-events: none;
+      transition: all 0.3s cubic-bezier(0.22, 1, 0.36, 1);
+      white-space: nowrap;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.7);
+    }
+    .toast-pill.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+    .toast-pill.warn { border-color: rgba(248, 113, 113, 0.6); color: #fecaca; }
+
+    /* Alt Katlanabilir Görev Çekmecesi (Varsayılan Olarak Gizli - Ekranı Kapatmaz) */
+    .drawer-backdrop {
+      position: absolute;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.4);
+      z-index: 15;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.35s ease;
+    }
+    .drawer-backdrop.open {
+      opacity: 1;
+      pointer-events: auto;
+    }
+
+    .habit-drawer {
+      position: absolute;
+      left: 12px;
+      right: 12px;
+      bottom: calc(var(--safe-bottom) + 74px);
+      z-index: 20;
+      background: rgba(10, 15, 28, 0.82);
+      backdrop-filter: blur(28px);
+      -webkit-backdrop-filter: blur(28px);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      border-radius: 26px;
+      padding: 18px;
+      transform: translateY(120%);
+      opacity: 0;
+      pointer-events: none;
+      transition: all 0.4s cubic-bezier(0.19, 1, 0.22, 1);
+      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.95);
+      max-height: 62dvh;
+      display: flex;
+      flex-direction: column;
+    }
+    .habit-drawer.open {
+      transform: translateY(0);
+      opacity: 1;
+      pointer-events: auto;
+    }
+
+    .drawer-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 12px;
+      padding-bottom: 10px;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    }
+    .drawer-header h4 {
+      font-size: 0.88rem;
+      text-transform: uppercase;
+      letter-spacing: 0.8px;
+      color: #cbd5e1;
+    }
+    .seed-badge {
+      font-size: 0.75rem;
+      font-weight: 700;
+      color: #a855f7;
+      background: rgba(168, 85, 247, 0.15);
+      border: 1px solid rgba(168, 85, 247, 0.35);
+      padding: 3px 10px;
+      border-radius: 99px;
+    }
+
+    .habit-list {
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    .habit-item {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 11px 14px;
+      border-radius: 14px;
+      background: rgba(255, 255, 255, 0.03);
+      border: 1px solid rgba(255, 255, 255, 0.06);
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+    .habit-item:active { transform: scale(0.98); }
+    .habit-item.completed {
+      background: rgba(16, 185, 129, 0.14);
+      border-color: rgba(16, 185, 129, 0.4);
+    }
+    .habit-left { display: flex; align-items: center; gap: 12px; }
+    .habit-icon { font-size: 1.25rem; }
+    .habit-info h4 { font-size: 0.86rem; font-weight: 600; color: #f1f5f9; }
+    .habit-info p { font-size: 0.7rem; color: #64748b; margin-top: 1px; }
+    .habit-item.completed .habit-info h4 { color: #34d399; }
+    .habit-item.completed .habit-info p { color: #6ee7b7; }
+
+    .check-circle {
+      width: 22px;
+      height: 22px;
+      border-radius: 50%;
+      border: 2px solid #475569;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 0.75rem;
+      color: transparent;
+      transition: all 0.2s ease;
+    }
+    .habit-item.completed .check-circle {
+      background: #10b981;
+      border-color: #10b981;
+      color: #05070f;
+      font-weight: bold;
+      box-shadow: 0 0 10px rgba(16, 185, 129, 0.6);
+    }
+
+    /* En Alt İnce Cam Dock (Sürekli Görünür, Ekranı Kapatmaz) */
+    .bottom-dock {
+      position: absolute;
+      bottom: calc(var(--safe-bottom) + 8px);
+      left: 12px;
+      right: 12px;
+      height: 56px;
+      z-index: 22;
+      background: rgba(10, 15, 28, 0.72);
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      border-radius: 20px;
+      padding: 6px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      box-shadow: 0 10px 35px rgba(0, 0, 0, 0.85);
+    }
+
+    .dock-btn-main {
+      flex: 1.3;
+      height: 100%;
+      border-radius: 14px;
+      border: 1px solid rgba(56, 189, 248, 0.35);
+      background: linear-gradient(135deg, rgba(56, 189, 248, 0.18), rgba(16, 185, 129, 0.15));
+      color: #f8fafc;
+      font-weight: 700;
+      font-size: 0.82rem;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .dock-btn-main:active { transform: scale(0.96); }
+    .dock-counter {
+      background: rgba(0, 0, 0, 0.45);
+      padding: 2px 7px;
+      border-radius: 8px;
+      font-size: 0.72rem;
+      color: #38bdf8;
+    }
+
+    .dock-btn-sim {
+      flex: 1;
+      height: 100%;
+      border-radius: 14px;
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      background: rgba(255, 255, 255, 0.05);
+      color: #cbd5e1;
+      font-weight: 600;
+      font-size: 0.76rem;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 5px;
+      cursor: pointer;
+    }
+    .dock-btn-sim:active { transform: scale(0.96); background: rgba(255, 255, 255, 0.12); }
+
+    .dock-btn-icon {
+      width: 42px;
+      height: 100%;
+      border-radius: 14px;
+      border: 1px solid rgba(255, 255, 255, 0.06);
+      background: rgba(255, 255, 255, 0.03);
+      color: #94a3b8;
+      font-size: 0.9rem;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+    }
+
+    @media (min-width: 768px) {
+      .bottom-dock { width: 420px; left: 50%; transform: translateX(-50%); }
+      .habit-drawer { width: 420px; left: 50%; transform: translateX(-50%) translateY(120%); }
+      .habit-drawer.open { transform: translateX(-50%) translateY(0); }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Üst Bilimsel Telemetri Barı -->
+  <div class="top-telemetry">
+    <div class="planet-header">
+      <div class="day-row">
+        <div class="drought-dot" id="status-dot"></div>
+        <span class="day-tag" id="day-badge">SOL 1 • EVRE 1</span>
+      </div>
+      <div class="planet-title" id="stage-title">KEPLER-25B (Çorak Kaya)</div>
+      <div class="planet-sub" id="drought-status">Yüzey: Kraterli Bazalt • İklim: Stabil</div>
+    </div>
+
+    <div class="telemetry-pills">
+      <div class="t-pill">
+        <span class="lbl">BİYOSFER</span>
+        <span class="val" id="ep-text">%0.0</span>
+      </div>
+      <div class="t-pill">
+        <span class="lbl">OKYANUS</span>
+        <span class="val" id="water-text">0 m</span>
+      </div>
+      <div class="t-pill">
+        <span class="lbl">SICAKLIK</span>
+        <span class="val" id="temp-text">-48 °C</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Bildirim Hapı -->
+  <div class="toast-pill" id="toast">🌱 Tohum Eklendi</div>
+
+  <!-- %100 Tam Ekran 3D Gezegen -->
+  <div id="canvas-container"></div>
+
+  <!-- Çekmece Karartma Arka Planı -->
+  <div class="drawer-backdrop" id="backdrop" onclick="toggleDrawer(false)"></div>
+
+  <!-- Açılır/Kapanır Görev Çekmecesi -->
+  <div class="habit-drawer" id="habit-drawer">
+    <div class="drawer-header">
+      <h4>Günlük Terraforming Görevleri</h4>
+      <span class="seed-badge" id="daily-pts">Tohum: +0 EP</span>
+    </div>
+
+    <div class="habit-list">
+      <div class="habit-item" data-id="h1" onclick="toggleHabit('h1')">
+        <div class="habit-left">
+          <span class="habit-icon">💧</span>
+          <div class="habit-info">
+            <h4>2 Litre Su İç</h4>
+            <p>+4 EP • Komet Buzul Çarpışması (Su Seviyesi)</p>
+          </div>
+        </div>
+        <div class="check-circle">✓</div>
+      </div>
+
+      <div class="habit-item" data-id="h2" onclick="toggleHabit('h2')">
+        <div class="habit-left">
+          <span class="habit-icon">📚</span>
+          <div class="habit-info">
+            <h4>30 Dk Kitap / Öğrenme</h4>
+            <p>+4 EP • Fotosentetik Bakteri & Flora</p>
+          </div>
+        </div>
+        <div class="check-circle">✓</div>
+      </div>
+
+      <div class="habit-item" data-id="h3" onclick="toggleHabit('h3')">
+        <div class="habit-left">
+          <span class="habit-icon">🏃</span>
+          <div class="habit-info">
+            <h4>5.000 Adım Hareket</h4>
+            <p>+4 EP • Atmosferik Yoğunluk & Oksijen</p>
+          </div>
+        </div>
+        <div class="check-circle">✓</div>
+      </div>
+
+      <div class="habit-item" data-id="h4" onclick="toggleHabit('h4')">
+        <div class="habit-left">
+          <span class="habit-icon">🧘</span>
+          <div class="habit-info">
+            <h4>15 Dk Zihin Dinlendirme</h4>
+            <p>+4 EP • Siklon & Bulut Gölgeleri</p>
+          </div>
+        </div>
+        <div class="check-circle">✓</div>
+      </div>
+
+      <div class="habit-item" data-id="h5" onclick="toggleHabit('h5')">
+        <div class="habit-left">
+          <span class="habit-icon">🌙</span>
+          <div class="habit-info">
+            <h4>23:30'dan Önce Uyku</h4>
+            <p>+4 EP • Manyetosfer & Yörünge Işıkları</p>
+          </div>
+        </div>
+        <div class="check-circle">✓</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- En Alt İnce Cam Dock -->
+  <div class="bottom-dock">
+    <button class="dock-btn-main" onclick="toggleDrawer()">
+      <span>⚡ Görevler</span>
+      <span class="dock-counter" id="dock-count">0 / 5</span>
+    </button>
+    <button class="dock-btn-sim" onclick="simulateNextDay()">
+      <span>🌙 +1 Gün (Hasat)</span>
+    </button>
+    <button class="dock-btn-icon" title="Gezegeni Sıfırla" onclick="resetPlanet()">
+      ↺
+    </button>
+  </div>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+
+  <script>
+    // --- 1. OYUN DURUMU VE KALICI HAFIZA ---
+    const STORAGE_KEY = 'terrahabit_phase1_v2_save';
+    const MAX_EP = 1000;
+    const EP_PER_HABIT = 4;
+
+    let state = {
+      day: 1,
+      ep: 0,
+      droughtDays: 0,
+      completedToday: [],
+      lastRealDate: new Date().toDateString()
+    };
+
+    function loadState() {
+      const saved = localStorage.getItem(STORAGE_KEY);
+      if (saved) {
+        try {
+          state = JSON.parse(saved);
+          const todayStr = new Date().toDateString();
+          if (state.lastRealDate && state.lastRealDate !== todayStr) {
+            processNightHarvest(false);
+            state.lastRealDate = todayStr;
+            saveState();
+          }
+        } catch (e) { console.error(e); }
+      }
+    }
+
+    function saveState() {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+    }
+
+    function vibrate(ms) {
+      if (navigator.vibrate) navigator.vibrate(ms);
+    }
+
+    let toastTimer = null;
+    function showToast(msg, isWarn = false) {
+      const t = document.getElementById('toast');
+      t.innerText = msg;
+      t.className = 'toast-pill show' + (isWarn ? ' warn' : '');
+      clearTimeout(toastTimer);
+      toastTimer = setTimeout(() => { t.className = 'toast-pill'; }, 2400);
+    }
+
+    function toggleDrawer(force) {
+      const drawer = document.getElementById('habit-drawer');
+      const backdrop = document.getElementById('backdrop');
+      const isOpen = typeof force === 'boolean' ? force : !drawer.classList.contains('open');
+      drawer.classList.toggle('open', isOpen);
+      backdrop.classList.toggle('open', isOpen);
+      vibrate(12);
+    }
+
+    // --- 2. GÖREV VE GECE HASADI MEKANİĞİ ---
+    let targetVitality = 0.0;
+    let currentVitality = 0.0;
+    let targetDrought = 0.0;
+    let currentDrought = 0.0;
+    let pulseIntensity = 0.0;
+
+    function toggleHabit(id) {
+      const idx = state.completedToday.indexOf(id);
+      if (idx === -1) {
+        state.completedToday.push(id);
+        vibrate(25);
+        pulseIntensity = 1.0;
+        showToast(`🌱 +${EP_PER_HABIT} EP Biyo-Tohum Eklendi`);
+      } else {
+        state.completedToday.splice(idx, 1);
+        vibrate(10);
+      }
+      saveState();
+      updateUI();
+    }
+
+    function processNightHarvest(isSimulated = true) {
+      const earnedEP = state.completedToday.length * EP_PER_HABIT;
+      if (earnedEP > 0) {
+        state.ep = Math.min(MAX_EP, state.ep + earnedEP);
+        state.droughtDays = Math.max(0, state.droughtDays - 1);
+        pulseIntensity = 1.4;
+        if (isSimulated) {
+          vibrate([25, 45, 55]);
+          showToast(`☀️ Sol ${state.day} Tamamlandı: +${earnedEP} EP Evrim!`);
+        }
+      } else {
+        state.droughtDays += 1;
+        if (state.droughtDays >= 2) {
+          state.ep = Math.max(0, state.ep - 5);
+        }
+        if (isSimulated) {
+          vibrate([70, 40, 70]);
+          showToast(`⚠️ İhmal! Kuraklık ve Fırtına Artıyor (${state.droughtDays}. Gün)`, true);
+        }
+      }
+      state.day += 1;
+      state.completedToday = [];
+      saveState();
+      updateUI();
+    }
+
+    function simulateNextDay() {
+      toggleDrawer(false);
+      processNightHarvest(true);
+    }
+
+    function resetPlanet() {
+      if (confirm('Gezegeni Sol 1 (Çorak Kaya) evresine sıfırlamak istiyor musun?')) {
+        state = { day: 1, ep: 0, droughtDays: 0, completedToday: [], lastRealDate: new Date().toDateString() };
+        saveState();
+        updateUI();
+        showToast('🔄 Gezegen sıfırlandı.');
+      }
+    }
+
+    function updateUI() {
+      const evoRatio = state.ep / MAX_EP;
+      const dailyEarned = state.completedToday.length * EP_PER_HABIT;
+      const previewBoost = (dailyEarned / MAX_EP) * 0.35;
+      const effectiveRatio = Math.min(1.0, evoRatio + previewBoost);
+
+      let evreNo = 1;
+      let evreName = "KEPLER-25B (Ölü Kaya)";
+      if (state.ep >= 800) { evreNo = 5; evreName = "KEPLER-25B (Yörünge Uygarlığı)"; }
+      else if (state.ep >= 420) { evreNo = 4; evreName = "KEPLER-25B (Canlı Biyosfer)"; }
+      else if (state.ep >= 200) { evreNo = 3; evreName = "KEPLER-25B (Kıtasal Yeşerme)"; }
+      else if (state.ep >= 60) { evreNo = 2; evreName = "KEPLER-25B (Hidrosfer Doğuşu)"; }
+
+      document.getElementById('day-badge').innerText = `SOL ${state.day} • EVRE ${evreNo}`;
+      document.getElementById('stage-title').innerText = evreName;
+      document.getElementById('ep-text').innerText = `%${(evoRatio * 100).toFixed(1)}`;
+      document.getElementById('water-text').innerText = `${Math.round(effectiveRatio * 3850)} m`;
+      document.getElementById('temp-text').innerText = `${Math.round(-48 + effectiveRatio * 63 - state.droughtDays * 3)} °C`;
+
+      document.getElementById('daily-pts').innerText = `Tohum: +${dailyEarned} EP`;
+      document.getElementById('dock-count').innerText = `${state.completedToday.length} / 5`;
+
+      const drStatus = document.getElementById('drought-status');
+      const dot = document.getElementById('status-dot');
+      if (state.droughtDays === 0) {
+        drStatus.innerText = "Yüzey: Aktif Tektonik • İklim: Stabil";
+        drStatus.style.color = "#94a3b8";
+        dot.style.background = "#10b981";
+        dot.style.boxShadow = "0 0 8px #10b981";
+      } else if (state.droughtDays === 1) {
+        drStatus.innerText = "İklim Uyarısı: Toz Fırtınası Başlangıcı";
+        drStatus.style.color = "#fbbf24";
+        dot.style.background = "#fbbf24";
+        dot.style.boxShadow = "0 0 8px #fbbf24";
+      } else {
+        drStatus.innerText = `⚠️ Kritik Kuraklık (${state.droughtDays} Sol İhmal)`;
+        drStatus.style.color = "#f87171";
+        dot.style.background = "#ef4444";
+        dot.style.boxShadow = "0 0 8px #ef4444";
+      }
+
+      document.querySelectorAll('.habit-item').forEach(el => {
+        const id = el.getAttribute('data-id');
+        el.classList.toggle('completed', state.completedToday.includes(id));
+      });
+
+      targetVitality = effectiveRatio;
+      targetDrought = Math.min(1.0, state.droughtDays / 3.0);
+    }
+
+    // --- 3. THREE.JS TAM EKRAN SAHNE KURULUMU ---
+    const container = document.getElementById('canvas-container');
+    const scene = new THREE.Scene();
+    const camera = new THREE.PerspectiveCamera(38, window.innerWidth / window.innerHeight, 0.1, 1000);
+    let targetZoom = 5.4;
+    camera.position.set(0, 0, targetZoom);
+
+    const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: "high-performance" });
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2.5));
+    container.appendChild(renderer.domElement);
+
+    // --- 4. TERRAGENESIS KALİTESİNDE PER-PIXEL BUMP & GÖLGE SHADER ---
+    const noiseGLSL = `
+      vec3 mod289(vec3 x) { return x - floor(x * (1.0 / 289.0)) * 289.0; }
+      vec4 mod289(vec4 x) { return x - floor(x * (1.0 / 289.0)) * 289.0; }
+      vec4 permute(vec4 x) { return mod289(((x*34.0)+1.0)*x); }
+      vec4 taylorInvSqrt(vec4 r) { return 1.79284291400159 - 0.85373472095314 * r; }
+
+      float snoise(vec3 v) {
+        const vec2 C = vec2(1.0/6.0, 1.0/3.0);
+        const vec4 D = vec4(0.0, 0.5, 1.0, 2.0);
+        vec3 i  = floor(v + dot(v, C.yyy));
+        vec3 x0 = v - i + dot(i, C.xxx);
+        vec3 g = step(x0.yzx, x0.xyz);
+        vec3 l = 1.0 - g;
+        vec3 i1 = min(g.xyz, l.zxy);
+        vec3 i2 = max(g.xyz, l.zxy);
+        vec3 x1 = x0 - i1 + C.xxx;
+        vec3 x2 = x0 - i2 + C.yyy;
+        vec3 x3 = x0 - D.yyy;
+        i = mod289(i);
+        vec4 p = permute(permute(permute(
+                  i.z + vec4(0.0, i1.z, i2.z, 1.0))
+                + i.y + vec4(0.0, i1.y, i2.y, 1.0))
+                + i.x + vec4(0.0, i1.x, i2.x, 1.0));
+        float n_ = 0.142857142857;
+        vec3 ns = n_ * D.wyz - D.xzx;
+        vec4 j = p - 49.0 * floor(p * ns.z * ns.z);
+        vec4 x_ = floor(j * ns.z);
+        vec4 y_ = floor(j - 7.0 * x_);
+        vec4 x = x_ *ns.x + ns.yyyy;
+        vec4 y = y_ *ns.x + ns.yyyy;
+        vec4 h = 1.0 - abs(x) - abs(y);
+        vec4 b0 = vec4(x.xy, y.xy);
+        vec4 b1 = vec4(x.zw, y.zw);
+        vec4 s0 = floor(b0)*2.0 + 1.0;
+        vec4 s1 = floor(b1)*2.0 + 1.0;
+        vec4 sh = -step(h, vec4(0.0));
+        vec4 a0 = b0.xzyw + s0.xzyw*sh.xxyy;
+        vec4 a1 = b1.xzyw + s1.xzyw*sh.zzww;
+        vec3 p0 = vec3(a0.xy,h.x);
+        vec3 p1 = vec3(a0.zw,h.y);
+        vec3 p2 = vec3(a1.xy,h.z);
+        vec3 p3 = vec3(a1.zw,h.w);
+        vec4 norm = taylorInvSqrt(vec4(dot(p0,p0), dot(p1,p1), dot(p2, p2), dot(p3,p3)));
+        p0 *= norm.x; p1 *= norm.y; p2 *= norm.z; p3 *= norm.w;
+        vec4 m = max(0.6 - vec4(dot(x0,x0), dot(x1,x1), dot(x2,x2), dot(x3,x3)), 0.0);
+        m = m * m;
+        return 42.0 * dot(m*m, vec4(dot(p0,x0), dot(p1,x1), dot(p2,x2), dot(p3,x3)));
+      }
+
+      // Gerçekçi Tektonik Kıta ve Keskin Sıradağlar (Ridged Multifractal)
+      float getTerrainHeight(vec3 p) {
+        // Ana kıta plakaları
+        float continents = snoise(p * 1.15) * 0.55 + snoise(p * 2.3) * 0.25;
+        
+        // Keskin dağ sırtları ve kanyonlar
+        float ridge = 0.0;
+        float amp = 0.28;
+        float freq = 3.8;
+        for (int i = 0; i < 5; i++) {
+          float n = 1.0 - abs(snoise(p * freq));
+          n = n * n;
+          ridge += n * amp;
+          freq *= 2.15;
+          amp *= 0.48;
+        }
+
+        // Krater çukurları (Özellikle çorak evrede belirgin)
+        float cr = snoise(p * 9.5);
+        float craterRing = smoothstep(0.45, 0.62, cr) - smoothstep(0.62, 0.78, cr) * 1.6;
+
+        return continents + ridge - 0.18 + craterRing * 0.045;
+      }
+
+      // Siklonik Bulut Yoğunluğu
+      float getCloudDensity(vec3 p, float t) {
+        vec3 q = p * 1.5 + vec3(t * 0.015, -t * 0.008, 0.0);
+        float warp = snoise(q * 1.4) * 0.45;
+        vec3 r = q + vec3(warp);
+        float f = 0.0;
+        float amp = 0.55;
+        for (int i = 0; i < 4; i++) {
+          f += amp * snoise(r);
+          r *= 2.1;
+          amp *= 0.5;
+        }
+        return smoothstep(0.02, 0.52, f);
+      }
+    `;
+
+    // Küre Geometrisini Bozmuyoruz (Uzaydan Kusursuz Küre Görünümü)
+    const planetVertexShader = `
+      varying vec3 vObjPos;
+      varying vec3 vObjNormal;
+      varying vec3 vViewPos;
+      varying mat3 vNormalMat;
+
+      void main() {
+        vObjPos = normalize(position);
+        vObjNormal = normalize(normal);
+        vNormalMat = normalMatrix;
+        vec4 mvPos = modelViewMatrix * vec4(position, 1.0);
+        vViewPos = mvPos.xyz;
+        gl_Position = projectionMatrix * mvPos;
+      }
+    `;
+
+    const planetFragmentShader = `
+      uniform float uVitality;
+      uniform float uDrought;
+      uniform float uPulse;
+      uniform float uTime;
+      uniform vec3 uLightDirObj;
+      varying vec3 vObjPos;
+      varying vec3 vObjNormal;
+      varying vec3 vViewPos;
+      varying mat3 vNormalMat;
+      ${noiseGLSL}
+
+      void main() {
+        vec3 p = normalize(vObjPos);
+        float h = getTerrainHeight(p);
+
+        // Su seviyesi hesabı
+        float effectiveWater = clamp(uVitality * (1.0 - uDrought * 0.35), 0.0, 1.0);
+        float waterLevel = mix(-0.42, 0.06, effectiveWater);
+        bool isOcean = (h < waterLevel) && (effectiveWater > 0.015);
+
+        // --- PER-PIXEL BUMP / NORMAL MAPPING (Keskin Dağ ve Krater Işıklandırması) ---
+        vec3 up = abs(p.y) < 0.99 ? vec3(0.0, 1.0, 0.0) : vec3(1.0, 0.0, 0.0);
+        vec3 tangent = normalize(cross(up, p));
+        vec3 bitangent = cross(p, tangent);
+
+        float eps = 0.0022;
+        float hX = getTerrainHeight(normalize(p + tangent * eps));
+        float hY = getTerrainHeight(normalize(p + bitangent * eps));
+
+        // Okyanus yüzeyi pürüzsüzdür, karalar ise sarp kayalıktır
+        float bumpScale = isOcean ? 0.4 : 22.0;
+        vec3 bumpedObjNormal = normalize(p - (tangent * (hX - h) + bitangent * (hY - h)) * bumpScale);
+
+        vec3 N = normalize(vNormalMat * bumpedObjNormal);
+        vec3 smoothN = normalize(vNormalMat * p);
+        vec3 L = normalize(vNormalMat * uLightDirObj);
+        vec3 V = normalize(-vViewPos);
+
+        float NdotL = max(dot(N, L), 0.0);
+        float smoothNdotL = dot(smoothN, L);
+
+        // --- BULUT GÖLGESİ (Bulutların Kıtalara ve Okyanusa Düşen Gölgesi) ---
+        float cloudVis = smoothstep(0.04, 0.55, uVitality);
+        float shadowSample = getCloudDensity(normalize(p + uLightDirObj * 0.028), uTime);
+        float cloudShadow = 1.0 - (shadowSample * cloudVis * 0.65);
+
+        // --- NASA / TERRAGENESIS GERÇEKÇİ BİYOM PALETİ ---
+        float alt = max(0.0, h - waterLevel);
+        float latitude = abs(p.y);
+
+        // 1. Çorak Mars/Merkür Bazalt ve Oksitli Toprak
+        vec3 basaltDark = vec3(0.14, 0.10, 0.09);
+        vec3 ironOxide = vec3(0.48, 0.23, 0.14);
+        vec3 dustyHigh = vec3(0.66, 0.42, 0.28);
+        vec3 barrenCol = mix(basaltDark, ironOxide, smoothstep(-0.35, 0.15, h));
+        barrenCol = mix(barrenCol, dustyHigh, smoothstep(0.15, 0.55, h));
+
+        // 2. Canlı Dünya Biyomları (Enlem ve Rakıma Göre)
+        vec3 beachSand = vec3(0.76, 0.68, 0.50);
+        vec3 savanna = vec3(0.45, 0.48, 0.18);
+        vec3 tropicalForest = vec3(0.05, 0.26, 0.09);
+        vec3 borealForest = vec3(0.08, 0.20, 0.12);
+        vec3 alpineRock = vec3(0.32, 0.30, 0.29);
+        vec3 glacierSnow = vec3(0.94, 0.97, 1.0);
+
+        // Kuraklıkta sararan bitki örtüsü
+        vec3 vegColor = mix(tropicalForest, borealForest, smoothstep(0.2, 0.7, latitude));
+        vegColor = mix(vegColor, savanna, smoothstep(0.0, 0.35, abs(p.y - 0.15)) * 0.45);
+        vegColor = mix(vegColor, vec3(0.55, 0.38, 0.15), uDrought);
+
+        float vegCoverage = smoothstep(0.12, 0.78, uVitality);
+        vec3 landCol = mix(barrenCol, vegColor, vegCoverage);
+
+        // Kıyı şeridi kumsalı ve yüksek dağ kayalıkları
+        landCol = mix(beachSand, landCol, smoothstep(0.0, 0.025, alt));
+        float slope = 1.0 - max(dot(bumpedObjNormal, p), 0.0);
+        landCol = mix(landCol, alpineRock, smoothstep(0.16, 0.36, alt) + slope * 1.8);
+
+        // Kutup Buzulları ve Dağ Zirvesi Karları
+        float snowLine = (1.0 - latitude * 0.85) * 0.38;
+        float snowMask = smoothstep(snowLine, snowLine + 0.08, alt) * smoothstep(0.08, 0.4, uVitality) * (1.0 - uDrought * 0.6);
+        landCol = mix(landCol, glacierSnow, clamp(snowMask, 0.0, 1.0));
+
+        vec3 surfaceAlbedo = landCol;
+        float specular = 0.0;
+
+        // 3. Okyanus Derinliği (Batimetri) ve Güneş Yansıması
+        if (isOcean) {
+          float depth = clamp((waterLevel - h) * 6.5, 0.0, 1.0);
+          vec3 coastalShelf = vec3(0.04, 0.38, 0.48);
+          vec3 abyssalOcean = vec3(0.01, 0.05, 0.14);
+          surfaceAlbedo = mix(coastalShelf, abyssalOcean, smoothstep(0.0, 0.85, depth));
+
+          // Güneşin su üzerindeki gerçekçi parlaması (Blinn-Phong Specular)
+          vec3 H = normalize(L + V);
+          float specAngle = max(dot(N, H), 0.0);
+          specular = pow(specAngle, 64.0) * 0.85 * cloudShadow * smoothstep(0.0, 0.2, smoothNdotL);
+        }
+
+        // --- GÜNDÜZ / GECE TERMİNATÖR KIZILLIĞI (Rayleigh Scattering) ---
+        float dayFactor = smoothstep(-0.08, 0.12, smoothNdotL);
+        float twilightBand = smoothstep(-0.18, 0.02, smoothNdotL) * smoothstep(0.28, -0.02, smoothNdotL);
+        vec3 sunsetScatter = vec3(0.95, 0.32, 0.08) * twilightBand * (0.25 + 0.55 * uVitality);
+
+        // Atmosferik Kenar Halesi (Fresnel Limb)
+        float fresnel = pow(1.0 - max(dot(V, smoothN), 0.0), 3.4);
+        vec3 barrenAtmos = vec3(0.72, 0.36, 0.18);
+        vec3 earthAtmos = vec3(0.18, 0.55, 0.98);
+        vec3 atmosCol = mix(barrenAtmos, earthAtmos, smoothstep(0.05, 0.6, uVitality));
+        atmosCol = mix(atmosCol, vec3(0.78, 0.45, 0.15), uDrought);
+
+        // --- GECE TARAFI MEDENİYET ŞEHİR IŞIKLARI (Evre 5) ---
+        float nightMask = smoothstep(0.08, -0.18, smoothNdotL);
+        float cityCluster = smoothstep(0.54, 0.66, snoise(p * 14.0)) * smoothstep(0.3, 0.7, snoise(p * 42.0));
+        float coastalPref = smoothstep(0.18, 0.01, alt); // Şehirler kıyılara ve ovalara kurulur
+        vec3 cityLights = vec3(1.0, 0.76, 0.38) * cityCluster * (0.4 + 0.6 * coastalPref) * nightMask * (isOcean ? 0.0 : 1.0) * smoothstep(0.75, 0.95, uVitality) * (1.0 - uDrought);
+
+        // Görev Tamamlama Biyo-Tarama Dalgası
+        float scanWave = exp(-pow((p.y - sin(uTime * 3.0)) * 4.5, 2.0)) * uPulse;
+        vec3 pulseCol = vec3(0.15, 0.85, 0.65) * scanWave * 0.4;
+
+        // Nihai Kompozisyon
+        vec3 diffuseLight = surfaceAlbedo * NdotL * cloudShadow * 1.15;
+        vec3 ambientLight = surfaceAlbedo * 0.025; // Uzay karanlığı (AMOLED kontrastı)
+        vec3 limbGlow = atmosCol * fresnel * smoothstep(-0.25, 0.35, smoothNdotL) * 0.75;
+
+        vec3 finalRGB = diffuseLight + ambientLight + specular + sunsetScatter + limbGlow + cityLights + pulseCol;
+
+        // Sinematik Tonlama (Filmic Contrast)
+        finalRGB = pow(clamp(finalRGB, 0.0, 1.0), vec3(0.92));
+
+        gl_FragColor = vec4(finalRGB, 1.0);
+      }
+    `;
+
+    const planetGroup = new THREE.Group();
+    scene.add(planetGroup);
+
+    // 1. Ana Gezegen Küresi
+    const planetGeo = new THREE.SphereGeometry(1.55, 128, 128);
+    const lightDirVec = new THREE.Vector3(1.3, 0.45, 0.9).normalize();
+
+    const planetMat = new THREE.ShaderMaterial({
+      vertexShader: planetVertexShader,
+      fragmentShader: planetFragmentShader,
+      uniforms: {
+        uVitality: { value: 0.0 },
+        uDrought: { value: 0.0 },
+        uPulse: { value: 0.0 },
+        uTime: { value: 0.0 },
+        uLightDirObj: { value: lightDirVec }
+      }
+    });
+    const planetMesh = new THREE.Mesh(planetGeo, planetMat);
+    planetGroup.add(planetMesh);
+
+    // 2. Bağımsız Siklonik Bulut Küresi
+    const cloudMat = new THREE.ShaderMaterial({
+      vertexShader: `
+        varying vec3 vObjPos;
+        varying vec3 vNormal;
+        varying vec3 vViewPos;
+        void main() {
+          vObjPos = normalize(position);
+          vNormal = normalize(normalMatrix * normal);
+          vec4 mvPos = modelViewMatrix * vec4(position, 1.0);
+          vViewPos = mvPos.xyz;
+          gl_Position = projectionMatrix * mvPos;
+        }
+      `,
+      fragmentShader: `
+        uniform float uVitality;
+        uniform float uDrought;
+        uniform float uTime;
+        uniform vec3 uLightDirView;
+        varying vec3 vObjPos;
+        varying vec3 vNormal;
+        varying vec3 vViewPos;
+        ${noiseGLSL}
+        void main() {
+          float cloudVis = smoothstep(0.04, 0.55, uVitality);
+          if (cloudVis <= 0.001) discard;
+
+          float d = getCloudDensity(vObjPos, uTime);
+          float NdotL = dot(vNormal, uLightDirView);
+          float dayLight = smoothstep(-0.18, 0.25, NdotL);
+
+          // Gün batımında kızaran bulutlar
+          float sunset = smoothstep(-0.15, 0.05, NdotL) * smoothstep(0.25, 0.0, NdotL);
+          vec3 baseCloud = mix(vec3(0.96, 0.98, 1.0), vec3(0.65, 0.52, 0.40), uDrought);
+          vec3 cloudCol = baseCloud * dayLight + vec3(0.95, 0.42, 0.18) * sunset * 0.6;
+
+          gl_FragColor = vec4(cloudCol, d * cloudVis * 0.85 * smoothstep(-0.25, 0.05, NdotL));
+        }
+      `,
+      uniforms: {
+        uVitality: { value: 0.0 },
+        uDrought: { value: 0.0 },
+        uTime: { value: 0.0 },
+        uLightDirView: { value: lightDirVec }
+      },
+      transparent: true,
+      depthWrite: false
+    });
+    const cloudMesh = new THREE.Mesh(new THREE.SphereGeometry(1.572, 96, 96), cloudMat);
+    planetGroup.add(cloudMesh);
+
+    // 3. Dış Atmosferik Aura (Rayleigh Halo)
+    const haloMat = new THREE.ShaderMaterial({
+      vertexShader: `
+        varying vec3 vNormal;
+        varying vec3 vViewPos;
+        void main() {
+          vNormal = normalize(normalMatrix * normal);
+          vec4 mvPos = modelViewMatrix * vec4(position, 1.0);
+          vViewPos = mvPos.xyz;
+          gl_Position = projectionMatrix * mvPos;
+        }
+      `,
+      fragmentShader: `
+        uniform float uVitality;
+        uniform float uDrought;
+        varying vec3 vNormal;
+        varying vec3 vViewPos;
+        void main() {
+          vec3 V = normalize(-vViewPos);
+          float rim = pow(0.68 - dot(vNormal, V), 3.2);
+          vec3 col = mix(vec3(0.75, 0.32, 0.14), vec3(0.15, 0.58, 1.0), smoothstep(0.05, 0.6, uVitality));
+          col = mix(col, vec3(0.75, 0.45, 0.15), uDrought);
+          gl_FragColor = vec4(col, rim * (0.28 + uVitality * 0.55));
+        }
+      `,
+      uniforms: { uVitality: { value: 0.0 }, uDrought: { value: 0.0 } },
+      blending: THREE.AdditiveBlending,
+      side: THREE.BackSide,
+      transparent: true,
+      depthWrite: false
+    });
+    const haloMesh = new THREE.Mesh(new THREE.SphereGeometry(1.72, 64, 64), haloMat);
+    scene.add(haloMesh);
+
+    // 4. Derin Uzay Yıldız Tarlası
+    const starGeo = new THREE.BufferGeometry();
+    const starCount = 1400;
+    const starPos = new Float32Array(starCount * 3);
+    for (let i = 0; i < starCount * 3; i++) {
+      starPos[i] = (Math.random() - 0.5) * 55;
+    }
+    starGeo.setAttribute('position', new THREE.BufferAttribute(starPos, 3));
+    const stars = new THREE.Points(starGeo, new THREE.PointsMaterial({ color: 0xe2e8f0, size: 0.032, transparent: true, opacity: 0.55 }));
+    scene.add(stars);
+
+    // --- 5. DOKUNMATİK DÖNDÜRME + İKİ PARMAK (PINCH) ZOOM ---
+    let isDragging = false;
+    let prevX = 0, prevY = 0;
+    let velX = 0.0012, velY = 0.0;
+    let initialPinchDist = null;
+
+    container.addEventListener('pointerdown', (e) => {
+      isDragging = true;
+      prevX = e.clientX;
+      prevY = e.clientY;
+    });
+    window.addEventListener('pointerup', () => { isDragging = false; initialPinchDist = null; });
+    window.addEventListener('pointermove', (e) => {
+      if (!isDragging) return;
+      const dx = e.clientX - prevX;
+      const dy = e.clientY - prevY;
+      velX = dx * 0.0055;
+      velY = dy * 0.0055;
+      planetGroup.rotation.y += velX;
+      planetGroup.rotation.x = Math.max(-1.2, Math.min(1.2, planetGroup.rotation.x + velY));
+      prevX = e.clientX;
+      prevY = e.clientY;
+    });
+
+    // Mobil Pinch-to-Zoom ve Fare Tekerleği Zoom
+    container.addEventListener('wheel', (e) => {
+      targetZoom = Math.max(2.8, Math.min(8.0, targetZoom + e.deltaY * 0.003));
+    }, { passive: true });
+
+    container.addEventListener('touchmove', (e) => {
+      if (e.touches.length === 2) {
+        isDragging = false;
+        const dx = e.touches[0].clientX - e.touches[1].clientX;
+        const dy = e.touches[0].clientY - e.touches[1].clientY;
+        const dist = Math.hypot(dx, dy);
+        if (initialPinchDist) {
+          const delta = initialPinchDist - dist;
+          targetZoom = Math.max(2.9, Math.min(7.5, targetZoom + delta * 0.012));
+        }
+        initialPinchDist = dist;
+      }
+    }, { passive: true });
+
+    window.addEventListener('resize', () => {
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(window.innerWidth, window.innerHeight);
+    });
+
+    loadState();
+    updateUI();
+
+    // --- 6. 120HZ ANİMASYON VE FİZİK DÖNGÜSÜ ---
+    const clock = new THREE.Clock();
+    const worldLightDir = new THREE.Vector3(1.3, 0.45, 0.9).normalize();
+
+    function animate() {
+      requestAnimationFrame(animate);
+      const elapsed = clock.getElapsedTime();
+
+      currentVitality += (targetVitality - currentVitality) * 0.04;
+      currentDrought += (targetDrought - currentDrought) * 0.04;
+      pulseIntensity *= 0.93;
+      camera.position.z += (targetZoom - camera.position.z) * 0.08;
+
+      if (!isDragging) {
+        velX += (0.0014 - velX) * 0.03;
+        velY *= 0.92;
+        planetGroup.rotation.y += velX;
+        planetGroup.rotation.x = Math.max(-1.2, Math.min(1.2, planetGroup.rotation.x + velY));
+      }
+
+      // Güneşin yönünü gezegenin dönüşünden bağımsız sabit tut (Gerçekçi Yörünge Işığı)
+      planetMesh.updateMatrixWorld();
+      const invMat = new THREE.Matrix4().copy(planetMesh.matrixWorld).invert();
+      const localLight = worldLightDir.clone().transformDirection(invMat).normalize();
+
+      planetMat.uniforms.uLightDirObj.value.copy(localLight);
+      planetMat.uniforms.uVitality.value = currentVitality;
+      planetMat.uniforms.uDrought.value = currentDrought;
+      planetMat.uniforms.uPulse.value = pulseIntensity;
+      planetMat.uniforms.uTime.value = elapsed;
+
+      cloudMat.uniforms.uVitality.value = currentVitality;
+      cloudMat.uniforms.uDrought.value = currentDrought;
+      cloudMat.uniforms.uTime.value = elapsed;
+
+      haloMat.uniforms.uVitality.value = currentVitality;
+      haloMat.uniforms.uDrought.value = currentDrought;
+
+      renderer.render(scene, camera);
+    }
+    animate();
+  </script>
+</body>
+</html>
