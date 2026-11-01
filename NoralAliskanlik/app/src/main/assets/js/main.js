@@ -10,7 +10,7 @@ import {
 import { todayKey, setNow } from './clock.js';
 import {
   loadState, saveState, exportBackup, requestImport,
-  loadSettings, saveSettings, modelInfo, androidMi,
+  loadSettings, saveSettings, modelInfo,
 } from './storage.js';
 
 // Geliştirici modu: tarayıcıda ?tarih=2026-05-01 ile sahte gün (test için).
@@ -62,39 +62,34 @@ function yuklemeGoster(acik, metin = 'Beyin modeli yükleniyor…') {
   $('loading').textContent = metin;
 }
 
-function karsilamaGoster(acik) {
-  $('welcome').classList.toggle('open', acik);
-}
-
 /** Sahne (beyin + etiketler) hazır: yumuşakça görünür olsun. */
 function sahneyiGoster() {
   document.body.classList.add('sahne-hazir');
 }
 
+/** APK'nın içindeki hazır beyin modeli (Draco + WebP, ~2 MB). */
+const HAZIR_MODEL = 'brain.glb';
+
+/**
+ * Açılış: kullanıcının yüklediği model varsa o, yoksa APK'daki hazır model.
+ * İkisi de açılamazsa (olmaması gerekir) basit örnek beyin gösterilir.
+ */
 async function kayitliModeliYukle() {
   const info = modelInfo();
-  // Tarayıcıda denerken (köprü yok) klasördeki brain.glb denenir.
-  const url = info.exists ? info.url : (androidMi ? null : 'brain.glb');
-  if (!url) {
-    sahne.showFallbackBrain();
-    sahneyiGoster();
-    karsilamaGoster(true);
-    return;
-  }
   yuklemeGoster(true);
-  const ok = await sahne.loadBrain(url);
-  yuklemeGoster(false);
-  if (!ok) {
-    sahne.showFallbackBrain();
-    if (info.exists) bildirimGoster('Kayıtlı model açılamadı — yeni bir model seçin');
-    karsilamaGoster(true);
+  let ok = false;
+  if (info.exists) {
+    ok = await sahne.loadBrain(info.url);
+    if (!ok) bildirimGoster('Yüklediğin model açılamadı — hazır model kullanılıyor');
   }
+  if (!ok) ok = await sahne.loadBrain(HAZIR_MODEL);
+  yuklemeGoster(false);
+  if (!ok) sahne.showFallbackBrain();
   sahneyiGoster();
 }
 
 /** Yeni seçilen model: yükle; başarılıysa ayarları sıfırla ve Ayar panelini aç. */
 async function yeniModeliYukle(url) {
-  karsilamaGoster(false);
   yuklemeGoster(true);
   const ok = await sahne.loadBrain(url);
   yuklemeGoster(false);
@@ -136,8 +131,6 @@ document.querySelectorAll('.menu-item:not(.toggle)').forEach((el) =>
 // "Beyin modeli yükle" → gizli dosya seçici (Android'de sistem dosya seçicisi açılır)
 const glbInput = $('glb-input');
 $('btn-upload').addEventListener('click', () => glbInput.click());
-$('welcome-upload').addEventListener('click', () => glbInput.click());
-$('welcome-skip').addEventListener('click', () => karsilamaGoster(false));
 // Yalnızca tarayıcıda çalışır; Android'de dosya doğrudan iç depolamaya kopyalanır.
 glbInput.addEventListener('change', () => {
   const file = glbInput.files?.[0];
@@ -632,7 +625,6 @@ window.NoralApp = {
   onImport(metin) { yedekGeldi(metin); },
   /** Model dosyası iç depolamaya kopyalanmaya başladı (büyük dosyada birkaç saniye). */
   onModelCopyStart() {
-    karsilamaGoster(false);
     yuklemeGoster(true, 'Model telefona kaydediliyor…');
   },
   /** Kopyalama bitti: { exists, url, name } */
@@ -643,7 +635,6 @@ window.NoralApp = {
   onModelError(mesaj) {
     yuklemeGoster(false);
     bildirimGoster(mesaj);
-    if (!modelInfo().exists) karsilamaGoster(true);
   },
 };
 

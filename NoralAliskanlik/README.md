@@ -12,9 +12,11 @@ Three.js beyin haritası + alışkanlık takibi. WebView içinde, internetsiz ç
 - `app/src/main/java/com/noralaliskanlik/` — Kotlin: WebView, SharedPreferences köprüsü, yedek, alarmlar
 
 ## Beyin modeli
-APK'da model yoktur. İlk açılışta **Beyin modeli yükle** ile telefondaki `.glb` seçilir;
-uygulamanın iç depolamasına (`filesDir/model`) kopyalanır ve her açılışta oradan yüklenir.
-Yeni model seçilince eskisinin yerine geçer, ayarlar sıfırlanır ve Ayar paneli açılır.
+APK'nın içinde hazır bir model var: `assets/brain.glb` (orijinal 30 MB modelden
+gltf-transform ile Draco + WebP + %50 sadeleştirme, ~2 MB). Uygulama doğrudan onunla açılır.
+İstenirse ⚙ → **Beyin modeli yükle** ile başka bir `.glb` seçilir; iç depolamaya
+(`filesDir/model`) kopyalanır ve hazır modelin yerine her açılışta o yüklenir.
+Yeni model seçilince ayarlar sıfırlanır ve Ayar paneli açılır.
 Draco/WebP sıkıştırmalı modeller desteklenir (çözücü `assets/lib/draco`).
 
 ## Testler

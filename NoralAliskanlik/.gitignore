@@ -1,5 +1,6 @@
-# Beyin modeli depoya girmez (25 MB+); uygulama içinden yüklenir.
+# Büyük modeller depoya girmez; yalnızca sıkıştırılmış hazır model (~2 MB) APK'ya gömülür.
 *.glb
+!app/src/main/assets/brain.glb
 .gradle/
 build/
 app/build/

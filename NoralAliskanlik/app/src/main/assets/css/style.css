@@ -729,55 +729,6 @@ html, body {
 .model-credit { cursor: default; text-align: left; }
 .credit-input { font-size: 12px; padding: 8px 10px; margin-top: 6px; }
 
-/* İlk açılış: model yoksa karşılama ekranı */
-#welcome {
-  position: fixed;
-  inset: 0;
-  z-index: 45;
-  display: none;
-  align-items: center;
-  justify-content: center;
-  padding: 24px;
-  background: radial-gradient(circle at 50% 40%, rgba(168, 85, 247, 0.16), rgba(6, 9, 19, 0.9) 65%);
-}
-#welcome.open { display: flex; animation: cel-fade 0.4s ease both; }
-.welcome-card {
-  width: min(360px, 100%);
-  text-align: center;
-  background: rgba(12, 18, 34, 0.9);
-  border: 1px solid rgba(255, 255, 255, 0.14);
-  border-radius: 24px;
-  padding: 28px 22px 22px;
-  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.6);
-}
-.welcome-icon {
-  width: 84px;
-  height: 84px;
-  margin: 0 auto 16px;
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 42px;
-  background: radial-gradient(circle, rgba(0, 229, 255, 0.25), rgba(168, 85, 247, 0.12) 60%, transparent 70%);
-  box-shadow: 0 0 40px rgba(0, 229, 255, 0.25);
-  animation: welcome-pulse 2.6s ease-in-out infinite;
-}
-@keyframes welcome-pulse { 50% { transform: scale(1.07); box-shadow: 0 0 60px rgba(168, 85, 247, 0.35); } }
-.welcome-title { font-size: 22px; font-weight: 800; letter-spacing: -0.02em; }
-.welcome-text { font-size: 13px; color: #cbd5e1; line-height: 1.55; margin: 10px 0 20px; }
-.welcome-card .btn-Check { width: 100%; padding: 14px; font-size: 14px; }
-.welcome-skip {
-  margin-top: 14px;
-  background: none;
-  border: none;
-  color: var(--text-muted);
-  font-family: inherit;
-  font-size: 12px;
-  text-decoration: underline;
-}
-.welcome-note { font-size: 11px; color: var(--text-muted); margin-top: 14px; line-height: 1.5; }
-
 /* =====================================================================
    Sade arayüz: tek ayar menüsü, yeni detay kartı
    ===================================================================== */
