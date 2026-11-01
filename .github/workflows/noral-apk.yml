@@ -37,7 +37,12 @@ jobs:
       - name: İmza anahtarını hazırla
         if: env.KEYSTORE_B64 != ''
         run: |
-          printf '%s' "$KEYSTORE_B64" | tr -d '\r\n ' | base64 --decode > "$RUNNER_TEMP/release.jks"
+          TEMIZ=$(printf '%s' "$KEYSTORE_B64" | tr -d '\r\n\t ')
+          # Bozuk / eksik yapıştırılmış secret için anlaşılır hata (değerin kendisi yazdırılmaz)
+          if ! printf '%s' "$TEMIZ" | base64 --decode > "$RUNNER_TEMP/release.jks" 2>/dev/null; then
+            echo "::error::ANDROID_KEYSTORE_BASE64 bozuk: ${#TEMIZ} karakter geldi (Nöral Alışkanlık anahtarı 3508 karakter). Değeri ANDROID_KEYSTORE_BASE64.txt dosyasından 'Tümünü seç → Kopyala' ile yeniden yapıştırın."
+            exit 1
+          fi
           echo "ANDROID_KEYSTORE_FILE=$RUNNER_TEMP/release.jks" >> "$GITHUB_ENV"
 
       - name: Debug APK derle
