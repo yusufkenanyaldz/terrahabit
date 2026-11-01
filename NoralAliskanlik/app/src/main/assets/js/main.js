@@ -66,18 +66,30 @@ function karsilamaGoster(acik) {
   $('welcome').classList.toggle('open', acik);
 }
 
+/** Sahne (beyin + etiketler) hazır: yumuşakça görünür olsun. */
+function sahneyiGoster() {
+  document.body.classList.add('sahne-hazir');
+}
+
 async function kayitliModeliYukle() {
   const info = modelInfo();
   // Tarayıcıda denerken (köprü yok) klasördeki brain.glb denenir.
   const url = info.exists ? info.url : (androidMi ? null : 'brain.glb');
-  if (!url) { karsilamaGoster(true); return; }
+  if (!url) {
+    sahne.showFallbackBrain();
+    sahneyiGoster();
+    karsilamaGoster(true);
+    return;
+  }
   yuklemeGoster(true);
   const ok = await sahne.loadBrain(url);
   yuklemeGoster(false);
   if (!ok) {
+    sahne.showFallbackBrain();
     if (info.exists) bildirimGoster('Kayıtlı model açılamadı — yeni bir model seçin');
     karsilamaGoster(true);
   }
+  sahneyiGoster();
 }
 
 /** Yeni seçilen model: yükle; başarılıysa ayarları sıfırla ve Ayar panelini aç. */
@@ -87,9 +99,12 @@ async function yeniModeliYukle(url) {
   const ok = await sahne.loadBrain(url);
   yuklemeGoster(false);
   if (!ok) {
+    sahne.showFallbackBrain(); // Önceden model yoksa sahne boş kalmasın
+    sahneyiGoster();
     bildirimGoster('Model açılamadı (.glb dosyasını kontrol edin)');
     return;
   }
+  sahneyiGoster();
   // Her modelin yönü farklı olabilir: ayarları sıfırla ve paneli aç.
   ayarlar = varsayilanAyarlar();
   sahne.applySettings(ayarlar);

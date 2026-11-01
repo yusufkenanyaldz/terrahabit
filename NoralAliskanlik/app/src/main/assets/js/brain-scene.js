@@ -283,8 +283,14 @@ export function createBrainScene({ container, labelsContainer, leaderSvg, ayarla
     return grup;
   }
 
-  proceduralBrainGroup = olusturProsedurelBeyin();
-  brainPivotGroup.add(proceduralBrainGroup);
+  // Örnek (prosedürel) beyin açılışta çizilmez: gerçek model gelmeden önce bir an
+  // görünüp "göz kırpıyordu". Yalnızca model yoksa veya açılamazsa gösterilir.
+  function showFallbackBrain() {
+    if (loadedGlbModel || proceduralBrainGroup) return;
+    proceduralBrainGroup = olusturProsedurelBeyin();
+    brainPivotGroup.add(proceduralBrainGroup);
+    guncelleBeyinMateryalleri();
+  }
 
   // Şeffaf modda iç küreler net görünür (depthTest: false); opak modda derinlik testi açık.
   function guncelleIcDerinlikGorunumu() {
@@ -904,5 +910,5 @@ export function createBrainScene({ container, labelsContainer, leaderSvg, ayarla
     composer.setSize(window.innerWidth, window.innerHeight);
   });
 
-  return { loadBrain, setHabits, select, flashMiss, celebrate, setTransparent, toggleClip, applySettings, setGorunurAlan };
+  return { loadBrain, showFallbackBrain, setHabits, select, flashMiss, celebrate, setTransparent, toggleClip, applySettings, setGorunurAlan };
 }
