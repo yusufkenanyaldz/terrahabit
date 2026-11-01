@@ -217,12 +217,19 @@ export function createBrainScene({ container, labelsContainer, leaderSvg, ayarla
           vec3 viewDir = normalize(vViewPosition);
           // 'normal' her ışıklı malzemede var; vNormal ise normal'i olmayan
           // (düz gölgeli) modellerde tanımsız kalır ve shader derlenmez.
-          vec3 nrm = normalize(normal);
-          float fresnel = pow(1.0 - abs(dot(nrm, viewDir)), 2.3);
+          // Güvenli normalize: sıfır uzunluklu normal (bozuk üçgen) NaN üretmesin.
+          vec3 nrm = normal * inversesqrt(max(dot(normal, normal), 1e-8));
+          // ÖNEMLİ: yuvarlama hatasıyla |dot| 1'i az farkla aşınca taban negatif olur ve
+          // pow(negatif, 2.3) NaN verir. Tek bir NaN piksel bloom bulanıklığıyla bütün
+          // ekrana yayılıp o kareyi bozuyordu (şeffaf modda görüntünün bir anlık kopması).
+          float fresnelTaban = clamp(1.0 - abs(dot(nrm, viewDir)), 0.0, 1.0);
+          float fresnel = pow(fresnelTaban, 2.3);
           vec3 rimColor = vec3(0.48, 0.84, 1.0);
           gl_FragColor.rgb = mix(gl_FragColor.rgb, rimColor, fresnel * 0.78);
           gl_FragColor.rgb += rimColor * fresnel * 0.42;
           gl_FragColor.a = clamp(gl_FragColor.a + fresnel * 0.68, 0.0, 0.92);
+          // Güvenlik ağı: herhangi bir sebeple NaN oluşursa piksel bloom'a sızmasın.
+          if (any(isnan(gl_FragColor))) gl_FragColor = vec4(0.0);
         }
         `
       );
