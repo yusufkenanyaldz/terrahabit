@@ -98,6 +98,25 @@ async function yeniModeliYukle(url) {
   bildirimGoster('Model yüklendi — yönü ve bölgeleri Ayar panelinden düzeltin');
 }
 
+// -------------------------------------------------------------------------
+// Tek ayar butonu: dokununca seçenekler aşağı açılır
+// -------------------------------------------------------------------------
+function menuAc(acik) {
+  $('menu').classList.toggle('open', acik);
+  $('btn-menu').classList.toggle('open', acik);
+}
+$('btn-menu').addEventListener('click', (e) => {
+  e.stopPropagation();
+  menuAc(!$('menu').classList.contains('open'));
+});
+// Menü dışına dokununca kapan
+document.addEventListener('pointerdown', (e) => {
+  if (!e.target.closest('.menu-wrap')) menuAc(false);
+});
+// Aç/kapa düğmeleri dışındaki seçenekler menüyü kapatır
+document.querySelectorAll('.menu-item:not(.toggle)').forEach((el) =>
+  el.addEventListener('click', () => menuAc(false)));
+
 // "Beyin modeli yükle" → gizli dosya seçici (Android'de sistem dosya seçicisi açılır)
 const glbInput = $('glb-input');
 $('btn-upload').addEventListener('click', () => glbInput.click());
@@ -161,7 +180,6 @@ $('credit-input').addEventListener('input', (e) => {
 
 function ayarPaneliAc(acik) {
   $('settings-panel').classList.toggle('open', acik);
-  $('btn-settings').classList.toggle('active', acik);
 }
 $('btn-settings').addEventListener('click', () =>
   ayarPaneliAc(!$('settings-panel').classList.contains('open')));
@@ -194,15 +212,19 @@ $('btn-copy-settings').addEventListener('click', async () => {
 
 ayarPaneliniDoldur();
 
-// Üst bar butonları birden çok satıra kayabilir: panel, bildirim ve etiketler altında kalsın.
-function ustBarGuncelle() {
-  const alt = document.querySelector('.top-bar').getBoundingClientRect().bottom;
-  document.documentElement.style.setProperty('--ust-bar-h', `${Math.round(alt)}px`);
-  sahne.setUstSinir(alt + 14);
+// Beyin, üst bar ile alttaki panel (liste ya da detay kartı) arasındaki boş alanda
+// ortalansın; etiketler de bu alanın dışına taşmasın.
+function gorunurAlanGuncelle() {
+  const ust = document.querySelector('.top-bar').getBoundingClientRect().bottom;
+  document.documentElement.style.setProperty('--ust-bar-h', `${Math.round(ust)}px`);
+  const altPanel = document.body.classList.contains('detay-acik') ? $('detail-card') : document.querySelector('.bottom-sheet');
+  // Panelin son konumu (kayma animasyonundan bağımsız): CSS'teki alt boşluk + yükseklik
+  const altBosluk = parseFloat(getComputedStyle(altPanel).bottom) || 0;
+  const alt = window.innerHeight - altBosluk - altPanel.offsetHeight;
+  sahne.setGorunurAlan(ust, alt);
 }
-window.addEventListener('resize', ustBarGuncelle);
-ustBarGuncelle();
-document.fonts?.ready.then(ustBarGuncelle);
+window.addEventListener('resize', gorunurAlanGuncelle);
+document.fonts?.ready.then(gorunurAlanGuncelle);
 
 // -------------------------------------------------------------------------
 // Liste ve detay kartı
@@ -242,26 +264,37 @@ function ciz() {
   cizDetay();
 }
 
+const HALKA_CEVRE = 2 * Math.PI * 27; // index.html'deki halka (r=27)
+
 function cizDetay() {
   const h = state.habits.find((x) => x.id === seciliId);
+  document.body.classList.toggle('detay-acik', !!h);
   if (!h) {
     $('detail-card').classList.remove('visible');
+    gorunurAlanGuncelle();
     return;
   }
   const bugun = todayKey();
   const gun = doneCount(h);
   const asama = asamaBilgisiGetir(gun);
-  const yuzde = Math.min(100, Math.round((gun / GOAL_DAYS) * 100));
+  const oran = Math.min(gun / GOAL_DAYS, 1);
 
   $('det-icon').textContent = h.icon;
   $('det-name').textContent = h.name;
   const stageEl = $('det-stage');
-  stageEl.textContent = asama.ad;
+  stageEl.textContent = asama.kisa;
   stageEl.style.background = `${asama.hex}22`;
   stageEl.style.color = asama.hex;
   stageEl.style.border = `1px solid ${asama.hex}66`;
-  $('det-days').innerHTML = `Gün ${gun} <span>/ ${GOAL_DAYS}</span>`;
-  $('det-percent').textContent = gun >= GOAL_DAYS ? 'Artık Otomatik!' : `%${yuzde} Otomatikleşti`;
+  $('det-time').textContent = `⏰ ${h.time}`;
+
+  // İlerleme halkası
+  $('det-days').textContent = gun;
+  const halka = $('det-ring');
+  halka.style.stroke = asama.hex;
+  halka.style.color = asama.hex;
+  halka.style.strokeDashoffset = String(HALKA_CEVRE * (1 - oran));
+  $('det-percent').textContent = gun >= GOAL_DAYS ? 'Artık otomatik!' : `%${Math.round(oran * 100)} otomatikleşti`;
 
   // Son 30 gün: yapıldı / kaçırıldı / bugün
   const cal = $('det-calendar');
@@ -269,17 +302,15 @@ function cizDetay() {
   last30(h, bugun).forEach((d) => {
     const dot = document.createElement('div');
     dot.className = `cal-dot ${d.status}${d.isToday ? ' is-today' : ''}`;
-    const [y, m, g] = d.key.split('-');
-    dot.title = `${g}.${m}.${y}`;
     cal.appendChild(dot);
   });
 
   const btn = $('btn-do-today');
   const yapildi = isDoneOn(h, bugun);
   btn.disabled = yapildi;
-  btn.textContent = yapildi ? 'Bugün tamamlandı ✓' : 'Bugün yaptım (+1)';
-  $('det-meta').textContent = `⏰ Hatırlatma: her gün ${h.time} · Silmek için listede uzun bas`;
+  btn.textContent = yapildi ? 'Bugün tamamlandı ✓' : 'Bugün yaptım';
   $('detail-card').classList.add('visible');
+  gorunurAlanGuncelle();
 }
 
 function aliskanlikSec(id) {
@@ -478,11 +509,11 @@ const btnTransparent = $('btn-transparent');
 let seffaf = true;
 btnTransparent.addEventListener('click', () => {
   seffaf = !seffaf;
-  btnTransparent.classList.toggle('active', seffaf);
+  btnTransparent.classList.toggle('on', seffaf);
   sahne.setTransparent(seffaf);
 });
 $('btn-clip').addEventListener('click', (e) => {
-  e.currentTarget.classList.toggle('active', sahne.toggleClip());
+  e.currentTarget.classList.toggle('on', sahne.toggleClip());
 });
 
 // Bildirim hapı
@@ -516,6 +547,7 @@ function kacirilanlariKontrolEt() {
 window.NoralApp = {
   /** Geri tuşu: açık pencere varsa kapat ve true döndür. */
   handleBack() {
+    if ($('menu').classList.contains('open')) { menuAc(false); return true; }
     if ($('celebration').classList.contains('open')) { $('celebration').classList.remove('open'); return true; }
     if ($('modal-confirm').classList.contains('open')) { onayKapat(false); return true; }
     for (const id of ['modal-add', 'modal-backup']) {

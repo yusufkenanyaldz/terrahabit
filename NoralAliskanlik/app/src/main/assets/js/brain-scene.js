@@ -44,7 +44,12 @@ export function asamaBilgisiGetir(gun) {
  */
 export function createBrainScene({ container, labelsContainer, leaderSvg, ayarlar, onSelect, onProgress }) {
   let aktifAyarlar = ayarlar;
-  let ustSinir = 115; // Etiketler üst barın altında kalsın (main.js günceller)
+  // Ekranın panellerle kapanmayan kısmı (main.js günceller): etiketler bu aralıkta kalır,
+  // 3B görüntü de bu aralığın ortasına kaydırılır.
+  let ustSinir = 115;
+  let altSinir = window.innerHeight - 195;
+  let hedefKayma = 0;   // piksel; pozitif = görüntü yukarı
+  let mevcutKayma = 0;
   // =======================================================================
   // SAHNE, KAMERA (AÇILIŞTA YANDAN GÖRÜNÜM), RENDERER VE POST-PROCESSING
   // =======================================================================
@@ -637,8 +642,21 @@ export function createBrainScene({ container, labelsContainer, leaderSvg, ayarla
     olusturNoralYol();
   }
 
-  /** Etiketlerin inebileceği en üst y (üst bar yüksekliği değişince). */
-  function setUstSinir(px) { ustSinir = px; }
+  /**
+   * Panellerle kapanmayan dikey alan (piksel). Beyin bu alanın ortasında görünsün diye
+   * kamera görüntüsü kaydırılır (setViewOffset: ek çizim maliyeti yok).
+   */
+  function setGorunurAlan(ust, alt) {
+    ustSinir = ust + 14;
+    altSinir = alt - 16;
+    hedefKayma = window.innerHeight / 2 - (ust + alt) / 2;
+  }
+
+  function uygulaKayma() {
+    const w = window.innerWidth, h = window.innerHeight;
+    camera.setViewOffset(w, h, 0, mevcutKayma, w, h);
+    camera.updateProjectionMatrix();
+  }
 
   function setTransparent(acik) {
     seffafModAcik = acik;
@@ -753,7 +771,7 @@ export function createBrainScene({ container, labelsContainer, leaderSvg, ayarla
 
     // Üst bar ve alt liste ile çakışmasın
     aktifEtiketler.forEach((item) => {
-      item.y = Math.max(ustSinir, Math.min(h - 195, item.y));
+      item.y = Math.max(ustSinir, Math.min(altSinir, item.y));
       // Hiçbir tarafa sığmayan etiketi ekran içine it.
       if (item.side > 0) item.x = Math.max(6, Math.min(item.x, w - 6 - item.width));
       else item.x = Math.min(w - 6, Math.max(item.x, 6 + item.width));
@@ -835,6 +853,12 @@ export function createBrainScene({ container, labelsContainer, leaderSvg, ayarla
       idx++;
     });
 
+    // Panel açılıp kapanınca görüntü yumuşakça kaysın
+    if (Math.abs(hedefKayma - mevcutKayma) > 0.5) {
+      mevcutKayma += (hedefKayma - mevcutKayma) * Math.min(1, dt * 6);
+      uygulaKayma();
+    }
+
     if (!userInteracting) {
       controls.target.lerp(odakHedefi || merkez, Math.min(1, dt * (odakHedefi ? 4.5 : 2.5)));
     }
@@ -851,10 +875,10 @@ export function createBrainScene({ container, labelsContainer, leaderSvg, ayarla
 
   window.addEventListener('resize', () => {
     camera.aspect = window.innerWidth / window.innerHeight;
-    camera.updateProjectionMatrix();
+    uygulaKayma();
     renderer.setSize(window.innerWidth, window.innerHeight);
     composer.setSize(window.innerWidth, window.innerHeight);
   });
 
-  return { loadBrain, setHabits, select, flashMiss, celebrate, setTransparent, toggleClip, applySettings, setUstSinir };
+  return { loadBrain, setHabits, select, flashMiss, celebrate, setTransparent, toggleClip, applySettings, setGorunurAlan };
 }

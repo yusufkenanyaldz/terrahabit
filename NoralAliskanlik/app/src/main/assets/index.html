@@ -32,14 +32,22 @@
   <header class="top-bar">
     <div class="brand-box">
       <div class="brand-title">Nöral Alışkanlık</div>
-      <div class="brand-sub">Prefrontal Korteks → Bazal Gangliyon</div>
     </div>
-    <div class="top-actions">
-      <button id="btn-upload" class="icon-btn upload-btn">Beyin modeli yükle</button>
-      <button id="btn-transparent" class="icon-btn active">Şeffaf mod</button>
-      <button id="btn-clip" class="icon-btn">Kesit görünümü</button>
-      <button id="btn-settings" class="icon-btn">Ayar</button>
-      <button id="btn-backup" class="icon-btn">Yedek</button>
+    <!-- Tek ayar butonu: dokununca seçenekler aşağı açılır -->
+    <div class="menu-wrap">
+      <button id="btn-menu" class="menu-btn" aria-label="Ayarlar">
+        <svg viewBox="-12 -12 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+          <circle r="6"/><circle r="2.3"/>
+          <g stroke-width="2.6" stroke-linecap="round"><line x1="6.40" y1="0.00" x2="8.90" y2="0.00"/><line x1="4.53" y1="4.53" x2="6.29" y2="6.29"/><line x1="0.00" y1="6.40" x2="0.00" y2="8.90"/><line x1="-4.53" y1="4.53" x2="-6.29" y2="6.29"/><line x1="-6.40" y1="0.00" x2="-8.90" y2="0.00"/><line x1="-4.53" y1="-4.53" x2="-6.29" y2="-6.29"/><line x1="-0.00" y1="-6.40" x2="-0.00" y2="-8.90"/><line x1="4.53" y1="-4.53" x2="6.29" y2="-6.29"/></g>
+        </svg>
+      </button>
+      <div class="menu-dropdown" id="menu">
+        <button class="menu-item" id="btn-upload"><svg class="mi-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 15V4M7 9l5-5 5 5M5 20h14"/></svg>Beyin modeli yükle</button>
+        <button class="menu-item toggle on" id="btn-transparent"><svg class="mi-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="8"/><path d="M12 4a8 8 0 0 0 0 16z" fill="currentColor" stroke="none" opacity=".45"/></svg>Şeffaf mod<span class="switch"></span></button>
+        <button class="menu-item toggle" id="btn-clip"><svg class="mi-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="4" width="16" height="16" rx="4"/><path d="M12 2v20"/></svg>Kesit görünümü<span class="switch"></span></button>
+        <button class="menu-item" id="btn-settings"><svg class="mi-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h9M17 7h3M4 17h3M11 17h9"/><circle cx="15" cy="7" r="2"/><circle cx="9" cy="17" r="2"/></svg>Model ayarları</button>
+        <button class="menu-item" id="btn-backup"><svg class="mi-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4v10M8 10l4 4 4-4M4 16v3a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-3"/></svg>Yedekle / geri yükle</button>
+      </div>
     </div>
   </header>
 
@@ -108,30 +116,29 @@
     </div>
   </aside>
 
-  <!-- SEÇİLİ ALIŞKANLIK DETAY KARTI -->
+  <!-- SEÇİLİ ALIŞKANLIK DETAY KARTI (açılınca alttaki listenin yerini alır) -->
   <section id="detail-card">
-    <div class="detail-header">
-      <div>
-        <div class="detail-title"><span class="icon" id="det-icon"></span><span id="det-name"></span></div>
-        <div class="detail-stage" id="det-stage"></div>
+    <div class="det-top">
+      <!-- İlerleme halkası: gün / 66 -->
+      <div class="det-ring">
+        <svg viewBox="0 0 64 64">
+          <circle class="ring-bg" cx="32" cy="32" r="27" />
+          <circle class="ring-fg" id="det-ring" cx="32" cy="32" r="27" />
+        </svg>
+        <div class="ring-text"><b id="det-days">0</b><span>/66</span></div>
+      </div>
+      <div class="det-info">
+        <div class="detail-title"><span id="det-icon"></span> <span id="det-name"></span></div>
+        <div class="det-sub">
+          <span class="detail-stage" id="det-stage"></span>
+          <span class="det-time" id="det-time"></span>
+        </div>
       </div>
       <button class="close-btn" id="btn-close-detail" aria-label="Kapat">✕</button>
     </div>
-    <div class="detail-stats">
-      <div class="day-counter" id="det-days"></div>
-      <div style="font-size: 12px; color: var(--text-muted);" id="det-percent"></div>
-    </div>
-    <div class="cal-title">Son 30 gün</div>
-    <div class="cal-grid" id="det-calendar"></div>
-    <div class="cal-legend">
-      <span><i style="background:#00e5ff"></i>Yapıldı</span>
-      <span><i style="border:1px solid rgba(255,90,90,.7);background:rgba(255,90,90,.2)"></i>Kaçırıldı</span>
-      <span><i style="border:2px solid #a855f7"></i>Bugün</span>
-    </div>
-    <div class="detail-actions">
-      <button class="btn-Check" id="btn-do-today">Bugün yaptım (+1)</button>
-    </div>
-    <div class="detail-meta" id="det-meta"></div>
+    <div class="cal-head"><span>Son 30 gün</span><span id="det-percent"></span></div>
+    <div class="cal-strip" id="det-calendar"></div>
+    <button class="btn-Check" id="btn-do-today">Bugün yaptım</button>
   </section>
 
   <!-- ALT ALIŞKANLIK LİSTESİ -->
