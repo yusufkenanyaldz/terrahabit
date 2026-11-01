@@ -833,9 +833,10 @@ export function createBrainScene({ container, labelsContainer, leaderSvg, ayarla
       if (item.side > 0) item.x = Math.max(6, Math.min(item.x, w - 6 - item.width));
       else item.x = Math.min(w - 6, Math.max(item.x, 6 + item.width));
 
-      // Tam piksele yuvarla: alt piksel titremesi olmasın, gereksiz yazım azalsın
-      const x = Math.round(item.x), y = Math.round(item.y);
-      const ax = Math.round(item.anchorX), ay = Math.round(item.anchorY);
+      // 0.1 piksel hassasiyet: tam piksele yuvarlamak etiketleri 3B görüntüye göre
+      // 1 px'lik sıçramalarla oynatıyordu (titreşim). Değişmeyen değer yine yazılmaz.
+      const x = Math.round(item.x * 10) / 10, y = Math.round(item.y * 10) / 10;
+      const ax = Math.round(item.anchorX * 10) / 10, ay = Math.round(item.anchorY * 10) / 10;
       const el = item.domEl;
       if (el._gizli) {
         el._gizli = false;
@@ -867,8 +868,13 @@ export function createBrainScene({ container, labelsContainer, leaderSvg, ayarla
   // =======================================================================
   // ANİMASYON DÖNGÜSÜ
   // =======================================================================
-  const timer = new THREE.Timer();
-  timer.connect(document); // Arka plandan dönünce zaman sıçramasın
+  // Zaman, ekran yenilemesinin (vsync) zaman damgasından ölçülür. performance.now()
+  // kodun çalıştığı anı verir ve birkaç ms oynar; adımlar kareden kareye eşit olmaz,
+  // dönüş ve kayma titrer. vsync damgası her karede düzenli artar.
+  let gecenSure = 0; // saniye
+
+  // Kare hızından bağımsız üstel yumuşatma katsayısı: 1 - e^(-hız·dt)
+  const yumusat = (hiz, dt) => 1 - Math.exp(-hiz * dt);
   const geciciRenk = new THREE.Color();
   const geciciNokta = new THREE.Vector3();
   const geciciTanjant = new THREE.Vector3();
@@ -911,6 +917,9 @@ export function createBrainScene({ container, labelsContainer, leaderSvg, ayarla
   const olcum = { fps: 0, enUzun: 0, takilma: 0, kareler: 0, sure: 0, gecici: 0 };
   let saniyeKare = 0, saniyeSure = 0, saniyeEnUzun = 0, saniyeTakilma = 0;
 
+  // Arka plandan dönünce ilk kare uzun bir aralık saymasın
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) sonKare = 0; });
+
   function animate(zaman) {
     if (document.hidden) return; // Arka planda çizme (pil/ısınma)
     // 2 ms pay: 60 Hz ekranda hiçbir kare atlanmasın
@@ -927,11 +936,11 @@ export function createBrainScene({ container, labelsContainer, leaderSvg, ayarla
       olcum.takilma = saniyeTakilma;
       saniyeKare = 0; saniyeSure = 0; saniyeEnUzun = 0; saniyeTakilma = 0;
     }
-    timer.update();
-    const hamDt = timer.getDelta();
+    const hamDt = aralik / 1000;
     performansKontrol(hamDt);
-    const dt = Math.min(hamDt, 0.1);
-    const elapsed = timer.getElapsed();
+    const dt = Math.min(hamDt, 0.1); // Uzun duraklamadan sonra sıçrama olmasın
+    gecenSure += dt;
+    const elapsed = gecenSure;
 
     prefrontalMarker.userData.ring.lookAt(camera.position);
     basalMarker.userData.ring.lookAt(camera.position);
@@ -945,7 +954,7 @@ export function createBrainScene({ container, labelsContainer, leaderSvg, ayarla
 
     let idx = 0;
     kureler.forEach((k) => {
-      k.mevcutOran += (k.hedefOran - k.mevcutOran) * Math.min(1, dt * 5.0);
+      k.mevcutOran += (k.hedefOran - k.mevcutOran) * yumusat(5.0, dt);
       let egriOrani = k.mevcutOran;
       let emissiveYogunluk = 2.8;
 
@@ -996,16 +1005,16 @@ export function createBrainScene({ container, labelsContainer, leaderSvg, ayarla
 
     // Panel açılıp kapanınca görüntü yumuşakça kaysın
     if (Math.abs(hedefKayma - mevcutKayma) > 0.5) {
-      mevcutKayma += (hedefKayma - mevcutKayma) * Math.min(1, dt * 6);
+      mevcutKayma += (hedefKayma - mevcutKayma) * yumusat(6, dt);
       uygulaKayma();
     }
 
     if (!userInteracting) {
-      controls.target.lerp(odakHedefi || merkez, Math.min(1, dt * (odakHedefi ? 4.5 : 2.5)));
+      controls.target.lerp(odakHedefi || merkez, yumusat(odakHedefi ? 4.5 : 2.5, dt));
     }
     tozParcaciklari.rotation.y = elapsed * 0.015;
 
-    controls.update();
+    controls.update(dt); // Otomatik dönüş gerçek süreyle ilerlesin
     guncelleEtiketKonumlari();
     composer.render();
   }
