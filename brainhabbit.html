@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <meta name="theme-color" content="#000000">
+  <meta name="mobile-web-app-capable" content="yes">
+  <title>TerraHabit - Gerçekçi Gezegen Motoru</title>
+  <link rel="stylesheet" href="/src/styles.css">
+</head>
+<body>
+
+  <!-- Üst Bilimsel Telemetri Barı -->
+  <div class="top-telemetry">
+    <div class="planet-header">
+      <div class="day-row">
+        <div class="drought-dot" id="status-dot"></div>
+        <span class="day-tag" id="day-badge">SOL 1 • EVRE 1</span>
+      </div>
+      <div class="planet-title" id="stage-title">KEPLER-25B (Çorak Kaya)</div>
+      <div class="planet-sub" id="drought-status">Yüzey: Kraterli Bazalt • İklim: Stabil</div>
+    </div>
+
+    <div class="telemetry-pills">
+      <div class="t-pill">
+        <span class="lbl">BİYOSFER</span>
+        <span class="val" id="ep-text">%0.0</span>
+      </div>
+      <div class="t-pill">
+        <span class="lbl">OKYANUS</span>
+        <span class="val" id="water-text">0 m</span>
+      </div>
+      <div class="t-pill">
+        <span class="lbl">SICAKLIK</span>
+        <span class="val" id="temp-text">-48 °C</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Bildirim Hapı -->
+  <div class="toast-pill" id="toast">🌱 Tohum Eklendi</div>
+
+  <!-- %100 Tam Ekran 3D Gezegen -->
+  <div id="canvas-container"></div>
+
+  <!-- Çekmece Karartma Arka Planı -->
+  <div class="drawer-backdrop" id="backdrop"></div>
+
+  <!-- Açılır/Kapanır Görev Çekmecesi -->
+  <div class="habit-drawer" id="habit-drawer">
+    <div class="drawer-header">
+      <h4>Günlük Terraforming Görevleri</h4>
+      <span class="seed-badge" id="daily-pts">Tohum: +0 EP</span>
+    </div>
+
+    <div class="habit-list">
+      <div class="habit-item" data-id="h1">
+        <div class="habit-left">
+          <span class="habit-icon">💧</span>
+          <div class="habit-info">
+            <h4>2 Litre Su İç</h4>
+            <p>+4 EP • Komet Buzul Çarpışması (Su Seviyesi)</p>
+          </div>
+        </div>
+        <div class="check-circle">✓</div>
+      </div>
+
+      <div class="habit-item" data-id="h2">
+        <div class="habit-left">
+          <span class="habit-icon">📚</span>
+          <div class="habit-info">
+            <h4>30 Dk Kitap / Öğrenme</h4>
+            <p>+4 EP • Fotosentetik Bakteri & Flora</p>
+          </div>
+        </div>
+        <div class="check-circle">✓</div>
+      </div>
+
+      <div class="habit-item" data-id="h3">
+        <div class="habit-left">
+          <span class="habit-icon">🏃</span>
+          <div class="habit-info">
+            <h4>5.000 Adım Hareket</h4>
+            <p>+4 EP • Atmosferik Yoğunluk & Oksijen</p>
+          </div>
+        </div>
+        <div class="check-circle">✓</div>
+      </div>
+
+      <div class="habit-item" data-id="h4">
+        <div class="habit-left">
+          <span class="habit-icon">🧘</span>
+          <div class="habit-info">
+            <h4>15 Dk Zihin Dinlendirme</h4>
+            <p>+4 EP • Siklon & Bulut Gölgeleri</p>
+          </div>
+        </div>
+        <div class="check-circle">✓</div>
+      </div>
+
+      <div class="habit-item" data-id="h5">
+        <div class="habit-left">
+          <span class="habit-icon">🌙</span>
+          <div class="habit-info">
+            <h4>23:30'dan Önce Uyku</h4>
+            <p>+4 EP • Manyetosfer & Yörünge Işıkları</p>
+          </div>
+        </div>
+        <div class="check-circle">✓</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- En Alt İnce Cam Dock -->
+  <div class="bottom-dock">
+    <button class="dock-btn-main" id="btn-tasks">
+      <span>⚡ Görevler</span>
+      <span class="dock-counter" id="dock-count">0 / 5</span>
+    </button>
+    <button class="dock-btn-sim" id="btn-next-day">
+      <span>🌙 +1 Gün (Hasat)</span>
+    </button>
+    <button class="dock-btn-icon" id="btn-reset" title="Gezegeni Sıfırla">
+      ↺
+    </button>
+  </div>
+
+  <script type="module" src="/src/main.js"></script>
+</body>
+</html>
