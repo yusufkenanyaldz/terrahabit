@@ -61,6 +61,37 @@ export function addHabit(state, { name, icon, time }, today, id) {
   return { ...state, habits: [...state.habits, habit] };
 }
 
+/**
+ * Alışkanlığın ismini, ikonunu veya hatırlatma saatini değiştirir.
+ * Tamamlanan günler ve ilerleme korunur.
+ */
+export function updateHabit(state, id, { name, icon, time }) {
+  const clean = String(name || '').trim();
+  if (!clean) throw new Error('İsim boş olamaz');
+  return {
+    ...state,
+    habits: state.habits.map((h) => (h.id !== id ? h : {
+      ...h,
+      name: clean.slice(0, 40),
+      icon: (icon || '').trim() || h.icon,
+      time: /^\d{2}:\d{2}$/.test(time) ? time : h.time,
+    })),
+  };
+}
+
+/**
+ * 66 güne ulaşmış ama kutlaması gösterilmemiş alışkanlıklar
+ * (ör. bildirimdeki "Yaptım" ile, uygulama kapalıyken tamamlananlar).
+ */
+export function pendingCelebrations(state) {
+  return state.habits.filter((h) => h.done.length >= GOAL_DAYS && !h.celebrated);
+}
+
+/** Kutlama gösterildi olarak işaretle. */
+export function markCelebrated(state, id) {
+  return { ...state, habits: state.habits.map((h) => (h.id === id ? { ...h, celebrated: true } : h)) };
+}
+
 /** Alışkanlığı siler. */
 export function removeHabit(state, id) {
   return { ...state, habits: state.habits.filter((h) => h.id !== id) };

@@ -42,6 +42,11 @@
             android:name=".ReminderReceiver"
             android:exported="false" />
 
+        <!-- Bildirimdeki "Yaptım" butonu -->
+        <receiver
+            android:name=".DoneReceiver"
+            android:exported="false" />
+
         <!-- Yeniden başlatma / güncelleme sonrası alarmları kurar -->
         <receiver
             android:name=".BootReceiver"

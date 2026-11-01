@@ -2,8 +2,10 @@ package com.noralaliskanlik
 
 import android.Manifest
 import android.annotation.SuppressLint
+import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
+import android.content.IntentFilter
 import android.content.pm.ApplicationInfo
 import android.content.pm.PackageManager
 import android.net.Uri
@@ -36,6 +38,13 @@ import kotlin.concurrent.thread
 class MainActivity : AppCompatActivity() {
 
     private lateinit var webView: WebView
+
+    // Bildirimden "Yaptım" denince veri değişir: açık ekrandaki JS veriyi yeniden okusun.
+    private val dataChanged = object : BroadcastReceiver() {
+        override fun onReceive(context: Context, intent: Intent) {
+            webView.evaluateJavascript("window.NoralApp && NoralApp.reload()", null)
+        }
+    }
 
     // Android 13+ bildirim izni isteği
     private val notifPermission =
@@ -131,6 +140,11 @@ class MainActivity : AppCompatActivity() {
             }
         })
 
+        ContextCompat.registerReceiver(
+            this, dataChanged, IntentFilter(DoneReceiver.ACTION_DATA_CHANGED),
+            ContextCompat.RECEIVER_NOT_EXPORTED
+        )
+
         ReminderReceiver.ensureChannel(this)
         askNotificationPermission()
         AlarmScheduler.scheduleAll(this) // Uygulama açılışında alarmları tazele
@@ -214,6 +228,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     override fun onDestroy() {
+        unregisterReceiver(dataChanged)
         webView.destroy()
         super.onDestroy()
     }

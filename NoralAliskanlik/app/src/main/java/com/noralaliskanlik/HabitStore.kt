@@ -21,6 +21,7 @@ object HabitStore {
         context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getString(KEY_DATA, "") ?: ""
 
     /** JSON'u kaydeder. commit(): yazma bitmeden dönmez, veri kaybını önler. */
+    @Synchronized
     fun save(context: Context, json: String): Boolean =
         context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
             .edit().putString(KEY_DATA, json).commit()
@@ -32,6 +33,34 @@ object HabitStore {
     fun saveSettings(context: Context, json: String): Boolean =
         context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
             .edit().putString(KEY_SETTINGS, json).commit()
+
+    /**
+     * Bildirimdeki "Yaptım" butonu için: alışkanlığa bugünün tarihini ekler.
+     * Zaten varsa dokunmaz. Dönüş: değişiklik yapıldı mı.
+     * (JS tarafındaki markDone ile aynı kural: günde bir kez.)
+     */
+    @Synchronized
+    fun markDoneToday(context: Context, habitId: String): Boolean {
+        val raw = load(context)
+        if (raw.isBlank()) return false
+        return try {
+            val root = JSONObject(raw)
+            val habits = root.optJSONArray("habits") ?: return false
+            val today = LocalDate.now().toString()
+            for (i in 0 until habits.length()) {
+                val h = habits.optJSONObject(i) ?: continue
+                if (h.optString("id") != habitId) continue
+                val done = h.optJSONArray("done") ?: JSONArray()
+                val dates = (0 until done.length()).map { done.optString(it) }.toMutableSet()
+                if (!dates.add(today)) return false
+                h.put("done", JSONArray(dates.sorted()))
+                return save(context, root.toString())
+            }
+            false
+        } catch (e: Exception) {
+            false // Bozuk kayıtta hiçbir şeye dokunma
+        }
+    }
 
     /** Bildirim için gereken alışkanlık özeti. */
     data class Reminder(val id: String, val name: String, val icon: String, val time: String, val doneToday: Boolean)

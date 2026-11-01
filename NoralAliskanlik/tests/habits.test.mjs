@@ -4,6 +4,7 @@ import assert from 'node:assert/strict';
 import {
   emptyState, addHabit, removeHabit, markDone, progress, doneCount,
   needsMissFlash, ackMisses, last30, migrate, GOAL_DAYS,
+  updateHabit, pendingCelebrations, markCelebrated,
 } from '../app/src/main/assets/js/habits.js';
 import { addDays, setNow, todayKey } from '../app/src/main/assets/js/clock.js';
 
@@ -128,4 +129,28 @@ test('ayarlar: varsayılan kopyası değiştirilince asıl varsayılan bozulmaz'
   const a = varsayilanAyarlar();
   a.modelRot.x = 45;
   assert.equal(varsayilanAyarlar().modelRot.x, 0);
+});
+
+test('düzenleme: isim/ikon/saat değişir, günler korunur', () => {
+  let s = markDone(make(), 'h1', D0).state;
+  s = updateHabit(s, 'h1', { name: '  Roman oku ', icon: '📖', time: '22:15' });
+  const h = s.habits[0];
+  assert.equal(h.name, 'Roman oku');
+  assert.equal(h.icon, '📖');
+  assert.equal(h.time, '22:15');
+  assert.deepEqual(h.done, [D0]);
+  assert.throws(() => updateHabit(s, 'h1', { name: '' }));
+  // Geçersiz saat ve boş ikon eskisini korur
+  s = updateHabit(s, 'h1', { name: 'X', icon: '', time: 'bozuk' });
+  assert.equal(s.habits[0].icon, '📖');
+  assert.equal(s.habits[0].time, '22:15');
+});
+
+test('bekleyen kutlama: uygulama dışında 66. gün tamamlanınca bir kez', () => {
+  let s = make();
+  // Bildirimden işaretlenmiş gibi: done doğrudan 66 gün
+  s.habits[0].done = Array.from({ length: GOAL_DAYS }, (_, i) => addDays(D0, i));
+  assert.equal(pendingCelebrations(s).length, 1);
+  s = markCelebrated(s, 'h1');
+  assert.equal(pendingCelebrations(s).length, 0);
 });

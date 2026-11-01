@@ -5,6 +5,7 @@ import { varsayilanAyarlar } from './settings.js';
 import {
   GOAL_DAYS, addHabit, removeHabit, markDone, doneCount, isDoneOn,
   needsMissFlash, ackMisses, last30, migrate,
+  updateHabit, pendingCelebrations, markCelebrated,
 } from './habits.js';
 import { todayKey, setNow } from './clock.js';
 import {
@@ -180,7 +181,23 @@ $('credit-input').addEventListener('input', (e) => {
 
 function ayarPaneliAc(acik) {
   $('settings-panel').classList.toggle('open', acik);
+  // Panel alttan açılır: liste/detay gizlenir, beyin üstteki boş alanda ortalanır.
+  document.body.classList.toggle('ayar-acik', acik);
+  gorunurAlanGuncelle();
 }
+$('btn-settings-done').addEventListener('click', () => ayarPaneliAc(false));
+
+// Panelin dışına kısa dokunuş paneli kapatır; beyni döndürmek için sürüklemek kapatmaz.
+let disDokunus = null;
+document.addEventListener('pointerdown', (e) => {
+  disDokunus = $('settings-panel').classList.contains('open')
+    && !e.target.closest('#settings-panel') && !e.target.closest('.menu-wrap')
+    ? { x: e.clientX, y: e.clientY } : null;
+});
+document.addEventListener('pointerup', (e) => {
+  if (disDokunus && Math.hypot(e.clientX - disDokunus.x, e.clientY - disDokunus.y) < 8) ayarPaneliAc(false);
+  disDokunus = null;
+});
 $('btn-settings').addEventListener('click', () =>
   ayarPaneliAc(!$('settings-panel').classList.contains('open')));
 
@@ -193,22 +210,6 @@ $('btn-reset-settings').addEventListener('click', () => {
   bildirimGoster('Ayarlar sıfırlandı');
 });
 
-$('btn-copy-settings').addEventListener('click', async () => {
-  const jsonStr = JSON.stringify(ayarlar, null, 2);
-  try {
-    await navigator.clipboard.writeText(jsonStr);
-  } catch {
-    // WebView panoya izin vermezse eski yöntem
-    const ta = document.createElement('textarea');
-    ta.value = jsonStr;
-    document.body.appendChild(ta);
-    ta.select();
-    const ok = document.execCommand('copy');
-    ta.remove();
-    if (!ok) { bildirimGoster('Kopyalama başarısız oldu'); return; }
-  }
-  bildirimGoster('JSON değerleri panoya kopyalandı');
-});
 
 ayarPaneliniDoldur();
 
@@ -217,7 +218,9 @@ ayarPaneliniDoldur();
 function gorunurAlanGuncelle() {
   const ust = document.querySelector('.top-bar').getBoundingClientRect().bottom;
   document.documentElement.style.setProperty('--ust-bar-h', `${Math.round(ust)}px`);
-  const altPanel = document.body.classList.contains('detay-acik') ? $('detail-card') : document.querySelector('.bottom-sheet');
+  const altPanel = document.body.classList.contains('ayar-acik') ? $('settings-panel')
+    : document.body.classList.contains('detay-acik') ? $('detail-card')
+    : document.querySelector('.bottom-sheet');
   // Panelin son konumu (kayma animasyonundan bağımsız): CSS'teki alt boşluk + yükseklik
   const altBosluk = parseFloat(getComputedStyle(altPanel).bottom) || 0;
   const alt = window.innerHeight - altBosluk - altPanel.offsetHeight;
@@ -251,13 +254,19 @@ function ciz() {
     row.className = `habit-item ${seciliId === h.id ? 'selected' : ''} ${bugunYapildi ? 'done-today' : ''}`;
     row.innerHTML = `
       <div class="habit-item-top">
-        <span>${esc(h.icon)} ${esc(h.name)}${bugunYapildi ? '<span class="done-mark">✓</span>' : ''}</span>
+        <span class="habit-name">${esc(h.icon)} ${esc(h.name)}</span>
         <span class="habit-day-badge">Gün ${gun} / ${GOAL_DAYS} (${asama.kisa})</span>
+        <button class="row-check ${bugunYapildi ? 'done' : ''}" aria-label="Bugün yaptım">✓</button>
       </div>
       <div class="progress-track">
         <div class="progress-fill" style="width:${yuzde}%; background:${asama.hex};"></div>
       </div>`;
     uzunBasmaBagla(row, () => aliskanlikSec(h.id), () => silmeOnayi(h));
+    row.querySelector('.row-check').addEventListener('click', (e) => {
+      e.stopPropagation();
+      if (isDoneOn(h, todayKey())) bildirimGoster('Bugün zaten tamamlandı ✓');
+      else yaptimIsaretle(h.id);
+    });
     listEl.appendChild(row);
   });
 
@@ -327,17 +336,17 @@ function detayKapat() {
 
 $('btn-close-detail').addEventListener('click', detayKapat);
 
-// "Bugün yaptım": günde yalnızca bir kez
-$('btn-do-today').addEventListener('click', () => {
-  if (!seciliId) return;
-  const r = markDone(state, seciliId, todayKey());
+// "Bugün yaptım": günde yalnızca bir kez (detay kartı ve listedeki ✓ aynı işi yapar)
+function yaptimIsaretle(id) {
+  const r = markDone(state, id, todayKey());
   if (!r.changed) return;
   state = r.state;
   kaydet();
   ciz();
-  if (r.reachedGoal) kutlamaGoster(state.habits.find((h) => h.id === seciliId));
+  if (r.reachedGoal) kutlamaGoster(state.habits.find((h) => h.id === id));
   else bildirimGoster('+1 gün — nöral yol güçleniyor');
-});
+}
+$('btn-do-today').addEventListener('click', () => { if (seciliId) yaptimIsaretle(seciliId); });
 
 // -------------------------------------------------------------------------
 // Uzun basma (silme) / kısa dokunma (seçme)
@@ -352,6 +361,7 @@ function uzunBasmaBagla(el, kisaDokunma, uzunBasma) {
     el.classList.remove('pressing');
   };
   el.addEventListener('pointerdown', (e) => {
+    if (e.target.closest('.row-check')) return; // ✓ butonu seçme/silme başlatmaz
     uzunOldu = false;
     baslangic = { x: e.clientX, y: e.clientY };
     el.classList.add('pressing');
@@ -431,33 +441,53 @@ function ilkGrafem(s) {
   return Array.from(t)[0];
 }
 
-$('btn-add').addEventListener('click', () => {
+let duzenlenenId = null; // null: yeni alışkanlık, değilse düzenleme
+
+function formAc(h) {
+  duzenlenenId = h ? h.id : null;
   $('add-form').reset();
-  $('add-time').value = '09:00';
-  secilenEmoji = EMOJILER[0];
-  emojiGrid.querySelectorAll('.emoji-btn').forEach((x, i) => x.classList.toggle('selected', i === 0));
+  $('add-title').textContent = h ? 'Alışkanlığı düzenle' : 'Yeni alışkanlık';
+  $('add-name').value = h ? h.name : '';
+  $('add-time').value = h ? h.time : '09:00';
+  const hazir = h ? EMOJILER.indexOf(h.icon) : 0;
+  secilenEmoji = h ? h.icon : EMOJILER[0];
+  // Listede olmayan emoji, "kendi emojin" alanında görünür
+  $('add-emoji').value = h && hazir < 0 ? h.icon : '';
+  emojiGrid.querySelectorAll('.emoji-btn').forEach((x, i) => x.classList.toggle('selected', i === hazir));
   $('modal-add').classList.add('open');
-  setTimeout(() => $('add-name').focus(), 50);
+  if (!h) setTimeout(() => $('add-name').focus(), 50);
+}
+
+$('btn-add').addEventListener('click', () => formAc(null));
+$('btn-edit-habit').addEventListener('click', () => {
+  const h = state.habits.find((x) => x.id === seciliId);
+  if (h) formAc(h);
 });
 $('add-cancel').addEventListener('click', () => $('modal-add').classList.remove('open'));
 $('add-form').addEventListener('submit', (e) => {
   e.preventDefault();
+  const veri = {
+    name: $('add-name').value,
+    icon: ilkGrafem($('add-emoji').value) || secilenEmoji,
+    time: $('add-time').value,
+  };
   try {
-    const ozel = ilkGrafem($('add-emoji').value);
-    state = addHabit(state, {
-      name: $('add-name').value,
-      icon: ozel || secilenEmoji,
-      time: $('add-time').value,
-    }, todayKey());
+    state = duzenlenenId ? updateHabit(state, duzenlenenId, veri) : addHabit(state, veri, todayKey());
   } catch (err) {
     bildirimGoster(err.message);
     return;
   }
   $('modal-add').classList.remove('open');
   $('add-name').blur();
-  kaydet();
-  aliskanlikSec(state.habits.at(-1).id);
-  bildirimGoster('Alışkanlık eklendi — hatırlatma kuruldu');
+  kaydet(); // Android tarafı alarmları yeni saate göre yeniden kurar
+  if (duzenlenenId) {
+    ciz();
+    bildirimGoster('Değişiklikler kaydedildi');
+  } else {
+    aliskanlikSec(state.habits.at(-1).id);
+    bildirimGoster('Alışkanlık eklendi — hatırlatma kuruldu');
+  }
+  duzenlenenId = null;
 });
 
 // Yedek
@@ -541,6 +571,15 @@ function kacirilanlariKontrolEt() {
   kaydet();
 }
 
+/** Uygulama kapalıyken (bildirimden) 66. güne ulaşanlar için kutlamayı şimdi göster. */
+function bekleyenKutlamalar() {
+  const h = pendingCelebrations(state)[0];
+  if (!h) return;
+  state = markCelebrated(state, h.id);
+  kaydet();
+  kutlamaGoster(h);
+}
+
 // -------------------------------------------------------------------------
 // Android köprüsü için genel fonksiyonlar (MainActivity çağırır)
 // -------------------------------------------------------------------------
@@ -557,10 +596,22 @@ window.NoralApp = {
     if (seciliId) { detayKapat(); return true; }
     return false;
   },
-  /** Uygulama öne gelince: gün değişmiş olabilir. */
+  /** Uygulama öne gelince: gün değişmiş, bildirimden "Yaptım" denmiş olabilir. */
   onResume() {
-    ciz();
+    this.reload();
     kacirilanlariKontrolEt();
+  },
+  /** Kayıt dışarıda (bildirim butonu) değişti: ekrandaki veriyi yenile. */
+  reload() {
+    if (kayitBozuk) return;
+    try {
+      state = loadState();
+    } catch {
+      return;
+    }
+    if (seciliId && !state.habits.some((h) => h.id === seciliId)) { seciliId = null; sahne.select(null); }
+    ciz();
+    bekleyenKutlamalar();
   },
   /** Seçilen yedek dosyasının içeriği. */
   onImport(metin) { yedekGeldi(metin); },
@@ -585,4 +636,4 @@ window.NoralApp = {
 ciz();
 kayitliModeliYukle();
 if (kayitBozuk) bildirimGoster('Kayıt okunamadı. Yedekten geri yükleyebilirsiniz.');
-else setTimeout(kacirilanlariKontrolEt, 1200);
+else setTimeout(() => { kacirilanlariKontrolEt(); bekleyenKutlamalar(); }, 1200);

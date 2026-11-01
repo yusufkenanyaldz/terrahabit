@@ -50,6 +50,7 @@ export function createBrainScene({ container, labelsContainer, leaderSvg, ayarla
   let altSinir = window.innerHeight - 195;
   let hedefKayma = 0;   // piksel; pozitif = görüntü yukarı
   let mevcutKayma = 0;
+  let seciliId = null;  // Seçili alışkanlık varken yalnızca onun etiketi görünür
   // =======================================================================
   // SAHNE, KAMERA (AÇILIŞTA YANDAN GÖRÜNÜM), RENDERER VE POST-PROCESSING
   // =======================================================================
@@ -615,8 +616,11 @@ export function createBrainScene({ container, labelsContainer, leaderSvg, ayarla
 
   /** Seçili alışkanlığa kamerayı odakla (null: serbest). */
   function select(id) {
+    seciliId = id;
     const k = id ? kureler.get(id) : null;
-    odakHedefi = k ? k.grup.position.clone() : null;
+    // Kamera hep beynin merkezine bakar (küreye kaydırınca beyin kenara kayıyordu);
+    // seçim yalnızca otomatik dönmeyi durdurur, küre yerinde kalsın.
+    odakHedefi = k ? new THREE.Vector3(0, 0.04, 0) : null;
     if (k) controls.autoRotate = false;
   }
 
@@ -690,7 +694,8 @@ export function createBrainScene({ container, labelsContainer, leaderSvg, ayarla
     const h = window.innerHeight;
     const kameraMesafesi = camera.position.distanceTo(controls.target);
     const icYapilarGorunur = seffafModAcik || renderer.localClippingEnabled;
-    const bolgeEtiketleriGorunur = kameraMesafesi < 4.25 * MESAFE_CARPANI && icYapilarGorunur;
+    // Bir alışkanlık seçiliyken bölge etiketleri ve diğer alışkanlıkların etiketleri gizlenir.
+    const bolgeEtiketleriGorunur = !seciliId && kameraMesafesi < 4.25 * MESAFE_CARPANI && icYapilarGorunur;
     const aktifEtiketler = [];
     const kureEkranNoktalari = [];
 
@@ -731,7 +736,8 @@ export function createBrainScene({ container, labelsContainer, leaderSvg, ayarla
     kureler.forEach((k) => {
       if (!k.etiketGenislik) k.etiketGenislik = k.labelEl.offsetWidth || 115;
       const side = k.mevcutOran < 0.5 ? 1 : -1;
-      projekteYanEtiket(k.grup.position, k.labelEl, k.svgBag, true, side, (idx - 1) * 26, k.etiketGenislik);
+      const gorunur = !seciliId || seciliId === k.id;
+      projekteYanEtiket(k.grup.position, k.labelEl, k.svgBag, gorunur, side, seciliId ? -30 : (idx - 1) * 26, k.etiketGenislik);
       idx++;
     });
 
@@ -797,6 +803,11 @@ export function createBrainScene({ container, labelsContainer, leaderSvg, ayarla
   timer.connect(document); // Arka plandan dönünce zaman sıçramasın
   const geciciRenk = new THREE.Color();
   const geciciNokta = new THREE.Vector3();
+  const geciciTanjant = new THREE.Vector3();
+  const geciciYan = new THREE.Vector3();
+  const geciciUst = new THREE.Vector3();
+  const YUKARI = new THREE.Vector3(0, 1, 0);
+  const DEMET_ARALIGI = 0.13; // kürelerin yoldan uzaklık adımı
   const merkez = new THREE.Vector3(0, 0.04, 0);
 
   function animate() {
@@ -829,7 +840,20 @@ export function createBrainScene({ container, labelsContainer, leaderSvg, ayarla
         emissiveYogunluk = 0.45;
       }
 
-      neuralCurve.getPointAt(Math.max(0, Math.min(1, egriOrani)), k.grup.position);
+      const t = Math.max(0, Math.min(1, egriOrani));
+      neuralCurve.getPointAt(t, k.grup.position);
+      // Aynı güne yakın alışkanlıklar üst üste binmesin: her küre yolun etrafında
+      // kendi açısında, biraz yana kayık durur (ilk küre tam yolun üstünde).
+      if (idx > 0) {
+        neuralCurve.getTangentAt(t, geciciTanjant);
+        geciciYan.crossVectors(geciciTanjant, YUKARI);
+        if (geciciYan.lengthSq() < 1e-6) geciciYan.set(1, 0, 0); // yol dikse
+        geciciYan.normalize();
+        geciciUst.crossVectors(geciciYan, geciciTanjant).normalize();
+        const aci = idx * 2.39996; // altın açı
+        const r = DEMET_ARALIGI * Math.sqrt(idx);
+        k.grup.position.addScaledVector(geciciYan, Math.cos(aci) * r).addScaledVector(geciciUst, Math.sin(aci) * r);
+      }
 
       hesaplaAsamaRengi(k.mevcutOran, geciciRenk);
       k.halo.material.color.copy(geciciRenk).multiplyScalar(1.8);

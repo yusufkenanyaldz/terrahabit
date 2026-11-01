@@ -51,8 +51,13 @@
     </div>
   </header>
 
-  <!-- AYAR PANELİ: değerler telefonda saklanır; yeni model yüklenince sıfırlanır -->
+  <!-- AYAR PANELİ: değerler telefonda saklanır; yeni model yüklenince sıfırlanır.
+       Alttan açılır, beyin üstte görünür kalır (ayar yaparken sonucu görmek için). -->
   <aside id="settings-panel">
+    <div class="panel-head">
+      <span class="panel-title">Model ayarları</span>
+      <button class="done-btn" id="btn-settings-done">Bitti</button>
+    </div>
     <div class="settings-group-title"><span>Model Döndürme (Derece)</span></div>
     <div class="slider-row">
       <label for="rot-x">X</label>
@@ -105,8 +110,7 @@
     </div>
 
     <div class="settings-actions">
-      <button id="btn-reset-settings" class="btn-small">Sıfırla</button>
-      <button id="btn-copy-settings" class="btn-small primary">Değerleri kopyala</button>
+      <button id="btn-reset-settings" class="btn-small">Varsayılana dön</button>
     </div>
 
     <!-- CC BY lisansı için model kaynağı -->
@@ -134,6 +138,9 @@
           <span class="det-time" id="det-time"></span>
         </div>
       </div>
+      <button class="close-btn" id="btn-edit-habit" aria-label="Düzenle">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20h4L19 9l-4-4L4 16z"/><path d="M13.5 6.5l4 4"/></svg>
+      </button>
       <button class="close-btn" id="btn-close-detail" aria-label="Kapat">✕</button>
     </div>
     <div class="cal-head"><span>Son 30 gün</span><span id="det-percent"></span></div>
@@ -153,7 +160,7 @@
   <!-- ALIŞKANLIK EKLEME -->
   <div class="modal-backdrop" id="modal-add">
     <form class="modal" id="add-form" autocomplete="off">
-      <h3>Yeni alışkanlık</h3>
+      <h3 id="add-title">Yeni alışkanlık</h3>
       <label class="field-label" for="add-name">İsim</label>
       <input class="text-input" id="add-name" maxlength="40" placeholder="Örn. Kitap oku" required />
       <label class="field-label">İkon</label>

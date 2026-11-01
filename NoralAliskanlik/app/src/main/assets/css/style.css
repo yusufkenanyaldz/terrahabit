@@ -583,7 +583,6 @@ html, body {
 
 .habit-item.done-today { border-color: rgba(0, 229, 255, 0.28); }
 .habit-item.pressing { transform: scale(0.98); background: rgba(255, 80, 80, 0.12); }
-.habit-item .done-mark { color: #7df4ff; margin-left: 6px; }
 
 .empty-hint {
   font-size: 12px;
@@ -939,3 +938,69 @@ body.detay-acik .bottom-sheet {
   box-shadow: none;
   border: 1px solid rgba(0, 229, 255, 0.35);
 }
+
+/* Ayar paneli: alttan açılan sayfa (beyin üstte görünür kalır) */
+#settings-panel {
+  top: auto;
+  right: auto;
+  left: 50%;
+  bottom: calc(12px + env(safe-area-inset-bottom, 0px));
+  transform: translateX(-50%);
+  width: min(420px, calc(100vw - 24px));
+  max-height: 58vh;
+  padding: 12px 14px 14px;
+  border-radius: 22px;
+}
+body.ayar-acik .bottom-sheet,
+body.ayar-acik #detail-card { opacity: 0; pointer-events: none; }
+.panel-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 6px;
+}
+.panel-title { font-size: 15px; font-weight: 800; }
+.done-btn {
+  background: rgba(0, 229, 255, 0.16);
+  border: 1px solid rgba(0, 229, 255, 0.5);
+  color: #8ef6ff;
+  font-family: inherit;
+  font-size: 12.5px;
+  font-weight: 800;
+  padding: 7px 16px;
+  border-radius: 10px;
+}
+#settings-panel .slider-row { margin-bottom: 2px; }
+#settings-panel .settings-group-title { margin: 8px 0 2px; }
+#settings-panel .settings-actions { margin-top: 8px; }
+.model-credit { margin-top: 10px; }
+
+/* Detay kartı: düzenle butonu */
+#btn-edit-habit { align-self: flex-start; display: flex; align-items: center; justify-content: center; }
+#btn-edit-habit svg { width: 14px; height: 14px; }
+
+/* Listede tek dokunuşla "yaptım" */
+.habit-item-top { gap: 10px; }
+.habit-item-top .habit-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.row-check {
+  width: 30px;
+  height: 30px;
+  flex-shrink: 0;
+  border-radius: 50%;
+  border: 1.5px solid rgba(255, 255, 255, 0.25);
+  background: transparent;
+  color: transparent;
+  font-size: 15px;
+  font-weight: 800;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease;
+}
+.row-check.done {
+  border-color: #00e5ff;
+  background: rgba(0, 229, 255, 0.18);
+  color: #7df4ff;
+  box-shadow: 0 0 10px rgba(0, 229, 255, 0.35);
+}
+.row-check:active { transform: scale(0.9); }

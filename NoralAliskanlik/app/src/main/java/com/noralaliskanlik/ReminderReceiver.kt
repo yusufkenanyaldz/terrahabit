@@ -49,6 +49,11 @@ class ReminderReceiver : BroadcastReceiver() {
             .setPriority(NotificationCompat.PRIORITY_DEFAULT)
             .setContentIntent(open)
             .setAutoCancel(true)
+            // Uygulamayı açmadan işaretlemek için "Yaptım" butonu
+            .addAction(
+                android.R.drawable.checkbox_on_background, "Yaptım ✓",
+                DoneReceiver.pendingIntent(context, habit.id)
+            )
             .build()
         try {
             NotificationManagerCompat.from(context).notify(habit.id.hashCode(), n)
