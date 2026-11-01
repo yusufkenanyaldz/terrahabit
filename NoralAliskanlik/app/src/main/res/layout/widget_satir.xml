@@ -29,17 +29,10 @@
             android:textAllCaps="true"
             android:textColor="#F8FAFC"
             android:textSize="14sp" />
+        <!-- Sağ kenar boşluğu: ad, alttaki onay düğmesiyle aynı hizada bitsin -->
         <FrameLayout
-            android:id="@+id/satir_arti_alan"
-            android:layout_width="34dp"
-            android:layout_height="28dp">
-            <ImageView
-                android:id="@+id/satir_arti"
-                android:layout_width="26dp"
-                android:layout_height="26dp"
-                android:layout_gravity="center"
-                android:contentDescription="+1" />
-        </FrameLayout>
+            android:layout_width="4dp"
+            android:layout_height="28dp" />
     </LinearLayout>
 
     <LinearLayout
@@ -69,10 +62,23 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_marginStart="8dp"
+            android:layout_marginEnd="2dp"
             android:fontFamily="sans-serif-medium"
+            android:textStyle="bold"
             android:shadowColor="#E6000000"
             android:shadowRadius="6"
             android:textSize="12sp" />
+        <FrameLayout
+            android:id="@+id/satir_arti_alan"
+            android:layout_width="32dp"
+            android:layout_height="28dp">
+            <ImageView
+                android:id="@+id/satir_arti"
+                android:layout_width="26dp"
+                android:layout_height="26dp"
+                android:layout_gravity="center"
+                android:contentDescription="+1" />
+        </FrameLayout>
         <FrameLayout
             android:id="@+id/satir_onay_alan"
             android:layout_width="34dp"

@@ -2,7 +2,7 @@
 <!-- Güç çubuğu (caba rengi): yarı saydam iz + renkli dolgu -->
 <layer-list xmlns:android="http://schemas.android.com/apk/res/android">
     <item android:id="@android:id/background">
-        <shape><corners android:radius="2dp" /><solid android:color="#33FFFFFF" /></shape>
+        <shape><corners android:radius="2dp" /><solid android:color="#73101624" /><stroke android:width="0.5dp" android:color="#40FFFFFF" /></shape>
     </item>
     <item android:id="@android:id/progress">
         <clip><shape><corners android:radius="2dp" /><solid android:color="#FFFF7B1C" /></shape></clip>

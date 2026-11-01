@@ -16,6 +16,7 @@ import android.os.Bundle
 import android.view.View
 import android.widget.RemoteViews
 import androidx.core.app.NotificationManagerCompat
+import kotlin.math.abs
 import kotlin.math.min
 import kotlin.math.roundToInt
 import kotlin.math.sqrt
@@ -126,7 +127,15 @@ class AliskanlikWidget : AppWidgetProvider() {
                 satir.setViewVisibility(R.id.satir_onay_alan, if (s.durum == "duraklatildi") View.INVISIBLE else View.VISIBLE)
                 // "+" yalnızca miktarlı alışkanlıkta
                 satir.setImageViewResource(R.id.satir_arti, ARTI[s.asama])
-                satir.setViewVisibility(R.id.satir_arti_alan, if (s.sayac && s.durum != "duraklatildi") View.VISIBLE else View.INVISIBLE)
+                // Miktarsız alışkanlıkta "+" yer kaplamasın (GONE): güç çubuğu uzar
+                satir.setViewVisibility(
+                    R.id.satir_arti_alan,
+                    when {
+                        !s.sayac -> View.GONE
+                        s.durum == "duraklatildi" -> View.INVISIBLE
+                        else -> View.VISIBLE
+                    }
+                )
 
                 if (s.durum != "duraklatildi") {
                     satir.setOnClickPendingIntent(R.id.satir_onay_alan, isaretleIntent(context, s.id, false))
@@ -208,8 +217,11 @@ class AliskanlikWidget : AppWidgetProvider() {
             satirlar.forEachIndexed { i, s ->
                 // Başlangıç: beyinde, güce göre Prefrontal → Bazal gangliyon
                 val t = yolKonumu(s.guc / 100f)
-                val bx = gx + BEYIN_EN * olcek * (PFC_X + (BG_X - PFC_X) * t)
-                val by = gy + BEYIN_BOY * olcek * (PFC_Y + (BG_Y - PFC_Y) * t)
+                // Aynı güçteki alışkanlıklar üst üste binmesin: her yol, satır sırasına göre
+                // beyinde biraz farklı yükseklikten çıkar (uygulamadaki demet gibi)
+                val yayilma = (i - (satirlar.size - 1) / 2f) * 0.07f
+                val bx = gx + BEYIN_EN * olcek * (PFC_X + (BG_X - PFC_X) * t - abs(yayilma) * 0.03f)
+                val by = gy + BEYIN_BOY * olcek * (PFC_Y + (BG_Y - PFC_Y) * t + yayilma)
                 // Bitiş: satırın güç çubuğu hizası (içerik satırda ortalı; çubuk alt sıranın ortası:
                 // satır ortası + 14 dp), sağ sütunun hemen solu
                 val ex = solDp - 2f
