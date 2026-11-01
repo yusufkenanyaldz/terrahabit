@@ -27,19 +27,6 @@ jobs:
       - name: Testler
         run: node --test "NoralAliskanlik/tests/*.test.mjs"
 
-      # brain.glb 25 MB'den büyük olduğu için depoda değil;
-      # "brain-model" etiketli GitHub Release'e ek olarak yüklenir.
-      - name: brain.glb indir
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          if gh release download brain-model --repo "${{ github.repository }}" -p brain.glb \
-               -D NoralAliskanlik/app/src/main/assets --clobber; then
-            ls -lh NoralAliskanlik/app/src/main/assets/brain.glb
-          else
-            echo "::warning::brain.glb bulunamadı. 'brain-model' etiketli bir Release oluşturup brain.glb dosyasını ekleyin. APK yedek beyin modeliyle derleniyor."
-          fi
-
       - uses: actions/setup-java@v4
         with:
           distribution: temurin

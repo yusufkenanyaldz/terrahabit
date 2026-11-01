@@ -219,6 +219,124 @@ html, body {
   color: #8ef6ff;
 }
 
+.icon-btn.upload-btn {
+  background: rgba(255, 123, 28, 0.16);
+  border-color: rgba(255, 123, 28, 0.45);
+  color: #ffc299;
+}
+
+/* Ayar Paneli */
+#settings-panel {
+  position: fixed;
+  top: 72px;
+  right: 16px;
+  z-index: 15;
+  width: min(310px, calc(100vw - 32px));
+  max-height: calc(100vh - 230px);
+  overflow-y: auto;
+  background: rgba(10, 15, 28, 0.94);
+  border: 1px solid var(--border-glass);
+  border-radius: 16px;
+  padding: 14px;
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.6);
+  display: none;
+}
+
+#settings-panel.open {
+  display: block;
+}
+
+.settings-group-title {
+  font-size: 11px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-muted);
+  margin: 10px 0 6px 0;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.settings-group-title:first-child {
+  margin-top: 0;
+}
+
+.slider-row {
+  display: grid;
+  grid-template-columns: 28px 1fr 44px;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 6px;
+  font-size: 11.5px;
+}
+
+.slider-row label {
+  color: #cbd5e1;
+  font-weight: 600;
+}
+
+.slider-row input[type="range"] {
+  width: 100%;
+  accent-color: #00e5ff;
+  cursor: pointer;
+}
+
+.slider-val {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-muted);
+  font-size: 11px;
+}
+
+.settings-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.btn-small {
+  flex: 1;
+  padding: 8px 10px;
+  border-radius: 10px;
+  border: 1px solid var(--border-glass);
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--text-main);
+  font-family: inherit;
+  font-size: 11.5px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.btn-small.primary {
+  background: rgba(0, 229, 255, 0.18);
+  border-color: rgba(0, 229, 255, 0.45);
+  color: #8ef6ff;
+}
+
+.btn-small:hover {
+  background: rgba(255, 255, 255, 0.12);
+}
+
+/* CC BY Model Lisans Atfı */
+.model-credit {
+  margin-top: 12px;
+  padding-top: 9px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  font-size: 10.5px;
+  color: var(--text-muted);
+  text-align: center;
+  cursor: pointer;
+  transition: color 0.2s ease;
+}
+
+.model-credit:hover {
+  color: #cbd5e1;
+}
+
 /* Seçili Alışkanlık Detay Kartı */
 #detail-card {
   position: fixed;
@@ -650,3 +768,61 @@ html, body {
   color: var(--text-muted);
   pointer-events: none;
 }
+
+/* Ayar paneli ve bildirim hapı: üst bar yüksekliğine göre konumlanır (main.js ayarlar) */
+#settings-panel {
+  top: calc(var(--ust-bar-h, 72px) + 6px);
+  max-height: calc(100vh - var(--ust-bar-h, 72px) - 220px);
+}
+#toast { top: calc(var(--ust-bar-h, 100px) + 6px); }
+.model-credit { cursor: default; text-align: left; }
+.credit-input { font-size: 12px; padding: 8px 10px; margin-top: 6px; }
+
+/* İlk açılış: model yoksa karşılama ekranı */
+#welcome {
+  position: fixed;
+  inset: 0;
+  z-index: 45;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: radial-gradient(circle at 50% 40%, rgba(168, 85, 247, 0.16), rgba(6, 9, 19, 0.9) 65%);
+}
+#welcome.open { display: flex; animation: cel-fade 0.4s ease both; }
+.welcome-card {
+  width: min(360px, 100%);
+  text-align: center;
+  background: rgba(12, 18, 34, 0.9);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 24px;
+  padding: 28px 22px 22px;
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.6);
+}
+.welcome-icon {
+  width: 84px;
+  height: 84px;
+  margin: 0 auto 16px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 42px;
+  background: radial-gradient(circle, rgba(0, 229, 255, 0.25), rgba(168, 85, 247, 0.12) 60%, transparent 70%);
+  box-shadow: 0 0 40px rgba(0, 229, 255, 0.25);
+  animation: welcome-pulse 2.6s ease-in-out infinite;
+}
+@keyframes welcome-pulse { 50% { transform: scale(1.07); box-shadow: 0 0 60px rgba(168, 85, 247, 0.35); } }
+.welcome-title { font-size: 22px; font-weight: 800; letter-spacing: -0.02em; }
+.welcome-text { font-size: 13px; color: #cbd5e1; line-height: 1.55; margin: 10px 0 20px; }
+.welcome-card .btn-Check { width: 100%; padding: 14px; font-size: 14px; }
+.welcome-skip {
+  margin-top: 14px;
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  font-family: inherit;
+  font-size: 12px;
+  text-decoration: underline;
+}
+.welcome-note { font-size: 11px; color: var(--text-muted); margin-top: 14px; line-height: 1.5; }

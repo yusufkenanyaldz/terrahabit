@@ -1,5 +1,5 @@
-# brain.glb 25 MB'den büyük: depoya girmez, GitHub Release'ten indirilir.
-app/src/main/assets/brain.glb
+# Beyin modeli depoya girmez (25 MB+); uygulama içinden yüklenir.
+*.glb
 .gradle/
 build/
 app/build/

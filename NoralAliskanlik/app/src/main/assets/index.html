@@ -23,7 +23,10 @@
     <svg id="leader-svg"></svg>
   </div>
   <div id="toast"></div>
-  <div id="loading">Beyin modeli yükleniyor…</div>
+  <div id="loading" hidden>Beyin modeli yükleniyor…</div>
+
+  <!-- Gizli model dosya seçici: Android'de WebChromeClient.onShowFileChooser açar -->
+  <input type="file" id="glb-input" accept=".glb,.gltf" style="display: none;" />
 
   <!-- ÜST BAR -->
   <header class="top-bar">
@@ -32,11 +35,78 @@
       <div class="brand-sub">Prefrontal Korteks → Bazal Gangliyon</div>
     </div>
     <div class="top-actions">
+      <button id="btn-upload" class="icon-btn upload-btn">Beyin modeli yükle</button>
       <button id="btn-transparent" class="icon-btn active">Şeffaf mod</button>
       <button id="btn-clip" class="icon-btn">Kesit görünümü</button>
+      <button id="btn-settings" class="icon-btn">Ayar</button>
       <button id="btn-backup" class="icon-btn">Yedek</button>
     </div>
   </header>
+
+  <!-- AYAR PANELİ: değerler telefonda saklanır; yeni model yüklenince sıfırlanır -->
+  <aside id="settings-panel">
+    <div class="settings-group-title"><span>Model Döndürme (Derece)</span></div>
+    <div class="slider-row">
+      <label for="rot-x">X</label>
+      <input type="range" id="rot-x" min="-180" max="180" step="1">
+      <span class="slider-val" id="val-rot-x"></span>
+    </div>
+    <div class="slider-row">
+      <label for="rot-y">Y</label>
+      <input type="range" id="rot-y" min="-180" max="180" step="1">
+      <span class="slider-val" id="val-rot-y"></span>
+    </div>
+    <div class="slider-row">
+      <label for="rot-z">Z</label>
+      <input type="range" id="rot-z" min="-180" max="180" step="1">
+      <span class="slider-val" id="val-rot-z"></span>
+    </div>
+
+    <div class="settings-group-title"><span style="color:#ffb074;">Prefrontal Korteks (Çaba)</span></div>
+    <div class="slider-row">
+      <label for="pfc-x">X</label>
+      <input type="range" id="pfc-x" min="-1.8" max="1.8" step="0.02">
+      <span class="slider-val" id="val-pfc-x"></span>
+    </div>
+    <div class="slider-row">
+      <label for="pfc-y">Y</label>
+      <input type="range" id="pfc-y" min="-1.5" max="1.5" step="0.02">
+      <span class="slider-val" id="val-pfc-y"></span>
+    </div>
+    <div class="slider-row">
+      <label for="pfc-z">Z</label>
+      <input type="range" id="pfc-z" min="-1.5" max="1.5" step="0.02">
+      <span class="slider-val" id="val-pfc-z"></span>
+    </div>
+
+    <div class="settings-group-title"><span style="color:#7df4ff;">Bazal Gangliyon (Otomatik)</span></div>
+    <div class="slider-row">
+      <label for="bg-x">X</label>
+      <input type="range" id="bg-x" min="-1.8" max="1.8" step="0.02">
+      <span class="slider-val" id="val-bg-x"></span>
+    </div>
+    <div class="slider-row">
+      <label for="bg-y">Y</label>
+      <input type="range" id="bg-y" min="-1.5" max="1.5" step="0.02">
+      <span class="slider-val" id="val-bg-y"></span>
+    </div>
+    <div class="slider-row">
+      <label for="bg-z">Z</label>
+      <input type="range" id="bg-z" min="-1.5" max="1.5" step="0.02">
+      <span class="slider-val" id="val-bg-z"></span>
+    </div>
+
+    <div class="settings-actions">
+      <button id="btn-reset-settings" class="btn-small">Sıfırla</button>
+      <button id="btn-copy-settings" class="btn-small primary">Değerleri kopyala</button>
+    </div>
+
+    <!-- CC BY lisansı için model kaynağı -->
+    <div class="model-credit">
+      <label for="credit-input">Model kaynağı / yazar (CC BY)</label>
+      <input class="text-input credit-input" id="credit-input" maxlength="200" placeholder="Örn. Ad Soyad — sketchfab.com/…" />
+    </div>
+  </aside>
 
   <!-- SEÇİLİ ALIŞKANLIK DETAY KARTI -->
   <section id="detail-card">
@@ -115,10 +185,24 @@
         Yedek, telefonun <b>İndirilenler (Download)</b> klasörüne JSON dosyası olarak kaydedilir.
         Geri yüklerken bu dosyayı seçin.
       </div>
-      <div class="backup-note" id="model-credit"></div>
       <div class="modal-actions">
         <button class="btn-small" id="backup-close">Kapat</button>
       </div>
+    </div>
+  </div>
+
+  <!-- İLK AÇILIŞ: MODEL YOKSA KARŞILAMA -->
+  <div id="welcome">
+    <div class="welcome-card">
+      <div class="welcome-icon">🧠</div>
+      <div class="welcome-title">Nöral Alışkanlık</div>
+      <div class="welcome-text">
+        Alışkanlıkların, prefrontal korteksten bazal gangliyona uzanan bir nöral yolda ilerler.
+        Başlamak için beyin modelini (.glb) seç.
+      </div>
+      <button class="btn-Check" id="welcome-upload">Beyin modeli yükle</button>
+      <div class="welcome-note">Model telefonda saklanır; her açılışta otomatik yüklenir.</div>
+      <button class="welcome-skip" id="welcome-skip">Şimdilik örnek beyinle devam et</button>
     </div>
   </div>
 

@@ -1,12 +1,16 @@
-// Arayüz: liste, detay kartı, ekleme/silme, yedek, kutlama.
+// Arayüz: liste, detay kartı, ekleme/silme, yedek, kutlama, model yükleme, Ayar paneli.
 // Oyun mantığı habits.js'te (saf, testli); 3B sahne brain-scene.js'te.
-import { createBrainScene, asamaBilgisiGetir, AYARLAR } from './brain-scene.js';
+import { createBrainScene, asamaBilgisiGetir } from './brain-scene.js';
+import { varsayilanAyarlar } from './settings.js';
 import {
   GOAL_DAYS, addHabit, removeHabit, markDone, doneCount, isDoneOn,
   needsMissFlash, ackMisses, last30, migrate,
 } from './habits.js';
 import { todayKey, setNow } from './clock.js';
-import { loadState, saveState, exportBackup, requestImport } from './storage.js';
+import {
+  loadState, saveState, exportBackup, requestImport,
+  loadSettings, saveSettings, modelInfo, androidMi,
+} from './storage.js';
 
 // Geliştirici modu: tarayıcıda ?tarih=2026-05-01 ile sahte gün (test için).
 const tarihParam = new URLSearchParams(location.search).get('tarih');
@@ -26,6 +30,7 @@ try {
   kayitBozuk = true;
 }
 let seciliId = null;
+let ayarlar = loadSettings(); // Ayar paneli değerleri (SharedPreferences)
 
 function kaydet() {
   if (kayitBozuk) {
@@ -42,14 +47,162 @@ const sahne = createBrainScene({
   container: $('canvas-container'),
   labelsContainer: $('labels-container'),
   leaderSvg: $('leader-svg'),
+  ayarlar,
   onSelect: (id) => aliskanlikSec(id),
   onProgress: (p) => { $('loading').textContent = `Beyin modeli yükleniyor… %${Math.round(p * 100)}`; },
 });
 
-sahne.loadBrain('brain.glb').then((ok) => {
-  $('loading').remove();
-  if (!ok) bildirimGoster('brain.glb bulunamadı — yedek beyin modeli gösteriliyor');
+// -------------------------------------------------------------------------
+// Beyin modeli: telefonda kayıtlıysa her açılışta otomatik yüklenir,
+// yoksa karşılama ekranı "Beyin modeli yükle" ister.
+// -------------------------------------------------------------------------
+function yuklemeGoster(acik, metin = 'Beyin modeli yükleniyor…') {
+  $('loading').hidden = !acik;
+  $('loading').textContent = metin;
+}
+
+function karsilamaGoster(acik) {
+  $('welcome').classList.toggle('open', acik);
+}
+
+async function kayitliModeliYukle() {
+  const info = modelInfo();
+  // Tarayıcıda denerken (köprü yok) klasördeki brain.glb denenir.
+  const url = info.exists ? info.url : (androidMi ? null : 'brain.glb');
+  if (!url) { karsilamaGoster(true); return; }
+  yuklemeGoster(true);
+  const ok = await sahne.loadBrain(url);
+  yuklemeGoster(false);
+  if (!ok) {
+    if (info.exists) bildirimGoster('Kayıtlı model açılamadı — yeni bir model seçin');
+    karsilamaGoster(true);
+  }
+}
+
+/** Yeni seçilen model: yükle; başarılıysa ayarları sıfırla ve Ayar panelini aç. */
+async function yeniModeliYukle(url) {
+  karsilamaGoster(false);
+  yuklemeGoster(true);
+  const ok = await sahne.loadBrain(url);
+  yuklemeGoster(false);
+  if (!ok) {
+    bildirimGoster('Model açılamadı (.glb dosyasını kontrol edin)');
+    return;
+  }
+  // Her modelin yönü farklı olabilir: ayarları sıfırla ve paneli aç.
+  ayarlar = varsayilanAyarlar();
+  sahne.applySettings(ayarlar);
+  saveSettings(ayarlar);
+  ayarPaneliniDoldur();
+  ayarPaneliAc(true);
+  bildirimGoster('Model yüklendi — yönü ve bölgeleri Ayar panelinden düzeltin');
+}
+
+// "Beyin modeli yükle" → gizli dosya seçici (Android'de sistem dosya seçicisi açılır)
+const glbInput = $('glb-input');
+$('btn-upload').addEventListener('click', () => glbInput.click());
+$('welcome-upload').addEventListener('click', () => glbInput.click());
+$('welcome-skip').addEventListener('click', () => karsilamaGoster(false));
+// Yalnızca tarayıcıda çalışır; Android'de dosya doğrudan iç depolamaya kopyalanır.
+glbInput.addEventListener('change', () => {
+  const file = glbInput.files?.[0];
+  glbInput.value = '';
+  if (file) yeniModeliYukle(URL.createObjectURL(file));
 });
+
+// -------------------------------------------------------------------------
+// Ayar paneli (döndürme ve bölge konumları) — değerler telefonda saklanır
+// -------------------------------------------------------------------------
+const sliderBaglantilari = [
+  { id: 'rot-x', grup: 'modelRot', eksen: 'x', suffix: '°' },
+  { id: 'rot-y', grup: 'modelRot', eksen: 'y', suffix: '°' },
+  { id: 'rot-z', grup: 'modelRot', eksen: 'z', suffix: '°' },
+  { id: 'pfc-x', grup: 'prefrontal', eksen: 'x', suffix: '' },
+  { id: 'pfc-y', grup: 'prefrontal', eksen: 'y', suffix: '' },
+  { id: 'pfc-z', grup: 'prefrontal', eksen: 'z', suffix: '' },
+  { id: 'bg-x', grup: 'basalGanglia', eksen: 'x', suffix: '' },
+  { id: 'bg-y', grup: 'basalGanglia', eksen: 'y', suffix: '' },
+  { id: 'bg-z', grup: 'basalGanglia', eksen: 'z', suffix: '' },
+];
+
+function degerYazisi(s, deger) {
+  return (s.suffix === '°' ? Math.round(deger) : Number(deger).toFixed(2)) + s.suffix;
+}
+
+function ayarPaneliniDoldur() {
+  sliderBaglantilari.forEach((s) => {
+    const deger = ayarlar[s.grup][s.eksen];
+    $(s.id).value = deger;
+    $(`val-${s.id}`).textContent = degerYazisi(s, deger);
+  });
+  $('credit-input').value = ayarlar.modelYazar || '';
+}
+
+// Kaydırıcı her oynadığında diske yazmamak için kısa gecikmeyle kaydet.
+let ayarKayitZaman = null;
+function ayarlariKaydetGecikmeli() {
+  clearTimeout(ayarKayitZaman);
+  ayarKayitZaman = setTimeout(() => saveSettings(ayarlar), 300);
+}
+
+sliderBaglantilari.forEach((s) => {
+  $(s.id).addEventListener('input', (e) => {
+    ayarlar[s.grup][s.eksen] = parseFloat(e.target.value);
+    $(`val-${s.id}`).textContent = degerYazisi(s, ayarlar[s.grup][s.eksen]);
+    sahne.applySettings(ayarlar);
+    ayarlariKaydetGecikmeli();
+  });
+});
+
+$('credit-input').addEventListener('input', (e) => {
+  ayarlar.modelYazar = e.target.value;
+  ayarlariKaydetGecikmeli();
+});
+
+function ayarPaneliAc(acik) {
+  $('settings-panel').classList.toggle('open', acik);
+  $('btn-settings').classList.toggle('active', acik);
+}
+$('btn-settings').addEventListener('click', () =>
+  ayarPaneliAc(!$('settings-panel').classList.contains('open')));
+
+$('btn-reset-settings').addEventListener('click', () => {
+  const yazar = ayarlar.modelYazar; // Model aynı; yazar bilgisi korunur
+  ayarlar = { ...varsayilanAyarlar(), modelYazar: yazar };
+  sahne.applySettings(ayarlar);
+  saveSettings(ayarlar);
+  ayarPaneliniDoldur();
+  bildirimGoster('Ayarlar sıfırlandı');
+});
+
+$('btn-copy-settings').addEventListener('click', async () => {
+  const jsonStr = JSON.stringify(ayarlar, null, 2);
+  try {
+    await navigator.clipboard.writeText(jsonStr);
+  } catch {
+    // WebView panoya izin vermezse eski yöntem
+    const ta = document.createElement('textarea');
+    ta.value = jsonStr;
+    document.body.appendChild(ta);
+    ta.select();
+    const ok = document.execCommand('copy');
+    ta.remove();
+    if (!ok) { bildirimGoster('Kopyalama başarısız oldu'); return; }
+  }
+  bildirimGoster('JSON değerleri panoya kopyalandı');
+});
+
+ayarPaneliniDoldur();
+
+// Üst bar butonları birden çok satıra kayabilir: panel, bildirim ve etiketler altında kalsın.
+function ustBarGuncelle() {
+  const alt = document.querySelector('.top-bar').getBoundingClientRect().bottom;
+  document.documentElement.style.setProperty('--ust-bar-h', `${Math.round(alt)}px`);
+  sahne.setUstSinir(alt + 14);
+}
+window.addEventListener('resize', ustBarGuncelle);
+ustBarGuncelle();
+document.fonts?.ready.then(ustBarGuncelle);
 
 // -------------------------------------------------------------------------
 // Liste ve detay kartı
@@ -277,7 +430,6 @@ $('add-form').addEventListener('submit', (e) => {
 });
 
 // Yedek
-$('model-credit').textContent = `Model: ${AYARLAR.modelYazar} (CC BY)`;
 $('btn-backup').addEventListener('click', () => $('modal-backup').classList.add('open'));
 $('backup-close').addEventListener('click', () => $('modal-backup').classList.remove('open'));
 $('backup-export').addEventListener('click', () => {
@@ -369,6 +521,7 @@ window.NoralApp = {
     for (const id of ['modal-add', 'modal-backup']) {
       if ($(id).classList.contains('open')) { $(id).classList.remove('open'); return true; }
     }
+    if ($('settings-panel').classList.contains('open')) { ayarPaneliAc(false); return true; }
     if (seciliId) { detayKapat(); return true; }
     return false;
   },
@@ -379,9 +532,25 @@ window.NoralApp = {
   },
   /** Seçilen yedek dosyasının içeriği. */
   onImport(metin) { yedekGeldi(metin); },
+  /** Model dosyası iç depolamaya kopyalanmaya başladı (büyük dosyada birkaç saniye). */
+  onModelCopyStart() {
+    karsilamaGoster(false);
+    yuklemeGoster(true, 'Model telefona kaydediliyor…');
+  },
+  /** Kopyalama bitti: { exists, url, name } */
+  onModelSaved(infoJson) {
+    const info = JSON.parse(infoJson);
+    yeniModeliYukle(info.url);
+  },
+  onModelError(mesaj) {
+    yuklemeGoster(false);
+    bildirimGoster(mesaj);
+    if (!modelInfo().exists) karsilamaGoster(true);
+  },
 };
 
 // Açılış
 ciz();
+kayitliModeliYukle();
 if (kayitBozuk) bildirimGoster('Kayıt okunamadı. Yedekten geri yükleyebilirsiniz.');
 else setTimeout(kacirilanlariKontrolEt, 1200);

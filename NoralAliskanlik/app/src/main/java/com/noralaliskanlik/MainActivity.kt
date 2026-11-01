@@ -10,6 +10,8 @@ import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.provider.DocumentsContract
+import android.webkit.ValueCallback
+import android.webkit.WebChromeClient
 import android.webkit.WebResourceRequest
 import android.webkit.WebResourceResponse
 import android.webkit.WebView
@@ -24,6 +26,7 @@ import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
 import androidx.webkit.WebViewAssetLoader
 import org.json.JSONObject
+import kotlin.concurrent.thread
 
 /**
  * Tek ekran: tam ekran WebView. HTML/JS, WebViewAssetLoader ile
@@ -56,6 +59,19 @@ class MainActivity : AppCompatActivity() {
                 }
         }) { uri -> uri?.let { readBackup(it) } }
 
+    // Beyin modeli seçici (WebView'daki <input type="file"> → onShowFileChooser buraya gelir).
+    // .glb dosyalarının MIME türü telefona göre değiştiği için tüm dosyalar gösterilir;
+    // içerik ModelStore'da doğrulanır.
+    private var fileCallback: ValueCallback<Array<Uri>>? = null
+    private val modelPicker =
+        registerForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+            // Dosyayı JS'e vermiyoruz (25 MB+ köprüden geçmesin); WebView'a "iptal" deyip
+            // dosyayı doğrudan iç depolamaya kopyalıyoruz.
+            fileCallback?.onReceiveValue(null)
+            fileCallback = null
+            if (uri != null) importModel(uri)
+        }
+
     @SuppressLint("SetJavaScriptEnabled")
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -66,9 +82,10 @@ class MainActivity : AppCompatActivity() {
             WebView.setWebContentsDebuggingEnabled(true)
         }
 
-        // assets/ klasörünü güvenli https adresinden sun.
+        // assets/ klasörünü ve iç depolamadaki modeli güvenli https adresinden sun.
         val assetLoader = WebViewAssetLoader.Builder()
             .addPathHandler("/assets/", WebViewAssetLoader.AssetsPathHandler(this))
+            .addPathHandler("/model/", WebViewAssetLoader.InternalStoragePathHandler(this, ModelStore.dir(this)))
             .build()
 
         webView = WebView(this).apply {
@@ -82,6 +99,23 @@ class MainActivity : AppCompatActivity() {
             webViewClient = object : WebViewClient() {
                 override fun shouldInterceptRequest(view: WebView, request: WebResourceRequest): WebResourceResponse? =
                     assetLoader.shouldInterceptRequest(request.url)
+            }
+            webChromeClient = object : WebChromeClient() {
+                override fun onShowFileChooser(
+                    view: WebView,
+                    callback: ValueCallback<Array<Uri>>,
+                    params: FileChooserParams
+                ): Boolean {
+                    fileCallback?.onReceiveValue(null) // Önceki açık istek varsa kapat
+                    fileCallback = callback
+                    return try {
+                        modelPicker.launch(arrayOf("*/*"))
+                        true
+                    } catch (e: Exception) {
+                        fileCallback = null
+                        false
+                    }
+                }
             }
             addJavascriptInterface(WebAppBridge(this@MainActivity), "AndroidBridge")
         }
@@ -135,6 +169,20 @@ class MainActivity : AppCompatActivity() {
 
     fun openBackupPicker() {
         backupPicker.launch(arrayOf("application/json", "text/*", "application/octet-stream"))
+    }
+
+    /** Modeli arka planda iç depolamaya kopyala; bitince JS'e haber ver. */
+    private fun importModel(uri: Uri) {
+        webView.evaluateJavascript("window.NoralApp && NoralApp.onModelCopyStart()", null)
+        thread(name = "model-kopya") {
+            val js = try {
+                ModelStore.importFrom(this, uri)
+                "NoralApp.onModelSaved(${JSONObject.quote(ModelStore.infoJson(this))})"
+            } catch (e: Exception) {
+                "NoralApp.onModelError(${JSONObject.quote(e.message ?: "Model kaydedilemedi")})"
+            }
+            runOnUiThread { webView.evaluateJavascript(js, null) }
+        }
     }
 
     /** Seçilen yedek dosyasını oku ve JS'e ver (JS doğrular ve onay ister). */

@@ -40,9 +40,9 @@ android {
         }
     }
 
-    // GLB ve wasm dosyaları APK içinde sıkıştırılmasın (daha hızlı yükleme).
+    // Draco çözücü (wasm) APK içinde sıkıştırılmasın (daha hızlı yükleme).
     androidResources {
-        noCompress += ['glb', 'wasm']
+        noCompress += ['wasm']
     }
 
     compileOptions {

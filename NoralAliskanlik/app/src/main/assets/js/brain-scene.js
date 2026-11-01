@@ -1,6 +1,6 @@
 // 3B beyin sahnesi — orijinal "Nöral Alışkanlık" HTML'inden modüle taşındı.
-// Değişenler: model yükleme butonu ve Ayar paneli yok (değerler aşağıda sabit),
-// brain.glb otomatik yüklenir, küreler gerçek alışkanlık verisinden gelir,
+// Değişenler: model telefonun iç depolamasından yüklenir (main.js yönetir),
+// ayarlar dışarıdan verilir (SharedPreferences), küreler gerçek alışkanlık verisinden gelir,
 // bloom her zaman yarım çözünürlükte, pixelRatio en fazla 2.
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
@@ -13,17 +13,6 @@ import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js'
 import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 import { GOAL_DAYS } from './habits.js';
-
-// =========================================================================
-// SABİT AYARLAR (eski Ayar panelinin değerleri — panel kaldırıldı)
-// Değiştirmek için yalnızca bu bloğu düzenleyin.
-// =========================================================================
-export const AYARLAR = {
-  modelRot: { x: 0, y: 0, z: 0 },                 // Model döndürme (derece)
-  prefrontal: { x: 0.78, y: 0.34, z: 0.18 },      // Prefrontal Korteks (Çaba)
-  basalGanglia: { x: -0.05, y: 0.02, z: 0.00 },   // Bazal Gangliyon (Otomatik)
-  modelYazar: '[yazar adı]',                      // Model lisans atfı (CC BY)
-};
 
 const MAX_PIXEL_RATIO = 2;
 const BLOOM_SCALE = 0.5; // Bloom, ekran çözünürlüğünün yarısında hesaplanır
@@ -51,9 +40,11 @@ export function asamaBilgisiGetir(gun) {
 /**
  * Sahneyi kurar.
  * @param {{container:HTMLElement, labelsContainer:HTMLElement, leaderSvg:SVGElement,
- *          onSelect:(id:string)=>void, onProgress?:(p:number)=>void}} opts
+ *          ayarlar:object, onSelect:(id:string)=>void, onProgress?:(p:number)=>void}} opts
  */
-export function createBrainScene({ container, labelsContainer, leaderSvg, onSelect, onProgress }) {
+export function createBrainScene({ container, labelsContainer, leaderSvg, ayarlar, onSelect, onProgress }) {
+  let aktifAyarlar = ayarlar;
+  let ustSinir = 115; // Etiketler üst barın altında kalsın (main.js günceller)
   // =======================================================================
   // SAHNE, KAMERA (AÇILIŞTA YANDAN GÖRÜNÜM), RENDERER VE POST-PROCESSING
   // =======================================================================
@@ -182,10 +173,6 @@ export function createBrainScene({ container, labelsContainer, leaderSvg, onSele
   // BEYİN MODELİ VE İÇİ BOŞ CAM (FRESNEL) ŞEFFAFLIK SİSTEMİ
   // =======================================================================
   const brainPivotGroup = new THREE.Group();
-  brainPivotGroup.rotation.set(
-    THREE.MathUtils.degToRad(AYARLAR.modelRot.x),
-    THREE.MathUtils.degToRad(AYARLAR.modelRot.y),
-    THREE.MathUtils.degToRad(AYARLAR.modelRot.z));
   scene.add(brainPivotGroup);
 
   let proceduralBrainGroup = null;
@@ -207,7 +194,9 @@ export function createBrainScene({ container, labelsContainer, leaderSvg, onSele
         #include <dithering_fragment>
         if (uFresnelActive > 0.5) {
           vec3 viewDir = normalize(vViewPosition);
-          vec3 nrm = normalize(vNormal);
+          // 'normal' her ışıklı malzemede var; vNormal ise normal'i olmayan
+          // (düz gölgeli) modellerde tanımsız kalır ve shader derlenmez.
+          vec3 nrm = normalize(normal);
           float fresnel = pow(1.0 - abs(dot(nrm, viewDir)), 2.3);
           vec3 rimColor = vec3(0.48, 0.84, 1.0);
           gl_FragColor.rgb = mix(gl_FragColor.rgb, rimColor, fresnel * 0.78);
@@ -335,19 +324,26 @@ export function createBrainScene({ container, labelsContainer, leaderSvg, onSele
     guncelleIcDerinlikGorunumu();
   }
 
+  /** Bir grubu sahneden çıkarıp GPU belleğini boşaltır. */
+  function grubuAt(grup) {
+    brainPivotGroup.remove(grup);
+    grup.traverse((c) => {
+      if (c.isMesh) {
+        c.geometry?.dispose();
+        const mats = Array.isArray(c.material) ? c.material : [c.material];
+        mats.forEach((m) => {
+          if (!m) return;
+          for (const v of Object.values(m)) if (v && v.isTexture) v.dispose();
+          m.dispose();
+        });
+      }
+    });
+  }
+
   function sahneyeGlbModeliYerlestir(gltfScene) {
-    // Prosedürel beyni kaldır ve belleği boşalt
-    if (proceduralBrainGroup) {
-      brainPivotGroup.remove(proceduralBrainGroup);
-      proceduralBrainGroup.traverse((c) => {
-        if (c.isMesh) {
-          c.geometry?.dispose();
-          if (Array.isArray(c.material)) c.material.forEach((m) => m.dispose());
-          else c.material?.dispose();
-        }
-      });
-      proceduralBrainGroup = null;
-    }
+    // Prosedürel beyni veya önceki modeli kaldır (yeni model eskisinin yerine geçer)
+    if (proceduralBrainGroup) { grubuAt(proceduralBrainGroup); proceduralBrainGroup = null; }
+    if (loadedGlbModel) { grubuAt(loadedGlbModel); loadedGlbModel = null; }
     // Ortala ve ölçekle
     const box = new THREE.Box3().setFromObject(gltfScene);
     const size = new THREE.Vector3();
@@ -376,8 +372,11 @@ export function createBrainScene({ container, labelsContainer, leaderSvg, onSele
     guncelleBeyinMateryalleri();
   }
 
-  /** brain.glb'yi assets'ten yükler (yerel Draco çözücü ile). Dönüş: başarılı mı. */
-  function loadBrain(url = 'brain.glb') {
+  /**
+   * Beyin modelini yükler (Draco çözücü assets/lib/draco'dan, internet gerekmez;
+   * WebP dokular WebView tarafından doğrudan çözülür). Dönüş: başarılı mı.
+   */
+  function loadBrain(url) {
     return new Promise((resolve) => {
       const dracoLoader = new DRACOLoader();
       dracoLoader.setDecoderPath('lib/draco/');
@@ -451,10 +450,11 @@ export function createBrainScene({ container, labelsContainer, leaderSvg, onSele
   akisPoints.renderOrder = 18;
   scene.add(akisPoints);
 
-  // Prefrontal → Bazal Gangliyon nöral yolu (sabit ayarlarla bir kez kurulur)
+  // Prefrontal → Bazal Gangliyon nöral yolu (ayar değişince yeniden kurulur)
   function olusturNoralYol() {
-    const p1 = new THREE.Vector3(AYARLAR.prefrontal.x, AYARLAR.prefrontal.y, AYARLAR.prefrontal.z);
-    const p2 = new THREE.Vector3(AYARLAR.basalGanglia.x, AYARLAR.basalGanglia.y, AYARLAR.basalGanglia.z);
+    const a = aktifAyarlar;
+    const p1 = new THREE.Vector3(a.prefrontal.x, a.prefrontal.y, a.prefrontal.z);
+    const p2 = new THREE.Vector3(a.basalGanglia.x, a.basalGanglia.y, a.basalGanglia.z);
     prefrontalMarker.position.copy(p1);
     basalMarker.position.copy(p2);
 
@@ -463,6 +463,11 @@ export function createBrainScene({ container, labelsContainer, leaderSvg, onSele
     const mid2 = new THREE.Vector3().lerpVectors(p1, p2, 0.68);
     mid2.y += 0.08; mid2.z -= 0.05;
     neuralCurve = new THREE.CatmullRomCurve3([p1, mid1, mid2, p2]);
+
+    // Eski tüpleri at
+    for (const m of [neuralTubeMesh, neuralCoreTubeMesh]) {
+      if (m) { scene.remove(m); m.geometry.dispose(); m.material.dispose(); }
+    }
 
     const tubeGeo = new THREE.TubeGeometry(neuralCurve, 72, 0.032, 16, false);
     const count = tubeGeo.attributes.position.count;
@@ -622,6 +627,19 @@ export function createBrainScene({ container, labelsContainer, leaderSvg, onSele
     if (k) k.kutlamaZamanlayici = 1.0;
   }
 
+  /** Ayar panelinden gelen değerleri uygula: model döndürme + bölge konumları. */
+  function applySettings(ayar) {
+    aktifAyarlar = ayar;
+    brainPivotGroup.rotation.set(
+      THREE.MathUtils.degToRad(ayar.modelRot.x),
+      THREE.MathUtils.degToRad(ayar.modelRot.y),
+      THREE.MathUtils.degToRad(ayar.modelRot.z));
+    olusturNoralYol();
+  }
+
+  /** Etiketlerin inebileceği en üst y (üst bar yüksekliği değişince). */
+  function setUstSinir(px) { ustSinir = px; }
+
   function setTransparent(acik) {
     seffafModAcik = acik;
     guncelleBeyinMateryalleri();
@@ -735,7 +753,7 @@ export function createBrainScene({ container, labelsContainer, leaderSvg, onSele
 
     // Üst bar ve alt liste ile çakışmasın
     aktifEtiketler.forEach((item) => {
-      item.y = Math.max(115, Math.min(h - 195, item.y));
+      item.y = Math.max(ustSinir, Math.min(h - 195, item.y));
       // Hiçbir tarafa sığmayan etiketi ekran içine it.
       if (item.side > 0) item.x = Math.max(6, Math.min(item.x, w - 6 - item.width));
       else item.x = Math.min(w - 6, Math.max(item.x, 6 + item.width));
@@ -827,7 +845,7 @@ export function createBrainScene({ container, labelsContainer, leaderSvg, onSele
     composer.render();
   }
 
-  olusturNoralYol();
+  applySettings(aktifAyarlar);
   guncelleBeyinMateryalleri();
   renderer.setAnimationLoop(animate);
 
@@ -838,5 +856,5 @@ export function createBrainScene({ container, labelsContainer, leaderSvg, onSele
     composer.setSize(window.innerWidth, window.innerHeight);
   });
 
-  return { loadBrain, setHabits, select, flashMiss, celebrate, setTransparent, toggleClip };
+  return { loadBrain, setHabits, select, flashMiss, celebrate, setTransparent, toggleClip, applySettings, setUstSinir };
 }

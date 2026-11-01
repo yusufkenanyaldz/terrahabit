@@ -1,0 +1,45 @@
+// Ayar paneli değerleri: model döndürme, bölge konumları, model kaynağı.
+// Saf modül (Three.js/DOM yok) — testleri NoralAliskanlik/tests altında.
+
+/** Varsayılan değerler: "Sıfırla" ve yeni model yüklenince bunlara dönülür. */
+export const VARSAYILAN_AYARLAR = Object.freeze({
+  modelRot: Object.freeze({ x: 0, y: 0, z: 0 }),                // Model döndürme (derece)
+  prefrontal: Object.freeze({ x: 0.78, y: 0.34, z: 0.18 }),     // Prefrontal Korteks (Çaba)
+  basalGanglia: Object.freeze({ x: -0.05, y: 0.02, z: 0.0 }),   // Bazal Gangliyon (Otomatik)
+  modelYazar: '',                                               // Model kaynağı / yazar (CC BY)
+});
+
+/** Varsayılanların değiştirilebilir bir kopyası. */
+export function varsayilanAyarlar() {
+  return JSON.parse(JSON.stringify(VARSAYILAN_AYARLAR));
+}
+
+/**
+ * Kayıttan gelen ayarları doğrular; eksik/bozuk alanlar varsayılana döner.
+ * Bozuk JSON da varsayılan ayarları verir (ayarlar kritik veri değildir).
+ */
+export function normalizeAyarlar(raw) {
+  let data = raw;
+  try {
+    if (typeof raw === 'string') data = raw ? JSON.parse(raw) : null;
+  } catch {
+    data = null;
+  }
+  const v = varsayilanAyarlar();
+  if (!data || typeof data !== 'object') return v;
+  const vec = (src, def) => {
+    const o = { ...def };
+    for (const k of ['x', 'y', 'z']) {
+      const n = Number(src?.[k]);
+      if (Number.isFinite(n)) o[k] = n;
+    }
+    return o;
+  };
+  return {
+    modelRot: vec(data.modelRot, v.modelRot),
+    prefrontal: vec(data.prefrontal, v.prefrontal),
+    basalGanglia: vec(data.basalGanglia, v.basalGanglia),
+    modelYazar: typeof data.modelYazar === 'string' && data.modelYazar !== '[yazar adı]'
+      ? data.modelYazar.slice(0, 200) : '',
+  };
+}

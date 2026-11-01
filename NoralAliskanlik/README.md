@@ -5,22 +5,20 @@ Three.js beyin haritası + alışkanlık takibi. WebView içinde, internetsiz ç
 ## Klasörler
 - `app/src/main/assets/` — HTML/CSS/JS (WebViewAssetLoader ile `https://appassets.androidplatform.net/assets/index.html`)
   - `js/habits.js` — alışkanlık mantığı (saf, testli)
-  - `js/brain-scene.js` — 3B sahne; **sabit ayarlar** dosyanın başındaki `AYARLAR` bloğunda
+  - `js/brain-scene.js` — 3B sahne
+  - `js/settings.js` — Ayar paneli varsayılanları
   - `js/main.js` — arayüz
   - `lib/` — yerel Three.js + eklentiler + Draco çözücü (`scripts/vendor-three.mjs` ile üretilir)
-  - `brain.glb` — depoda **yok** (25 MB+), aşağıya bakın
 - `app/src/main/java/com/noralaliskanlik/` — Kotlin: WebView, SharedPreferences köprüsü, yedek, alarmlar
 
-## brain.glb nasıl eklenir
-1. GitHub'da repo → **Releases** → **Draft a new release**
-2. Tag: `brain-model` (tam olarak bu)
-3. `brain.glb` dosyasını eklere sürükle → **Publish release**
-4. **Actions** → *Nöral Alışkanlık APK* → **Run workflow**
-
-Android Studio'da kendin derlersen dosyayı `app/src/main/assets/brain.glb` olarak koy.
+## Beyin modeli
+APK'da model yoktur. İlk açılışta **Beyin modeli yükle** ile telefondaki `.glb` seçilir;
+uygulamanın iç depolamasına (`filesDir/model`) kopyalanır ve her açılışta oradan yüklenir.
+Yeni model seçilince eskisinin yerine geçer, ayarlar sıfırlanır ve Ayar paneli açılır.
+Draco/WebP sıkıştırmalı modeller desteklenir (çözücü `assets/lib/draco`).
 
 ## Testler
 Repo kökünde: `node --test "NoralAliskanlik/tests/*.test.mjs"`
 
 Tarayıcıda deneme: `cd NoralAliskanlik/app/src/main/assets && python3 -m http.server`
-→ `http://localhost:8000/?tarih=2026-03-05` (sahte gün ile kaçırılan gün / takvim denenir).
+(klasöre bir `brain.glb` koyarsan o yüklenir) → `http://localhost:8000/?tarih=2026-03-05` (sahte gün ile kaçırılan gün / takvim denenir).

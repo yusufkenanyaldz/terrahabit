@@ -26,6 +26,17 @@ class WebAppBridge(private val activity: MainActivity) {
         return ok
     }
 
+    /** Ayar paneli değerleri (JSON). */
+    @JavascriptInterface
+    fun loadSettings(): String = HabitStore.loadSettings(activity)
+
+    @JavascriptInterface
+    fun saveSettings(json: String): Boolean = HabitStore.saveSettings(activity, json)
+
+    /** Telefonda kayıtlı beyin modeli bilgisi (JSON). */
+    @JavascriptInterface
+    fun modelInfo(): String = ModelStore.infoJson(activity)
+
     /**
      * Yedeği Downloads klasörüne yazar.
      * Başarılıysa dosya adını, hata olursa "HATA: ..." döndürür.
