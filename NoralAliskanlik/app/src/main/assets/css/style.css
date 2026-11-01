@@ -1124,3 +1124,52 @@ body.sahne-hazir #canvas-container, body.sahne-hazir #labels-container { opacity
 
 /* "hidden" niteliği her zaman geçerli olsun (display: flex gibi kurallar onu ezmesin) */
 [hidden] { display: none !important; }
+
+/* Etiketler dokunulmadığında yavaşça kaybolur (beyni kapatmasın) */
+#labels-container { transition: opacity 0.8s ease; }
+body.sahne-hazir #labels-container.soluk { opacity: 0; }
+#labels-container.soluk .label-habit { pointer-events: none; }
+
+/* v3: miktarlı takip, geç kayıt, çöp kutusu */
+.miktar-girdi { display: flex; gap: 8px; }
+.miktar-girdi input:first-child { flex: 0 0 90px; }
+.gec-satir { margin: -6px 0 12px; position: relative; }
+.gec-btn {
+  background: none;
+  border: none;
+  padding: 0;
+  color: var(--text-muted);
+  font-family: inherit;
+  font-size: 11.5px;
+  text-decoration: underline;
+}
+.gizli-tarih { position: absolute; opacity: 0; pointer-events: none; width: 1px; height: 1px; left: 0; top: 0; }
+.miktar-satir {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+.adim-btn {
+  width: 46px;
+  height: 40px;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--text-main);
+  font-family: inherit;
+  font-size: 22px;
+  font-weight: 700;
+  line-height: 1;
+}
+.adim-btn:active { transform: scale(0.94); }
+.miktar-deger { flex: 1; text-align: center; }
+.miktar-deger b { font-size: 22px; font-weight: 800; }
+.miktar-deger span { font-size: 12px; color: var(--text-muted); margin-left: 4px; }
+.gun-btn.secili { outline: 2px solid rgba(168, 85, 247, 0.8); outline-offset: 1px; }
+.cal-dot.kismi { background: rgba(0, 229, 255, 0.35); }
+.cal-dot.kayma { background: rgba(255, 123, 28, 0.6); }
+.cal-dot.gec { opacity: 0.55; }
+.row-check.sayac { color: #7df4ff; font-size: 12px; font-weight: 800; border-color: rgba(0, 229, 255, 0.45); }
+#cop-baslik { margin-top: 16px; }

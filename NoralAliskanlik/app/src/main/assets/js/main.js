@@ -8,11 +8,13 @@ import {
   updateHabit, pendingCelebrations, markCelebrated,
   setArchived, startPause, endPause, activePause, expiredPause, answerExpiredPause,
   addSrbai, srbaiDue, syncDerived,
+  setAmount, amountOn, isLateEditable, restoreHabit, deleteForever, purgeTrash,
 } from './habits.js';
 import { todayKey, setNow, addDays } from './clock.js';
 import { computeState, geriDonusTahmini, planliMi } from './guc.js';
 import {
   CABA_UYARI_SAYISI, DURAKLATMA_EN_UZUN, MAZERET_HAKKI, MAZERET_PENCERE,
+  GERIYE_DONUK_GUN, GEC_KAYIT_EN_ESKI, COP_GUN,
 } from './parametreler.js';
 import {
   loadState, saveState, exportBackup, requestImport,
@@ -82,6 +84,7 @@ function yuklemeGoster(acik, metin = 'Beyin modeli yükleniyor…') {
 /** Sahne (beyin + etiketler) hazır: yumuşakça görünür olsun. */
 function sahneyiGoster() {
   document.body.classList.add('sahne-hazir');
+  sahne.etiketleriGoster(); // Etiketler sahne görününce 5 sn görünsün, sonra kaybolsun
 }
 
 /** APK'nın içindeki hazır beyin modeli (Draco + WebP, ~2 MB). */
@@ -281,14 +284,18 @@ function ciz() {
     const yuzde = Math.round(d.H * 100);
     const asama = asamaBilgisi(d.asama, h);
     const bugunYapildi = isDoneOn(h, bugun);
-    const rozet = d.bugunDuraklatildi ? 'Duraklatıldı' : `${gucAdi(h)} %${yuzde} · ${asama.kisa}`;
+    const miktarYazi = d.miktar ? ` · ${d.miktar.bugun}/${d.miktar.hedef}` : '';
+    const rozet = d.bugunDuraklatildi ? 'Duraklatıldı' : `${gucAdi(h)} %${yuzde} · ${asama.kisa}${miktarYazi}`;
+    // Miktarlı alışkanlıkta onay yerine "+1" sayacı (iyide hedefe ulaşınca onay işareti)
+    const sayac = d.miktar && !(h.tip !== 'kotu' && d.miktar.bugun >= d.miktar.hedef);
     const row = document.createElement('div');
     row.className = `habit-item ${seciliId === h.id ? 'selected' : ''} ${bugunYapildi ? 'done-today' : ''} ${d.bugunDuraklatildi ? 'durakli' : ''}`;
     row.innerHTML = `
       <div class="habit-item-top">
         <span class="habit-name">${esc(h.name)}</span>
         <span class="habit-day-badge">${rozet}</span>
-        <button class="row-check ${bugunYapildi ? 'done' : ''}" aria-label="Bugün yaptım"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg></button>
+        ${sayac ? '<button class="row-check sayac" aria-label="Bir tane ekle">+1</button>'
+    : `<button class="row-check ${bugunYapildi ? 'done' : ''}" aria-label="Bugün yaptım"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg></button>`}
       </div>
       <div class="progress-track">
         <div class="progress-fill" style="width:${yuzde}%; background:${asama.hex};"></div>
@@ -297,6 +304,7 @@ function ciz() {
     row.querySelector('.row-check').addEventListener('click', (e) => {
       e.stopPropagation();
       if (d.bugunDuraklatildi) bildirimGoster('Duraklatıldı — devam etmek için alışkanlığa dokun');
+      else if (sayac) miktarDegistir(h.id, todayKey(), +1);
       else if (isDoneOn(h, todayKey())) bildirimGoster('Bugün zaten işaretli');
       else yaptimIsaretle(h.id);
     });
@@ -372,31 +380,105 @@ function cizDetay() {
     cal.appendChild(dot);
   });
 
-  // Geriye dönük kayıt: son 3 gün + bugün. Dokunuş sırası: boş → yapıldı → mazeret → boş
+  // Geriye dönük kayıt: son 3 gün + bugün.
+  // Normal: dokunuş sırası boş → yapıldı → mazeret → boş. Miktarlı: dokunuş günü seçer.
+  if (!miktarGun || miktarGun > bugun || miktarGun < addDays(bugun, -GERIYE_DONUK_GUN)) miktarGun = bugun;
   const gecmis = $('det-gecmis');
   gecmis.innerHTML = '';
-  for (let i = -3; i <= 0; i++) {
+  for (let i = -GERIYE_DONUK_GUN; i <= 0; i++) {
     const key = addDays(bugun, i);
     if (key < h.createdAt) continue;
     const durum = dayStatus(h, key);
     const b = document.createElement('button');
-    b.className = `gun-btn ${durum}`;
     const ad = i === 0 ? 'Bugün' : i === -1 ? 'Dün' : gunAdi(key);
-    b.textContent = durum === 'mazeret' ? `${ad} · M` : ad;
-    b.addEventListener('click', () => gunDegistir(h.id, key));
+    if (d.miktar) {
+      const m = amountOn(h, key);
+      b.className = `gun-btn ${durum}${key === miktarGun ? ' secili' : ''}`;
+      b.textContent = durum === 'mazeret' ? `${ad} · M` : `${ad} ${m ?? 0}`;
+      b.addEventListener('click', () => { miktarGun = key; cizDetay(); });
+    } else {
+      b.className = `gun-btn ${durum}`;
+      b.textContent = durum === 'mazeret' ? `${ad} · M` : ad;
+      b.addEventListener('click', () => gunDegistir(h.id, key));
+    }
     gecmis.appendChild(b);
   }
 
+  // Miktar ayarlayıcı (seçili gün)
+  $('det-miktar').hidden = !d.miktar || !!durak;
+  if (d.miktar) {
+    $('miktar-sayi').textContent = amountOn(h, miktarGun) ?? 0;
+    $('miktar-hedef').textContent = `${kotu ? 'sınır' : '/'} ${d.miktar.hedef} ${d.miktar.birim}`.trim();
+  }
+  // Geç kayıt: miktarlı alışkanlıkta ve gün yeterince eskiyse anlamlı
+  $('btn-gec').hidden = !!d.miktar || addDays(bugun, -GERIYE_DONUK_GUN - 1) < h.createdAt;
+
   const btn = $('btn-do-today');
-  const yapildi = isDoneOn(h, bugun);
+  btn.hidden = !!(d.miktar && kotu); // Sınırlı kötü alışkanlıkta sayaç yeterli
+  // Miktarlı iyi alışkanlıkta "tamamlandı" ancak hedef miktara ulaşınca (yarısı güç verir ama hedef değil)
+  const yapildi = d.miktar && !kotu ? (amountOn(h, bugun) ?? 0) >= d.miktar.hedef : isDoneOn(h, bugun);
   btn.disabled = yapildi || !!durak;
   if (durak) btn.textContent = 'Duraklatıldı';
+  else if (d.miktar && !kotu) btn.textContent = yapildi ? 'Bugün tamamlandı' : `Hedefi tamamla (${d.miktar.hedef} ${d.miktar.birim})`.replace(' )', ')');
   else if (yapildi) btn.textContent = kotu ? 'Bugün temiz' : 'Bugün tamamlandı';
   else if (!kotu && !planliMi(h, bugun)) btn.textContent = 'Bugün plan dışı · yine de yaptım';
   else btn.textContent = kotu ? 'Bugün temiz geçti' : 'Bugün yaptım';
   $('detail-card').classList.add('visible');
   gorunurAlanGuncelle();
 }
+
+let miktarGun = null; // Miktarlı alışkanlıkta ayarlanan gün (varsayılan bugün)
+
+/** Miktarı değiştir (+1 / −1); son 3 gün + bugün. */
+function miktarDegistir(id, key, fark) {
+  const h = state.habits.find((x) => x.id === id);
+  if (!h) return;
+  const simdi = amountOn(h, key) ?? 0;
+  const r = setAmount(state, id, key, simdi + fark, todayKey());
+  if (!r.changed) return;
+  state = r.state;
+  kaydet();
+  ciz();
+  if (r.reachedGoal) kutlamaGoster(state.habits.find((x) => x.id === id));
+}
+$('miktar-arti').addEventListener('click', () => { if (seciliId) miktarDegistir(seciliId, miktarGun, +1); });
+$('miktar-eksi').addEventListener('click', () => { if (seciliId) miktarDegistir(seciliId, miktarGun, -1); });
+
+// Geç kayıt (kural 9): 4–14 gün önceki unutulan gün; kazanımın yarısını verir
+$('btn-gec').addEventListener('click', () => {
+  const h = state.habits.find((x) => x.id === seciliId);
+  if (!h) return;
+  const bugun = todayKey();
+  const input = $('gec-tarih');
+  const enEski = addDays(bugun, -GEC_KAYIT_EN_ESKI);
+  input.min = enEski < h.createdAt ? h.createdAt : enEski;
+  input.max = addDays(bugun, -GERIYE_DONUK_GUN - 1);
+  input.value = input.max;
+  if (input.showPicker) input.showPicker(); else input.click();
+});
+$('gec-tarih').addEventListener('change', async (e) => {
+  const key = e.target.value;
+  const h = state.habits.find((x) => x.id === seciliId);
+  if (!h || !key) return;
+  const bugun = todayKey();
+  if (!isLateEditable(h, key, bugun)) {
+    bildirimGoster(`Yalnızca ${GERIYE_DONUK_GUN + 1}–${GEC_KAYIT_EN_ESKI} gün önceki günler geç kaydedilebilir`);
+    return;
+  }
+  const yapili = isDoneOn(h, key);
+  const [y, m, g] = key.split('-');
+  const secim = await secimIste(`${g}.${m}.${y}`,
+    yapili ? 'Bu gün işaretli (geç kayıt). İşaret kaldırılsın mı?'
+      : 'Unuttuğun bu günü işaretle. Geç kayıt olduğu için kazanımın yarısı sayılır.',
+    [{ id: 'hayir', yazi: 'Vazgeç' }, { id: 'evet', yazi: yapili ? 'Kaldır' : 'İşaretle', sinif: 'btn-small primary' }]);
+  if (secim !== 'evet') return;
+  const r = setDayStatus(state, h.id, key, yapili ? 'bos' : 'done', bugun);
+  if (!r.changed) return;
+  state = r.state;
+  kaydet();
+  ciz();
+  if (r.reachedGoal) kutlamaGoster(state.habits.find((x) => x.id === h.id));
+});
 
 function tarihSayisi(key) {
   const [y, m, g] = key.split('-').map(Number);
@@ -411,6 +493,7 @@ function siklikYazisi(h) {
 }
 
 function aliskanlikSec(id) {
+  if (seciliId !== id) miktarGun = null;
   seciliId = id;
   sahne.select(id);
   ciz();
@@ -465,7 +548,16 @@ function yaptimIsaretle(id) {
   if (r.reachedGoal) kutlamaGoster(h);
   else bildirimGoster(h.tip === 'kotu' ? 'Temiz bir gün daha — kontrol güçleniyor' : '+1 tekrar — nöral yol güçleniyor');
 }
-$('btn-do-today').addEventListener('click', () => { if (seciliId) yaptimIsaretle(seciliId); });
+$('btn-do-today').addEventListener('click', () => {
+  if (!seciliId) return;
+  const h = state.habits.find((x) => x.id === seciliId);
+  // Miktarlı alışkanlık: bugünün miktarını hedefe çek
+  if (h && h.miktar && h.tip !== 'kotu') {
+    miktarDegistir(h.id, todayKey(), h.miktar.hedef - (amountOn(h, todayKey()) ?? 0));
+    return;
+  }
+  yaptimIsaretle(seciliId);
+});
 
 // -------------------------------------------------------------------------
 // Uzun basma (silme) / kısa dokunma (seçme)
@@ -508,16 +600,14 @@ function uzunBasmaBagla(el, kisaDokunma, uzunBasma) {
  */
 async function silmeOnayi(h) {
   const secim = await secimIste(`"${h.name}"`,
-    `Arşivlersen geçmişin ve izin korunur, istediğinde geri açabilirsin. Silmek ${doneCount(h)} tekrarlık kaydı kalıcı olarak yok eder.`,
+    `Arşivlersen geçmişin ve izin korunur, istediğinde geri açabilirsin. Silersen ${COP_GUN} gün çöp kutusunda durur, sonra ${doneCount(h)} tekrarlık kayıt kalıcı olarak silinir.`,
     [{ id: 'vazgec', yazi: 'Vazgeç' }, { id: 'sil', yazi: 'Sil', sinif: 'btn-danger' }, { id: 'arsiv', yazi: 'Arşivle', sinif: 'btn-small primary' }]);
   if (secim === 'arsiv') {
     state = setArchived(state, h.id, true);
-    bildirimGoster('Arşivlendi — ⚙ → Arşivdekiler\'den geri açabilirsin');
+    bildirimGoster('Arşivlendi — ⚙ → Arşiv ve silinenler\'den geri açabilirsin');
   } else if (secim === 'sil') {
-    const emin = await onayIste('Kalıcı olarak silinsin mi?', 'Bu işlem geri alınamaz.', 'Sil');
-    if (!emin) return;
-    state = removeHabit(state, h.id);
-    bildirimGoster('Alışkanlık silindi');
+    state = removeHabit(state, h.id, todayKey());
+    bildirimGoster(`Silindi — ${COP_GUN} gün içinde ⚙ → Arşiv ve silinenler'den geri getirebilirsin`);
   } else return;
   if (seciliId === h.id) { seciliId = null; sahne.select(null); }
   kaydet();
@@ -580,6 +670,9 @@ function formuCiz() {
   secimGrubu('sec-zorluk', form.zorluk);
   $('sec-gunler').hidden = form.siklik !== 'gunler';
   $('sec-hedef').hidden = form.siklik !== 'haftalik';
+  // Miktar yalnızca her gün / belirli günlerde (haftalık hedefle birlikte kullanılmaz)
+  $('miktar-alani').hidden = form.siklik === 'haftalik';
+  $('miktar-etiket').textContent = form.tip === 'kotu' ? 'Günlük sınır (isteğe bağlı, ör. en fazla 5)' : 'Günlük miktar (isteğe bağlı, ör. 8 bardak)';
   const T = { kolay: 60, normal: 66, zor: 90 }[form.zorluk];
   $('form-not').textContent = form.siklik === 'haftalik'
     ? `Daha seyrek davranışlar daha yavaş otomatikleşir (haftada ${form.hedef}: yaklaşık ${Math.round(T * Math.sqrt(form.hedef / 7))} tekrar).`
@@ -609,6 +702,8 @@ function formAc(h) {
   form.gunler = new Set(z.tur === 'gunler' ? z.gunler : [1, 3, 5]);
   form.hedef = z.tur === 'haftalik' ? z.hedef : 3;
   form.zorluk = h ? h.zorluk || 'normal' : 'normal';
+  $('add-miktar').value = h && h.miktar ? h.miktar.hedef : '';
+  $('add-birim').value = h && h.miktar ? h.miktar.birim : '';
   formuCiz();
   $('modal-add').classList.add('open');
   if (!h) setTimeout(() => $('add-name').focus(), 50);
@@ -634,6 +729,9 @@ $('add-form').addEventListener('submit', async (e) => {
     tip: form.tip,
     zamanlama: formZamanlama(),
     zorluk: form.zorluk,
+    // Boş bırakılırsa miktarsız (kötüde 0 = "hiç" geçerli bir sınır)
+    miktar: form.siklik !== 'haftalik' && $('add-miktar').value !== ''
+      ? { hedef: Number($('add-miktar').value), birim: $('add-birim').value } : null,
   };
   // Aynı anda çok yeni alışkanlık: yumuşak uyarı, engel değil (kural 13)
   if (!duzenlenenId) {
@@ -853,6 +951,7 @@ $('btn-resume').addEventListener('click', () => {
 // Arşivdekiler: geri aç ya da kalıcı sil
 // -------------------------------------------------------------------------
 function arsivCiz() {
+  copCiz();
   const kutu = $('arsiv-liste');
   kutu.innerHTML = '';
   const liste = state.habits.filter((h) => h.arsiv);
@@ -878,13 +977,46 @@ function arsivCiz() {
     sil.className = 'btn-danger';
     sil.textContent = 'Sil';
     sil.addEventListener('click', async () => {
-      if (!(await onayIste('Kalıcı olarak silinsin mi?', `"${h.name}" geri alınamaz şekilde silinecek.`, 'Sil'))) return;
-      state = removeHabit(state, h.id);
+      state = removeHabit(state, h.id, todayKey());
       kaydet();
       ciz();
       arsivCiz();
     });
     satir.append(ac, sil);
+    kutu.appendChild(satir);
+  }
+}
+/** Son 30 günde silinenler: geri getir ya da hemen kalıcı sil */
+function copCiz() {
+  const kutu = $('cop-liste');
+  kutu.innerHTML = '';
+  const cop = state.cop || [];
+  $('cop-baslik').hidden = cop.length === 0;
+  for (const c of cop) {
+    const satir = document.createElement('div');
+    satir.className = 'arsiv-satir';
+    const kalan = Math.max(0, Math.round((tarihSayisi(addDays(c.silinme, COP_GUN)) - tarihSayisi(todayKey())) / 864e5));
+    satir.innerHTML = `<span>${esc(c.habit.name)} · ${kalan} gün</span>`;
+    const geri = document.createElement('button');
+    geri.className = 'btn-small primary';
+    geri.textContent = 'Geri getir';
+    geri.addEventListener('click', () => {
+      state = restoreHabit(state, c.habit.id);
+      kaydet();
+      ciz();
+      arsivCiz();
+      bildirimGoster('Geri getirildi — geçmişin ve izin duruyor');
+    });
+    const sil = document.createElement('button');
+    sil.className = 'btn-danger';
+    sil.textContent = 'Kalıcı sil';
+    sil.addEventListener('click', async () => {
+      if (!(await onayIste('Kalıcı olarak silinsin mi?', `"${c.habit.name}" geri alınamaz şekilde silinecek.`, 'Sil'))) return;
+      state = deleteForever(state, c.habit.id);
+      kaydet();
+      arsivCiz();
+    });
+    satir.append(geri, sil);
     kutu.appendChild(satir);
   }
 }
@@ -967,6 +1099,9 @@ async function acilisKontrolleri() {
   kontrolSuruyor = true;
   try {
     const bugun = todayKey();
+    // 30 günü dolan silinenler kalıcı olarak silinir
+    const temiz = purgeTrash(state, bugun);
+    if (temiz !== state) { state = temiz; kaydet(); }
     // Uzun yokluktan dönüş (14+ gün): kayıp grafiği yerine sıcak karşılama
     const son = ayarlar.sonAcilis;
     ayarlar.sonAcilis = bugun;

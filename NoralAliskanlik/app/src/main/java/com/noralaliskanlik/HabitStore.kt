@@ -62,6 +62,12 @@ object HabitStore {
                 val dates = (0 until done.length()).map { done.optString(it) }.toMutableSet()
                 if (!dates.add(today)) return false
                 h.put("done", JSONArray(dates.sorted()))
+                // Miktarlı iyi alışkanlık: "Yaptım" hedef miktarı yazar (JS setDayStatus ile aynı)
+                val miktar = h.optJSONObject("miktar")
+                if (miktar != null && h.optString("tip") != "kotu") {
+                    val gunMiktar = h.optJSONObject("gunMiktar") ?: JSONObject().also { h.put("gunMiktar", it) }
+                    gunMiktar.put(today, miktar.optInt("hedef", 1))
+                }
                 return save(context, root.toString())
             }
             false
@@ -120,6 +126,8 @@ object HabitStore {
         val mazeret = kume(h.optJSONArray("mazeret"))
         val z = h.optJSONObject("zamanlama")
         if (bugunKey in done || bugunKey in mazeret || duraklatildi(h, bugunKey)) return false
+        // Günlük sınırlı kötü alışkanlık (ör. en fazla 5 sigara): hatırlatma gönderilmez
+        if (h.optString("tip") == "kotu" && h.optJSONObject("miktar") != null) return false
         if (z?.optString("tur") == "haftalik") {
             val pazartesi = bugun.minusDays(((jsGunu(bugun) + 6) % 7).toLong())
             var yapilan = 0

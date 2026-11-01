@@ -635,6 +635,7 @@ export function createBrainScene({ container, labelsContainer, leaderSvg, ayarla
    * @param {{id:string, name:string, H:number, P:number, asama:number, son7Oran:number}[]} list
    */
   function setHabits(list) {
+    etiketleriGoster();
     const ids = new Set(list.map((h) => h.id));
     for (const [id, k] of kureler) if (!ids.has(id)) { kureSil(k); kureler.delete(id); }
     const sirali = new Map();
@@ -663,8 +664,24 @@ export function createBrainScene({ container, labelsContainer, leaderSvg, ayarla
   }
 
   /** Seçili alışkanlığa kamerayı odakla (null: serbest). */
+  // -----------------------------------------------------------------------
+  // Etiketler beyni kapatmasın: dokunulmadığında 5 sn sonra yavaşça kaybolur;
+  // ekrana dokununca, sahne değişince ya da bir alışkanlık seçiliyken görünür.
+  // -----------------------------------------------------------------------
+  const ETIKET_SURESI = 5000;
+  let etiketZaman = null;
+  function etiketleriGoster() {
+    labelsContainer.classList.remove('soluk');
+    clearTimeout(etiketZaman);
+    etiketZaman = setTimeout(() => {
+      if (!seciliId) labelsContainer.classList.add('soluk');
+    }, ETIKET_SURESI);
+  }
+  etiketleriGoster();
+
   function select(id) {
     seciliId = id;
+    etiketleriGoster();
     const k = id ? kureler.get(id) : null;
     // Kamera hep beynin merkezine bakar (küreye kaydırınca beyin kenara kayıyordu);
     // seçim yalnızca otomatik dönmeyi durdurur, küre yerinde kalsın.
@@ -723,6 +740,7 @@ export function createBrainScene({ container, labelsContainer, leaderSvg, ayarla
   // Dokunarak küre seçimi
   const raycaster = new THREE.Raycaster();
   const pointer = new THREE.Vector2();
+  renderer.domElement.addEventListener('pointerdown', () => etiketleriGoster());
   renderer.domElement.addEventListener('pointerdown', (e) => {
     const rect = renderer.domElement.getBoundingClientRect();
     pointer.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
@@ -1082,5 +1100,5 @@ export function createBrainScene({ container, labelsContainer, leaderSvg, ayarla
     return { fps: olcum.fps, enUzun: olcum.enUzun, takilma: olcum.takilma, oran: cizimOrani };
   }
 
-  return { getStats, loadBrain, showFallbackBrain, setHabits, select, flashMiss, celebrate, setTransparent, toggleClip, applySettings, setGorunurAlan };
+  return { etiketleriGoster, getStats, loadBrain, showFallbackBrain, setHabits, select, flashMiss, celebrate, setTransparent, toggleClip, applySettings, setGorunurAlan };
 }

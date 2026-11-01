@@ -7,6 +7,7 @@ import {
   ASAMA_YUKARI, ASAMA_ASAGI, YOL_NOKTALARI, PARLAKLIK_GUN,
   ZORLUK_T, alfaHesapla, MAZERET_HAKKI, MAZERET_PENCERE, DURAKLATMA_EN_UZUN,
   SRBAI_FARK, SRBAI_ADIM, T_EN_AZ, T_EN_COK, BAKIM_GUN, NUKS_PENCERE, NUKS_KAYMA,
+  KISMI_ESIK, GEC_KAYIT_CARPANI,
 } from './parametreler.js';
 import { addDays } from './clock.js';
 
@@ -62,10 +63,12 @@ function kazan(d, alfa) {
   sonlandir(d);
 }
 
-function kaybet(d, ussu = 1) {
+function kaybet(d, ussu = 1, olcek = 1) {
   d.k += 1;
   const lambdaTemel = d.k === 1 ? LAMBDA_ILK : LAMBDA_ARDISIK;
-  const lambda = 1 - Math.pow(1 - lambdaTemel, ussu);
+  // ussu: haftalıkta bir kaçırma birden çok takvim gününü kapsar
+  // olcek: kısmi yapılan günde (q < 0,5) çözülme (1 − q) ile hafifler (kural 6)
+  const lambda = (1 - Math.pow(1 - lambdaTemel, ussu)) * olcek;
   const F = TABAN_ORANI * d.P; // İz asla tamamen silinmez
   d.H = F + (d.H - F) * (1 - lambda);
   if (d.k >= 2) d.seri = 0; // İki gün kuralı: tek kaçırma seriyi bozmaz, ikincisi bozar
@@ -100,7 +103,53 @@ export function gunuUygula(d, yapildi) {
  * @param {string} bugun  'YYYY-MM-DD'
  */
 export function computeState(habit, bugun) {
-  const yapilan = new Set(habit.done);
+  // Önbellek: kayıtlar değişmez nesnelerdir (her değişiklik yeni nesne üretir), bu yüzden
+  // aynı alışkanlık nesnesi + aynı gün için sonuç yeniden hesaplanmaz.
+  let kayit = onbellek.get(habit);
+  if (kayit && kayit.bugun === bugun) return kayit.sonuc;
+  const sonuc = hesapla(habit, bugun);
+  onbellek.set(habit, { bugun, sonuc });
+  return sonuc;
+}
+const onbellek = new WeakMap();
+
+function hesapla(habit, bugun) {
+  const z0 = habit.zamanlama || { tur: 'gunluk' };
+  // Miktarlı takip (kural 6): haftalık hedefte kullanılmaz
+  const miktar = habit.miktar && z0.tur !== 'haftalik' ? habit.miktar : null;
+  const kotuSinir = miktar && habit.tip === 'kotu';
+  const gunMiktar = habit.gunMiktar || {};
+  const gec = new Set(habit.gecKayit || []);
+  const isaretli = new Set(habit.done);
+
+  /**
+   * Günün sonucu: { basari: true, q } kazanım; { basari: false, q } kısmi kaçırma;
+   * null = kayıt yok (plan/mazeret/telafi kuralları uygulanır).
+   * Geç kayıtlı gün (4–14 gün sonra işaretlenen) kazanımın yarısını verir (kural 9).
+   */
+  const sonucBul = (g) => {
+    let q = null;
+    if (miktar) {
+      let m = gunMiktar[g];
+      // Sınırlı kötü alışkanlıkta kayıt yoksa hiç yapılmamış (temiz) sayılır — ama yalnızca
+      // kapanmış günlerde; bugün bitmeden "temiz gün" kazanımı verilmez.
+      if (m == null && kotuSinir && g < bugun) m = 0;
+      if (m != null) {
+        if (kotuSinir) q = m <= miktar.hedef ? 1 : (miktar.hedef > 0 ? miktar.hedef / m : 0);
+        else q = Math.min(1, m / miktar.hedef);
+        if (kotuSinir && m > miktar.hedef) return { basari: false, q };
+      }
+    }
+    if (q == null) q = isaretli.has(g) ? 1 : null;
+    if (q == null) return null;
+    if (q >= KISMI_ESIK) return { basari: true, q: q * (gec.has(g) ? GEC_KAYIT_CARPANI : 1) };
+    return { basari: false, q };
+  };
+  const yapilan = new Set();
+  for (let g = habit.createdAt; g <= bugun; g = addDays(g, 1)) {
+    const r = sonucBul(g);
+    if (r && r.basari) yapilan.add(g);
+  }
   const mazeret = new Set(habit.mazeret || []);
   const z = habit.zamanlama || { tur: 'gunluk' };
   const haftalik = z.tur === 'haftalik';
@@ -179,14 +228,18 @@ export function computeState(habit, bugun) {
       haftaAktifGun++;
       if (yapilan.has(g)) {
         // Hedefi aşan tamamlamalar ek kazanç vermez
-        if (haftaYapilan < n) { kazan(d, alfa); sonuclar.push(true); }
+        if (haftaYapilan < n) { kazan(d, alfa * sonucBul(g).q); sonuclar.push(true); }
         haftaYapilan++;
       } else if (mazeretGecerli(g)) {
         haftaMazeret++;
       }
     } else if (yapilan.has(g)) {
-      kazan(d, alfa);
+      kazan(d, alfa * sonucBul(g).q);
       sonuclar.push(true);
+    } else if (planliMi(habit, g) && sonucBul(g)) {
+      // Kısmi yapıldı (q < 0,5): kaçırma gibi ama çözülme (1 − q) oranında hafif
+      kaybet(d, 1, 1 - sonucBul(g).q);
+      sonuclar.push(false);
     } else if (!planliMi(habit, g)) {
       // Planlı olmayan gün: H değişmez
     } else if (mazeretGecerli(g)) {
@@ -204,7 +257,7 @@ export function computeState(habit, bugun) {
   if (haftalik && haftaBasi(bugun) !== hafta) { haftayiKapat(); hafta = haftaBasi(bugun); haftaYapilan = 0; }
   const bugunDuraklatildi = duraklatildiMi(habit, bugun);
   if (yapilan.has(bugun) && !bugunDuraklatildi) {
-    if (!haftalik || haftaYapilan < n) { kazan(d, alfa); sonuclar.push(true); }
+    if (!haftalik || haftaYapilan < n) { kazan(d, alfa * sonucBul(bugun).q); sonuclar.push(true); }
     if (haftalik) haftaYapilan++;
     bakimSay();
   }
@@ -228,8 +281,9 @@ export function computeState(habit, bugun) {
   }
   if (haftalik) son30Firsat = Math.round((n * 30) / 7);
 
-  let toplamTekrar = 0;
-  for (const g of habit.done) if (g >= habit.createdAt && g <= bugun) toplamTekrar++;
+  // Toplam başarılı gün (asla düşmez). Sınırlı kötü alışkanlıkta sınırın altında kalınan günler.
+  const toplamTekrar = yapilan.size;
+  const bugunMiktar = miktar ? (gunMiktar[bugun] ?? null) : null;
 
   return {
     H: d.H,
@@ -247,6 +301,7 @@ export function computeState(habit, bugun) {
     bugunDuraklatildi,
     bugunPlanli: !bugunDuraklatildi && (haftalik || planliMi(habit, bugun)),
     hafta: haftalik ? { yapilan: haftaYapilan, hedef: n } : null,
+    miktar: miktar ? { hedef: miktar.hedef, birim: miktar.birim || '', bugun: bugunMiktar ?? 0 } : null,
   };
 }
 
@@ -266,14 +321,22 @@ export function yolKonumu(H) {
  * olan alışkanlık, bugünden itibaren planlı her gün yapılırsa kaç günde Otomatik'e döner?
  * Rakam uydurulmaz, modelin kendisiyle simüle edilir. Uygun değilse null.
  */
+const tahminOnbellek = new WeakMap();
 export function geriDonusTahmini(habit, bugun, sinir = 200) {
+  const k = tahminOnbellek.get(habit);
+  if (k && k.bugun === bugun) return k.sonuc;
+  const sonuc = geriDonusHesapla(habit, bugun, sinir);
+  tahminOnbellek.set(habit, { bugun, sonuc });
+  return sonuc;
+}
+function geriDonusHesapla(habit, bugun, sinir) {
   const simdi = computeState(habit, bugun);
   if (simdi.asama === OTOMATIK || simdi.P < ASAMA_YUKARI[2] - 1e-12) return null;
   const done = new Set(habit.done);
   for (let i = 0; i < sinir; i++) {
     const g = addDays(bugun, i);
     if (planliMi(habit, g)) done.add(g);
-    if (computeState({ ...habit, done: [...done].sort() }, g).asama === OTOMATIK) return i + 1;
+    if (hesapla({ ...habit, done: [...done].sort() }, g).asama === OTOMATIK) return i + 1;
   }
   return null;
 }

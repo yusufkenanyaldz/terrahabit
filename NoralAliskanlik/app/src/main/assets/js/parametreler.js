@@ -72,3 +72,13 @@ export const NUKS_KAYMA = 3;
 
 /** Aynı anda Çaba aşamasında önerilen en fazla alışkanlık (kural 13; uyarı, engel değil). */
 export const CABA_UYARI_SAYISI = 3;
+
+/** Miktarlı takipte (ör. 8 bardak su) oran q bu eşiğin altındaysa kısmi kaçırma sayılır (kural 6). */
+export const KISMI_ESIK = 0.5;
+
+/** Geç kayıt (kural 9): 4–14 gün önceki gün işaretlenebilir, kazanımın yalnızca yarısını verir. */
+export const GEC_KAYIT_EN_ESKI = 14;
+export const GEC_KAYIT_CARPANI = 0.5;
+
+/** Silinen alışkanlık bu kadar gün çöp kutusunda kalır, sonra kalıcı silinir (kural 10). */
+export const COP_GUN = 30;

@@ -3,14 +3,15 @@ import { addDays } from './clock.js';
 import { computeState, OTOMATIK, duraklatildiMi, planliMi } from './guc.js';
 import {
   GERIYE_DONUK_GUN, ZORLUK_T, DURAKLATMA_EN_UZUN, SRBAI_ARALIK, SRBAI_BAKIM_ARALIK,
+  GEC_KAYIT_EN_ESKI, COP_GUN, KISMI_ESIK,
 } from './parametreler.js';
 
 /** Kayıt biçimi sürümü. Alan eklerken artır ve migrate() içine taşıma adımı yaz. */
-export const SCHEMA_VERSION = 2;
+export const SCHEMA_VERSION = 3;
 
 /** Boş durum. */
 export function emptyState() {
-  return { version: SCHEMA_VERSION, habits: [] };
+  return { version: SCHEMA_VERSION, habits: [], cop: [] };
 }
 
 // ---------------------------------------------------------------------------
@@ -44,6 +45,26 @@ function temizDuraklatmalar(liste) {
     .sort((a, b) => (a.bas < b.bas ? -1 : 1));
 }
 
+/** Miktarlı takip: { hedef: >0 tam sayı (kötüde 0 olabilir: "hiç"), birim: kısa metin } ya da null */
+export function temizMiktar(m, tip) {
+  if (!m || typeof m !== 'object') return null;
+  const hedef = Math.round(Number(m.hedef));
+  const enAz = tip === 'kotu' ? 0 : 1;
+  if (!Number.isFinite(hedef) || hedef < enAz || hedef > 999) return null;
+  return { hedef, birim: typeof m.birim === 'string' ? m.birim.trim().slice(0, 16) : '' };
+}
+
+function temizGunMiktar(o) {
+  const out = {};
+  if (o && typeof o === 'object') {
+    for (const [k, v] of Object.entries(o)) {
+      const n = Math.round(Number(v));
+      if (isKey(k) && Number.isFinite(n) && n >= 0 && n <= 9999) out[k] = n;
+    }
+  }
+  return out;
+}
+
 function temizSrbai(liste) {
   return (Array.isArray(liste) ? liste : [])
     .filter((o) => o && isKey(o.tarih) && Number.isFinite(o.S) && o.S >= 0 && o.S <= 1)
@@ -59,6 +80,8 @@ function temizSrbai(liste) {
  *  v1 → v2: zorluk, tip, zamanlama, mazeret, duraklatmalar, arsiv, srbai alanları
  *           eklendi; eski alışkanlıklar "her gün, normal, iyi alışkanlık" olarak taşınır
  *           (bugünkü davranışla birebir aynı — hesap değişmez).
+ *  v2 → v3: miktar (null), gunMiktar ({}), gecKayit ([]) alanları ve üst düzeyde
+ *           çöp kutusu (cop: []) eklendi. Varsayılanlarla hesap değişmez.
  */
 export function migrate(raw) {
   if (raw == null || raw === '') return emptyState();
@@ -71,43 +94,58 @@ export function migrate(raw) {
   }
   const habits = data.habits
     .filter((h) => h && typeof h.id === 'string' && typeof h.name === 'string')
-    .map((h) => ({
-      // v1 alanları
-      id: h.id,
-      name: h.name,
-      icon: typeof h.icon === 'string' ? h.icon : '', // Artık gösterilmiyor; eski kayıtlarla uyum için duruyor
-      time: /^\d{2}:\d{2}$/.test(h.time) ? h.time : '09:00',
-      createdAt: isKey(h.createdAt) ? h.createdAt : (Array.isArray(h.done) && h.done.filter(isKey).sort()[0]) || '2000-01-01',
-      done: [...new Set((Array.isArray(h.done) ? h.done : []).filter(isKey))].sort(),
-      missAck: isKey(h.missAck) ? h.missAck : null,
-      celebrated: !!h.celebrated,
-      // v2 alanları (eksikse varsayılan)
-      zorluk: ZORLUKLAR.includes(h.zorluk) ? h.zorluk : 'normal',
-      tip: TIPLER.includes(h.tip) ? h.tip : 'iyi',
-      zamanlama: temizZamanlama(h.zamanlama),
-      mazeret: [...new Set((Array.isArray(h.mazeret) ? h.mazeret : []).filter(isKey))].sort(),
-      duraklatmalar: temizDuraklatmalar(h.duraklatmalar),
-      arsiv: !!h.arsiv,
-      srbai: temizSrbai(h.srbai),
-      bakim: !!h.bakim, // Türetilmiş; bildirim tarafı (Kotlin) okur
-    }));
-  return { version: SCHEMA_VERSION, habits };
+    .map(habitTemizle);
+  const cop = (Array.isArray(data.cop) ? data.cop : [])
+    .filter((c) => c && isKey(c.silinme) && c.habit && typeof c.habit.id === 'string' && typeof c.habit.name === 'string')
+    .map((c) => ({ silinme: c.silinme, habit: habitTemizle(c.habit) }));
+  return { version: SCHEMA_VERSION, habits, cop };
+}
+
+function habitTemizle(h) {
+  const tip = TIPLER.includes(h.tip) ? h.tip : 'iyi';
+  return {
+    // v1 alanları
+    id: h.id,
+    name: h.name,
+    icon: typeof h.icon === 'string' ? h.icon : '', // Artık gösterilmiyor; eski kayıtlarla uyum için duruyor
+    time: /^\d{2}:\d{2}$/.test(h.time) ? h.time : '09:00',
+    createdAt: isKey(h.createdAt) ? h.createdAt : (Array.isArray(h.done) && h.done.filter(isKey).sort()[0]) || '2000-01-01',
+    done: [...new Set((Array.isArray(h.done) ? h.done : []).filter(isKey))].sort(),
+    missAck: isKey(h.missAck) ? h.missAck : null,
+    celebrated: !!h.celebrated,
+    // v2 alanları (eksikse varsayılan)
+    zorluk: ZORLUKLAR.includes(h.zorluk) ? h.zorluk : 'normal',
+    tip,
+    zamanlama: temizZamanlama(h.zamanlama),
+    mazeret: [...new Set((Array.isArray(h.mazeret) ? h.mazeret : []).filter(isKey))].sort(),
+    duraklatmalar: temizDuraklatmalar(h.duraklatmalar),
+    arsiv: !!h.arsiv,
+    srbai: temizSrbai(h.srbai),
+    bakim: !!h.bakim, // Türetilmiş; bildirim tarafı (Kotlin) okur
+    // v3 alanları
+    miktar: temizMiktar(h.miktar, tip),
+    gunMiktar: temizGunMiktar(h.gunMiktar),
+    gecKayit: [...new Set((Array.isArray(h.gecKayit) ? h.gecKayit : []).filter(isKey))].sort(),
+  };
 }
 
 // ---------------------------------------------------------------------------
 // Ekleme / düzenleme / silme / arşiv
 // ---------------------------------------------------------------------------
 
-function ayarlariTemizle({ zorluk, tip, zamanlama }, eski = {}) {
+function ayarlariTemizle({ zorluk, tip, zamanlama, miktar }, eski = {}) {
+  const t = TIPLER.includes(tip) ? tip : (eski.tip || 'iyi');
   return {
     zorluk: ZORLUKLAR.includes(zorluk) ? zorluk : (eski.zorluk || 'normal'),
-    tip: TIPLER.includes(tip) ? tip : (eski.tip || 'iyi'),
+    tip: t,
     zamanlama: zamanlama ? temizZamanlama(zamanlama) : (eski.zamanlama || { tur: 'gunluk' }),
+    // miktar: undefined → eskisi korunur; null → miktarsız
+    miktar: miktar === undefined ? (eski.miktar ?? null) : temizMiktar(miktar, t),
   };
 }
 
 /** Yeni alışkanlık ekler. Yeni durumu döndürür. */
-export function addHabit(state, { name, icon, time, zorluk, tip, zamanlama }, today, id) {
+export function addHabit(state, { name, icon, time, zorluk, tip, zamanlama, miktar }, today, id) {
   const clean = String(name || '').trim();
   if (!clean) throw new Error('İsim boş olamaz');
   const habit = {
@@ -119,12 +157,14 @@ export function addHabit(state, { name, icon, time, zorluk, tip, zamanlama }, to
     done: [],
     missAck: addDays(today, -1), // Eklendiği günden önceki günler "kaçırılmış" sayılmaz
     celebrated: false,
-    ...ayarlariTemizle({ zorluk, tip, zamanlama }),
+    ...ayarlariTemizle({ zorluk, tip, zamanlama, miktar: miktar ?? null }),
     mazeret: [],
     duraklatmalar: [],
     arsiv: false,
     srbai: [],
     bakim: false,
+    gunMiktar: {},
+    gecKayit: [],
   };
   return { ...state, habits: [...state.habits, habit] };
 }
@@ -133,7 +173,7 @@ export function addHabit(state, { name, icon, time, zorluk, tip, zamanlama }, to
  * Alışkanlığın ismini, saatini, zorluğunu, türünü veya sıklığını değiştirir.
  * Tamamlanan günler korunur; güç yeni ayarlarla geçmişten yeniden hesaplanır.
  */
-export function updateHabit(state, id, { name, icon, time, zorluk, tip, zamanlama }) {
+export function updateHabit(state, id, { name, icon, time, zorluk, tip, zamanlama, miktar }) {
   const clean = String(name || '').trim();
   if (!clean) throw new Error('İsim boş olamaz');
   return {
@@ -143,14 +183,41 @@ export function updateHabit(state, id, { name, icon, time, zorluk, tip, zamanlam
       name: clean.slice(0, 40),
       icon: (icon || '').trim() || h.icon,
       time: /^\d{2}:\d{2}$/.test(time) ? time : h.time,
-      ...ayarlariTemizle({ zorluk, tip, zamanlama }, h),
+      ...ayarlariTemizle({ zorluk, tip, zamanlama, miktar }, h),
     })),
   };
 }
 
-/** Alışkanlığı kalıcı olarak siler. */
-export function removeHabit(state, id) {
-  return { ...state, habits: state.habits.filter((h) => h.id !== id) };
+/**
+ * Alışkanlığı siler: önce 30 günlük çöp kutusuna gider, oradan geri getirilebilir (kural 10).
+ */
+export function removeHabit(state, id, today) {
+  const h = state.habits.find((x) => x.id === id);
+  if (!h) return state;
+  return {
+    ...state,
+    habits: state.habits.filter((x) => x.id !== id),
+    cop: [...(state.cop || []).filter((c) => c.habit.id !== id), { silinme: today, habit: h }],
+  };
+}
+
+/** Çöp kutusundan geri getir (geçmiş, iz ve taban aynen). */
+export function restoreHabit(state, id) {
+  const c = (state.cop || []).find((x) => x.habit.id === id);
+  if (!c) return state;
+  return { ...state, habits: [...state.habits, c.habit], cop: state.cop.filter((x) => x !== c) };
+}
+
+/** Çöp kutusundan hemen ve kalıcı olarak sil. */
+export function deleteForever(state, id) {
+  return { ...state, cop: (state.cop || []).filter((x) => x.habit.id !== id) };
+}
+
+/** 30 günü dolan çöp kutusu kayıtlarını kalıcı olarak sil. Değişiklik yoksa aynı state. */
+export function purgeTrash(state, today) {
+  const cop = state.cop || [];
+  const kalan = cop.filter((c) => addDays(c.silinme, COP_GUN) > today);
+  return kalan.length === cop.length ? state : { ...state, cop: kalan };
 }
 
 /**
@@ -187,9 +254,15 @@ export function markDone(state, id, today) {
   return setDayStatus(state, id, today, 'done', today);
 }
 
-/** Tarih aralığı içinde mi: bugün ve geriye dönük serbest düzenleme penceresi. */
+/** Tarih aralığı içinde mi: bugün ve geriye dönük serbest düzenleme penceresi (son 3 gün). */
 export function isEditable(habit, key, today) {
   return key <= today && key >= addDays(today, -GERIYE_DONUK_GUN) && key >= habit.createdAt;
+}
+
+/** Geç kayıt penceresi: 4–14 gün önce. İşaretlenebilir ama kazanımın yarısını verir (kural 9). */
+export function isLateEditable(habit, key, today) {
+  return key < addDays(today, -GERIYE_DONUK_GUN) && key >= addDays(today, -GEC_KAYIT_EN_ESKI)
+    && key >= habit.createdAt;
 }
 
 /**
@@ -208,18 +281,58 @@ export function toggleDay(state, id, key, today) {
  */
 export function setDayStatus(state, id, key, durum, today) {
   const habit = state.habits.find((h) => h.id === id);
-  if (!habit || !isEditable(habit, key, today)) return { state, changed: false, reachedGoal: false };
+  if (!habit) return { state, changed: false, reachedGoal: false };
+  const gecPencere = isLateEditable(habit, key, today);
+  // Geç kayıt penceresinde yalnızca yapıldı / boş (mazeret son 3 günle sınırlı)
+  if (!isEditable(habit, key, today) && !(gecPencere && durum !== 'mazeret')) {
+    return { state, changed: false, reachedGoal: false };
+  }
   const done = habit.done.filter((d) => d !== key);
   const mazeret = (habit.mazeret || []).filter((d) => d !== key);
-  if (durum === 'done') done.push(key);
+  const gecKayit = (habit.gecKayit || []).filter((d) => d !== key);
+  const gunMiktar = { ...(habit.gunMiktar || {}) };
+  delete gunMiktar[key];
+  if (durum === 'done') {
+    done.push(key);
+    if (gecPencere) gecKayit.push(key);
+    if (habit.miktar && habit.tip !== 'kotu') gunMiktar[key] = habit.miktar.hedef;
+  }
   if (durum === 'mazeret') mazeret.push(key);
   done.sort();
   mazeret.sort();
-  const yeni = { ...habit, done, mazeret };
+  gecKayit.sort();
+  return sonucuYaz(state, habit, { ...habit, done, mazeret, gecKayit, gunMiktar }, today);
+}
+
+/**
+ * Miktarlı takip (kural 6): günün miktarını ayarla (son 3 gün + bugün).
+ * İyi alışkanlıkta oran q ≥ 0,5 ise gün "yapıldı" sayılır; kötüde sınırın altı "temiz".
+ */
+export function setAmount(state, id, key, miktar, today) {
+  const habit = state.habits.find((h) => h.id === id);
+  if (!habit || !habit.miktar || !isEditable(habit, key, today)) return { state, changed: false, reachedGoal: false };
+  const m = Math.max(0, Math.min(9999, Math.round(miktar)));
+  const gunMiktar = { ...(habit.gunMiktar || {}), [key]: m };
+  const basari = habit.tip === 'kotu' ? m <= habit.miktar.hedef : m >= habit.miktar.hedef * KISMI_ESIK;
+  const done = habit.done.filter((d) => d !== key);
+  if (basari) done.push(key);
+  done.sort();
+  const mazeret = (habit.mazeret || []).filter((d) => d !== key);
+  return sonucuYaz(state, habit, { ...habit, gunMiktar, done, mazeret }, today);
+}
+
+/** Günün kayıtlı miktarı (yoksa kötü alışkanlıkta 0, iyide null) */
+export function amountOn(habit, key) {
+  const m = (habit.gunMiktar || {})[key];
+  if (m != null) return m;
+  return habit.tip === 'kotu' ? 0 : null;
+}
+
+function sonucuYaz(state, habit, yeni, today) {
   const reachedGoal = !habit.celebrated && computeState(yeni, today).asama === OTOMATIK;
   const updated = { ...yeni, celebrated: habit.celebrated || reachedGoal };
   return {
-    state: { ...state, habits: state.habits.map((h) => (h.id === id ? updated : h)) },
+    state: { ...state, habits: state.habits.map((h) => (h.id === habit.id ? updated : h)) },
     changed: true,
     reachedGoal,
   };
@@ -383,7 +496,9 @@ export function syncDerived(state, today) {
 /**
  * Son 30 günün takvim noktaları (eskiden yeniye).
  * status: 'done' yapıldı, 'missed' kaçırıldı, 'today' bugün (henüz yapılmadı),
- *         'none' alışkanlık o gün yoktu, 'mazeret', 'duraklatma', 'plansiz' (planlı gün değil)
+ *         'none' alışkanlık o gün yoktu, 'mazeret', 'duraklatma', 'plansiz' (planlı gün değil),
+ *         'kismi' (miktarlı takipte hedefin yarısından az), 'kayma' (kötü alışkanlıkta sınır aşıldı)
+ * gec: geç kayıtla işaretlenmiş gün (kazanımın yarısı)
  */
 export function last30(habit, today) {
   const days = [];
@@ -391,14 +506,23 @@ export function last30(habit, today) {
   for (let i = 29; i >= 0; i--) {
     const key = addDays(today, -i);
     let status;
-    if (isDoneOn(habit, key)) status = 'done';
+    const m = habit.miktar ? (habit.gunMiktar || {})[key] : undefined;
+    if (habit.miktar && habit.tip === 'kotu' && m != null && m > habit.miktar.hedef) status = 'kayma';
+    else if (habit.miktar && habit.tip === 'kotu' && key >= habit.createdAt && key < today
+      && !duraklatildiMi(habit, key) && planliMi(habit, key) && m == null) status = 'done'; // Kayıt yok = temiz
+    else if (isDoneOn(habit, key)) status = 'done';
+    else if (habit.miktar && m != null && m > 0 && habit.tip !== 'kotu') status = 'kismi';
     else if (key < habit.createdAt) status = 'none';
     else if (duraklatildiMi(habit, key)) status = 'duraklatma';
     else if (isExcused(habit, key)) status = 'mazeret';
     else if (key === today) status = 'today';
     else if (haftalik || !planliMi(habit, key)) status = 'plansiz';
     else status = 'missed';
-    days.push({ key, status, isToday: key === today, duzenlenebilir: isEditable(habit, key, today) });
+    days.push({
+      key, status, isToday: key === today,
+      gec: (habit.gecKayit || []).includes(key),
+      duzenlenebilir: isEditable(habit, key, today),
+    });
   }
   return days;
 }

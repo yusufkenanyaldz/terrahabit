@@ -117,7 +117,9 @@ test('geriye dönük kayıt: bugün + son 3 gün düzenlenebilir, daha eskisi de
   s = r.state;
   assert.deepEqual(s.habits[0].done, [addDays(bugun, -3)]);
   r = toggleDay(s, 'h1', addDays(bugun, -4), bugun);
-  assert.equal(r.changed, false, '4 gün önce düzenlenemez');
+  assert.equal(r.changed, true, '4 gün önce geç kayıt olarak işaretlenebilir');
+  assert.deepEqual(r.state.habits[0].gecKayit, [addDays(bugun, -4)]);
+  assert.equal(toggleDay(s, 'h1', addDays(bugun, -15), bugun).changed, false, '15 gün önce düzenlenemez');
   r = toggleDay(s, 'h1', addDays(bugun, 1), bugun);
   assert.equal(r.changed, false, 'gelecek düzenlenemez');
   // Yanlışlıkla basılan "yaptım" geri alınabilir
