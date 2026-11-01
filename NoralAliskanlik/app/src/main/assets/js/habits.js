@@ -493,11 +493,35 @@ export function syncDerived(state, today) {
     const d = computeState(h, today);
     // guc (0–100) ve asama: ana ekran widget'ı (Kotlin) bu önbellekten gösterir
     const guc = Math.round(d.H * 100);
-    if (d.bakim === !!h.bakim && guc === h.guc && d.asama === h.asama) return h;
+    const w = widgetOnbellegi(h, today);
+    const ayni = d.bakim === !!h.bakim && guc === h.guc && d.asama === h.asama
+      && h.widget && h.widget.bugun === w.bugun && h.widget.H0 === w.H0 && h.widget.a === w.a && h.widget.asama0 === w.asama0;
+    if (ayni) return h;
     degisti = true;
-    return { ...h, bakim: d.bakim, guc, asama: d.asama };
+    return { ...h, bakim: d.bakim, guc, asama: d.asama, widget: w };
   });
   return degisti ? { ...state, habits } : state;
+}
+
+/**
+ * Widget, bugünün işaretini uygulamayı açmadan değiştirebilir (✓ / +1). Gücü doğru göstermek
+ * için hesabın son adımını kendisi yapar: H = H0 + a · q · (1 − H0)
+ *   H0: bugünün katkısı hariç güç, a: bugün tam yapılırsa etkin kazanım katsayısı
+ *       (zorluk, geri dönüş hızı ve haftalık hedef dahil), q: bugünkü oran (0..1).
+ * Hesabın kendisi yine tek yerde (guc.js) kalır.
+ */
+export function widgetOnbellegi(h, today) {
+  const gunMiktar = { ...(h.gunMiktar || {}) };
+  delete gunMiktar[today];
+  const bugunsuz = { ...h, done: h.done.filter((g) => g !== today), gunMiktar };
+  const once = computeState(bugunsuz, today);
+  const tamGun = { ...bugunsuz, done: [...bugunsuz.done, today].sort() };
+  if (h.miktar) tamGun.gunMiktar = { ...gunMiktar, [today]: h.tip === 'kotu' ? 0 : h.miktar.hedef };
+  const tam = computeState(tamGun, today);
+  const a = once.H < 1 ? Math.max(0, (tam.H - once.H) / (1 - once.H)) : 0;
+  // Karşılaştırma kararlı olsun diye yuvarlanır (önbellek gereksiz yere değişmesin)
+  const yuvarla = (x) => Math.round(x * 1e6) / 1e6;
+  return { bugun: today, H0: yuvarla(once.H), a: yuvarla(a), asama0: once.asama };
 }
 
 /**

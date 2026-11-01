@@ -99,3 +99,21 @@ test('çöp kutusu: silinen 30 gün geri getirilebilir, sonra kalıcı silinir',
   // Çöp kutusu yedeğe girer ve geri yüklenir
   assert.equal(migrate(JSON.stringify(s)).cop[0].habit.id, 'h1');
 });
+
+test('widget önbelleği: H0 + a·q·(1−H0) uygulamanın hesabıyla aynı sonucu verir', async () => {
+  const { widgetOnbellegi } = await import('../app/src/main/assets/js/habits.js');
+  const bugun = gun(30);
+  // Her gün 10 sayfa, 29 gün; bugün 5 sayfa
+  const gunMiktar = Object.fromEntries(ilkNGun(29).map((g) => [g, 10]));
+  const h = { createdAt: D0, done: ilkNGun(29), miktar: { hedef: 10, birim: 'sayfa' }, gunMiktar };
+  const w = widgetOnbellegi(h, bugun);
+  for (const m of [0, 3, 5, 8, 10]) {
+    const hm = { ...h, gunMiktar: { ...gunMiktar, [bugun]: m }, done: m >= 5 ? [...h.done, bugun] : h.done };
+    const gercek = computeState(hm, bugun).H;
+    const q = Math.min(1, m / 10);
+    const widget = w.H0 + w.a * (q >= 0.5 ? q : 0) * (1 - w.H0);
+    assert.ok(Math.abs(gercek - widget) < 1e-5, `m=${m}: uygulama ${gercek}, widget ${widget}`);
+  }
+  // Tik kaldırılınca (bugün yok) güç H0'a döner
+  assert.ok(Math.abs(computeState(h, bugun).H - w.H0) < 1e-6);
+});

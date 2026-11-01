@@ -1102,6 +1102,8 @@ async function acilisKontrolleri() {
     // 30 günü dolan silinenler kalıcı olarak silinir
     const temiz = purgeTrash(state, bugun);
     if (temiz !== state) { state = temiz; kaydet(); }
+    // Widget önbelleği (güç, aşama, bugünkü kazanç) yeni güne göre tazelensin
+    if (syncDerived(state, bugun) !== state) kaydet();
     // Uzun yokluktan dönüş (14+ gün): kayıp grafiği yerine sıcak karşılama
     const son = ayarlar.sonAcilis;
     ayarlar.sonAcilis = bugun;

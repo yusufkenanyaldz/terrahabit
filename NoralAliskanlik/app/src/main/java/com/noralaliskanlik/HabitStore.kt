@@ -4,6 +4,7 @@ import android.content.Context
 import org.json.JSONArray
 import org.json.JSONObject
 import java.time.LocalDate
+import kotlin.math.roundToInt
 import java.time.LocalDateTime
 
 /**
@@ -207,13 +208,13 @@ object HabitStore {
                 val h = habits.optJSONObject(i) ?: return@mapNotNull null
                 if (h.optBoolean("arsiv", false) || h.optString("id").isEmpty()) return@mapNotNull null
                 val kotu = h.optString("tip") == "kotu"
-                // Güç ve aşama uygulamanın son hesabından (uygulama her kayıtta günceller)
-                val asama = h.optInt("asama", 0).coerceIn(0, 3)
-                val guc = h.optInt("guc", 0).coerceIn(0, 100)
                 val done = kume(h.optJSONArray("done"))
                 val z = h.optJSONObject("zamanlama")
                 val miktar = h.optJSONObject("miktar")
                 val yapildi = bugunKey in done
+                // Güç ve aşama: uygulamanın bugün için bıraktığı önbellekten, bugünkü işarete göre
+                // (widget'tan ✓ / +1 yapılınca uygulamayı açmadan doğru yüzde)
+                val (guc, asama) = gucHesapla(h, bugunKey, done, miktar)
                 var durum = if (yapildi) "yapildi" else "bekliyor"
                 var bilgi = "%$guc"
                 var sayac = false
@@ -250,6 +251,38 @@ object HabitStore {
         } catch (e: Exception) {
             emptyList()
         }
+    }
+
+    /** Aşama yukarı eşikleri (JS parametreler.js ASAMA_YUKARI ile aynı). */
+    private val ASAMA_YUKARI = doubleArrayOf(0.50, 0.845, 0.95)
+
+    /**
+     * Bugünkü işarete göre güç (0–100) ve aşama. Uygulama her kayıtta "widget" önbelleği bırakır:
+     * H0 (bugün hariç güç), a (bugün tam yapılırsa kazanım katsayısı), asama0.
+     * H = H0 + a · q · (1 − H0); q bugünkü oran (miktarlıda miktar/hedef, yarının altı 0).
+     * Önbellek bugüne ait değilse (uygulama bugün hiç açılmadı) son kayıtlı değer gösterilir.
+     */
+    private fun gucHesapla(h: JSONObject, bugun: String, done: Set<String>, miktar: JSONObject?): Pair<Int, Int> {
+        val w = h.optJSONObject("widget")
+        if (w == null || w.optString("bugun") != bugun) {
+            return h.optInt("guc", 0).coerceIn(0, 100) to h.optInt("asama", 0).coerceIn(0, 3)
+        }
+        val h0 = w.optDouble("H0", 0.0)
+        val a = w.optDouble("a", 0.0)
+        val q = when {
+            miktar == null -> if (bugun in done) 1.0 else 0.0
+            // Sınırlı kötü alışkanlıkta bugün kapanmadan "temiz gün" kazanımı verilmez (JS ile aynı)
+            h.optString("tip") == "kotu" -> 0.0
+            else -> {
+                val hedef = miktar.optInt("hedef", 1).coerceAtLeast(1)
+                val oran = minOf(1.0, (h.optJSONObject("gunMiktar")?.optInt(bugun, 0) ?: 0).toDouble() / hedef)
+                if (oran >= 0.5) oran else 0.0
+            }
+        }
+        val H = h0 + a * q * (1 - h0)
+        var asama = w.optInt("asama0", 0).coerceIn(0, 3)
+        while (asama < 3 && H >= ASAMA_YUKARI[asama] - 1e-12) asama++
+        return (H * 100).roundToInt().coerceIn(0, 100) to asama
     }
 
     /** Kayıttaki alışkanlığı bul ve değiştir; değiştiyse kaydet. */
