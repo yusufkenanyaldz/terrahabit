@@ -62,8 +62,16 @@ export function createBrainScene({ container, labelsContainer, leaderSvg, ayarla
 
   const camera = new THREE.PerspectiveCamera(42, window.innerWidth / window.innerHeight, 0.1, 100);
   // Dikey ekranda yatay görüş dar: beyin sığsın diye kamerayı uzaklaştır.
-  const aspect = window.innerWidth / window.innerHeight;
-  const MESAFE_CARPANI = aspect < 1 ? Math.min(1.6, 0.7 / aspect) : 1;
+  // Uygulamaya geri dönülürken WebView ilk anda yanlış (ör. 0 yükseklikli) boyut
+  // bildirebiliyor; bu yüzden çarpan her boyut değişiminde yeniden hesaplanır.
+  function mesafeCarpaniHesapla() {
+    const w = window.innerWidth, h = window.innerHeight;
+    if (!(w > 0 && h > 0)) return 2.6; // Boyut henüz belli değil: dikey ekran varsay
+    const oran = w / h;
+    // Dikey telefonda beyin ekran genişliğinin yaklaşık 3/4'ünü kaplasın
+    return oran < 1 ? Math.min(2.8, 1.18 / oran) : 1;
+  }
+  let MESAFE_CARPANI = mesafeCarpaniHesapla();
   camera.position.set(0.0, 0.12, 3.85 * MESAFE_CARPANI);
 
   // antialias kapalı: sahne EffectComposer'ın ara dokusuna çizildiği için ekran
@@ -1089,6 +1097,14 @@ export function createBrainScene({ container, labelsContainer, leaderSvg, ayarla
   renderer.setAnimationLoop(animate);
 
   window.addEventListener('resize', () => {
+    if (!(window.innerWidth > 0 && window.innerHeight > 0)) return;
+    // Ekran oranı değiştiyse kamerayı aynı oranda yaklaştır/uzaklaştır: beyin ekrana sığsın.
+    const yeniCarpan = mesafeCarpaniHesapla();
+    if (Math.abs(yeniCarpan - MESAFE_CARPANI) > 1e-3) {
+      camera.position.sub(controls.target).multiplyScalar(yeniCarpan / MESAFE_CARPANI).add(controls.target);
+      MESAFE_CARPANI = yeniCarpan;
+      controls.maxDistance = 6.5 * MESAFE_CARPANI;
+    }
     camera.aspect = window.innerWidth / window.innerHeight;
     uygulaKayma();
     renderer.setSize(window.innerWidth, window.innerHeight);

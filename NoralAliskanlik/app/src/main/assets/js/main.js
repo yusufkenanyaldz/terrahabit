@@ -873,6 +873,8 @@ window.NoralApp = {
   onResume() {
     this.reload();
     acilisKontrolleri();
+    // Geri dönüşte boyut olayı kaçmış olabilir: kamera ve yerleşim yeniden ölçülsün.
+    window.dispatchEvent(new Event('resize'));
   },
   /** Kayıt dışarıda (bildirim butonu) değişti: ekrandaki veriyi yenile. */
   reload() {
