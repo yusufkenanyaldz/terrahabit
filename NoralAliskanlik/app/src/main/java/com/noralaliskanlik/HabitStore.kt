@@ -175,18 +175,20 @@ object HabitStore {
     // -----------------------------------------------------------------------
 
     /** Aşama adları ve renkleri (JS brain-scene.js ile aynı). */
-    private val ASAMA_AD = arrayOf("Çaba", "Tekrar", "Yerleşiyor", "Otomatik")
     private val ASAMA_RENK = arrayOf("#FF7B1C", "#A855F7", "#6366F1", "#00E5FF")
 
     /**
      * Widget'ın bir satırı.
      * durum: "yapildi" | "bekliyor" | "duraklatildi" | "plansiz"
-     * sayac: miktarlı alışkanlık (onay yerine +1)
+     * bilgi: kısa alt yazı (ör. "%52", "3/8 · %52", "Duraklatıldı")
+     * sayac: miktarlı alışkanlık ("+" düğmesi de gösterilir)
      */
     data class WidgetSatiri(
         val id: String,
         val ad: String,
-        val alt: String,
+        val bilgi: String,
+        val asama: Int,
+        val guc: Int,
         val renk: Int,
         val durum: String,
         val sayac: Boolean
@@ -204,41 +206,40 @@ object HabitStore {
                 val h = habits.optJSONObject(i) ?: return@mapNotNull null
                 if (h.optBoolean("arsiv", false) || h.optString("id").isEmpty()) return@mapNotNull null
                 val kotu = h.optString("tip") == "kotu"
-                val asama = h.optInt("asama", 0).coerceIn(0, 3)
-                val asamaAd = if (kotu && asama == 3) "Özgür" else ASAMA_AD[asama]
                 // Güç ve aşama uygulamanın son hesabından (uygulama her kayıtta günceller)
-                val gucYazi = "${if (kotu) "Kontrol" else "Güç"} %${h.optInt("guc", 0)}"
+                val asama = h.optInt("asama", 0).coerceIn(0, 3)
+                val guc = h.optInt("guc", 0).coerceIn(0, 100)
                 val done = kume(h.optJSONArray("done"))
                 val z = h.optJSONObject("zamanlama")
                 val miktar = h.optJSONObject("miktar")
                 val yapildi = bugunKey in done
                 var durum = if (yapildi) "yapildi" else "bekliyor"
-                var alt = "$asamaAd · $gucYazi"
+                var bilgi = "%$guc"
                 var sayac = false
                 when {
-                    duraklatildi(h, bugunKey) -> { durum = "duraklatildi"; alt = "Duraklatıldı" }
+                    duraklatildi(h, bugunKey) -> { durum = "duraklatildi"; bilgi = "Duraklatıldı" }
                     z?.optString("tur") == "haftalik" -> {
                         val pazartesi = bugun.minusDays(((jsGunu(bugun) + 6) % 7).toLong())
                         var yapilan = 0
                         var g = pazartesi
                         while (!g.isAfter(bugun)) { if (g.toString() in done) yapilan++; g = g.plusDays(1) }
-                        alt = "Bu hafta $yapilan/${z?.optInt("hedef", 3) ?: 3} · $gucYazi"
+                        bilgi = "$yapilan/${z?.optInt("hedef", 3) ?: 3} · %$guc"
                     }
                     miktar != null -> {
                         sayac = true
                         val m = h.optJSONObject("gunMiktar")?.optInt(bugunKey, 0) ?: 0
                         val hedef = miktar.optInt("hedef", 1)
-                        val birim = miktar.optString("birim")
-                        alt = if (kotu) "$m / sınır $hedef $birim · $gucYazi" else "$m/$hedef $birim · $gucYazi"
+                        bilgi = "$m/$hedef · %$guc"
                         durum = if (!kotu && m >= hedef) "yapildi" else "bekliyor"
-                        if (!kotu && m >= hedef) sayac = false
                     }
-                    !planli(z, bugun) && !yapildi -> { durum = "plansiz"; alt = "Bugün plan dışı · $gucYazi" }
+                    !planli(z, bugun) && !yapildi -> { durum = "plansiz"; bilgi = "Plan dışı · %$guc" }
                 }
                 WidgetSatiri(
                     id = h.optString("id"),
                     ad = h.optString("name"),
-                    alt = alt,
+                    bilgi = bilgi,
+                    asama = asama,
+                    guc = guc,
                     renk = android.graphics.Color.parseColor(ASAMA_RENK[asama]),
                     durum = durum,
                     sayac = sayac

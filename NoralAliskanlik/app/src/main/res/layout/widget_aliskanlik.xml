@@ -1,60 +1,93 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Ana ekran widget'ı: koyu cam panel, uygulamanın görsel diliyle -->
-<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<!-- Saydam widget: duvar kâğıdının üstünde süzülen beyin, ışıklı yollar ve alışkanlıklar.
+     Katmanlar: (1) beyin görseli, (2) yollar (kodda çizilen bitmap), (3) satırlar. -->
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:id="@+id/widget_kok"
     android:layout_width="match_parent"
-    android:layout_height="match_parent"
-    android:background="@drawable/widget_arka_plan"
-    android:orientation="vertical"
-    android:padding="14dp">
+    android:layout_height="match_parent">
 
+    <!-- 1) Beyin: sol %55 -->
     <LinearLayout
-        android:id="@+id/widget_baslik"
         android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:gravity="center_vertical"
+        android:layout_height="match_parent"
         android:orientation="horizontal">
-
-        <TextView
+        <ImageView
+            android:id="@+id/widget_beyin_img"
             android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_weight="1"
-            android:text="@string/app_name"
-            android:textColor="#F1F5F9"
-            android:textSize="15sp"
-            android:textStyle="bold" />
-
-        <TextView
-            android:id="@+id/widget_ozet"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:textColor="#94A3B8"
-            android:textSize="12sp" />
+            android:layout_height="match_parent"
+            android:layout_weight="55"
+            android:contentDescription="@string/app_name"
+            android:scaleType="fitCenter"
+            android:src="@drawable/widget_beyin" />
+        <FrameLayout
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="45" />
     </LinearLayout>
 
+    <!-- 2) Beyinden alışkanlıklara ışıklı yollar: %20–%55 arası -->
     <LinearLayout
-        android:id="@+id/widget_satirlar"
         android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_marginTop="6dp"
-        android:orientation="vertical" />
+        android:layout_height="match_parent"
+        android:orientation="horizontal">
+        <FrameLayout
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="20" />
+        <ImageView
+            android:id="@+id/widget_yollar"
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="35"
+            android:importantForAccessibility="no"
+            android:scaleType="fitXY" />
+        <FrameLayout
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="45" />
+    </LinearLayout>
 
-    <TextView
-        android:id="@+id/widget_bos"
+    <!-- 3) İçerik: sol taraf uygulamayı açar, sağda alışkanlık satırları -->
+    <LinearLayout
         android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_marginTop="10dp"
-        android:text="@string/widget_bos"
-        android:textColor="#94A3B8"
-        android:textSize="12sp"
-        android:visibility="gone" />
-
-    <TextView
-        android:id="@+id/widget_daha"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_marginTop="4dp"
-        android:textColor="#94A3B8"
-        android:textSize="11sp"
-        android:visibility="gone" />
-</LinearLayout>
+        android:layout_height="match_parent"
+        android:orientation="horizontal">
+        <FrameLayout
+            android:id="@+id/widget_ac"
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="55" />
+        <LinearLayout
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="45"
+            android:orientation="vertical">
+            <LinearLayout
+                android:id="@+id/widget_satirlar"
+                android:layout_width="match_parent"
+                android:layout_height="0dp"
+                android:layout_weight="1"
+                android:orientation="vertical" />
+            <TextView
+                android:id="@+id/widget_daha"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:gravity="end"
+                android:shadowColor="#E6000000"
+                android:shadowRadius="6"
+                android:textColor="#CBD5E1"
+                android:textSize="11sp"
+                android:visibility="gone" />
+            <TextView
+                android:id="@+id/widget_bos"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:shadowColor="#E6000000"
+                android:shadowRadius="6"
+                android:text="@string/widget_bos"
+                android:textColor="#E2E8F0"
+                android:textSize="12sp"
+                android:visibility="gone" />
+        </LinearLayout>
+    </LinearLayout>
+</FrameLayout>
