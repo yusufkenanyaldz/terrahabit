@@ -1,0 +1,66 @@
+plugins {
+    id 'com.android.application'
+    id 'org.jetbrains.kotlin.android'
+}
+
+android {
+    namespace 'com.noralaliskanlik'
+    compileSdk 36
+
+    defaultConfig {
+        applicationId 'com.noralaliskanlik'
+        minSdk 26
+        targetSdk 36
+        // CI'da her derlemede artan sürüm kodu (güncelleme olarak kurulabilsin).
+        versionCode Integer.parseInt(System.getenv('VERSION_CODE') ?: '1')
+        versionName '1.0'
+    }
+
+    // Her derleme aynı anahtarla imzalanmalı; yoksa yeni APK eskisinin üzerine
+    // kurulamaz (kaldırıp kurmak gerekir ve veriler silinir).
+    // CI'da anahtar GitHub Secrets'tan gelir; yerelde Android Studio'nun debug anahtarı kullanılır.
+    def ciKeystore = System.getenv('ANDROID_KEYSTORE_FILE')
+    signingConfigs {
+        if (ciKeystore) {
+            sabit {
+                storeFile file(ciKeystore)
+                storePassword System.getenv('ANDROID_KEYSTORE_PASSWORD')
+                keyAlias System.getenv('ANDROID_KEY_ALIAS')
+                keyPassword System.getenv('ANDROID_KEY_PASSWORD')
+            }
+        }
+    }
+
+    buildTypes {
+        debug {
+            if (ciKeystore) signingConfig signingConfigs.sabit
+        }
+        release {
+            minifyEnabled false
+        }
+    }
+
+    // GLB ve wasm dosyaları APK içinde sıkıştırılmasın (daha hızlı yükleme).
+    androidResources {
+        noCompress += ['glb', 'wasm']
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+}
+
+kotlin {
+    compilerOptions {
+        jvmTarget = org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17
+    }
+}
+
+dependencies {
+    implementation 'androidx.core:core-ktx:1.17.0'
+    implementation 'androidx.appcompat:appcompat:1.7.1'
+    implementation 'androidx.activity:activity-ktx:1.11.0'
+    // WebViewAssetLoader: assets'i https://appassets.androidplatform.net üzerinden sunar.
+    implementation 'androidx.webkit:webkit:1.14.0'
+}

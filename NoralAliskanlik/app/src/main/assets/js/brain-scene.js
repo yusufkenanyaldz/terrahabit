@@ -1,0 +1,842 @@
+// 3B beyin sahnesi — orijinal "Nöral Alışkanlık" HTML'inden modüle taşındı.
+// Değişenler: model yükleme butonu ve Ayar paneli yok (değerler aşağıda sabit),
+// brain.glb otomatik yüklenir, küreler gerçek alışkanlık verisinden gelir,
+// bloom her zaman yarım çözünürlükte, pixelRatio en fazla 2.
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import { DRACOLoader } from 'three/addons/loaders/DRACOLoader.js';
+import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
+import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
+import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
+import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
+import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
+import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
+import { GOAL_DAYS } from './habits.js';
+
+// =========================================================================
+// SABİT AYARLAR (eski Ayar panelinin değerleri — panel kaldırıldı)
+// Değiştirmek için yalnızca bu bloğu düzenleyin.
+// =========================================================================
+export const AYARLAR = {
+  modelRot: { x: 0, y: 0, z: 0 },                 // Model döndürme (derece)
+  prefrontal: { x: 0.78, y: 0.34, z: 0.18 },      // Prefrontal Korteks (Çaba)
+  basalGanglia: { x: -0.05, y: 0.02, z: 0.00 },   // Bazal Gangliyon (Otomatik)
+  modelYazar: '[yazar adı]',                      // Model lisans atfı (CC BY)
+};
+
+const MAX_PIXEL_RATIO = 2;
+const BLOOM_SCALE = 0.5; // Bloom, ekran çözünürlüğünün yarısında hesaplanır
+
+const renkTuruncu = new THREE.Color(0xff7b1c);
+const renkMor = new THREE.Color(0xa855f7);
+const renkMavi = new THREE.Color(0x00e5ff);
+
+/** İlerleme oranına göre turuncu → mor → mavi renk. */
+export function hesaplaAsamaRengi(oran, hedefRenk = new THREE.Color()) {
+  const t = Math.max(0, Math.min(1, oran));
+  if (t < 0.5) hedefRenk.lerpColors(renkTuruncu, renkMor, t * 2.0);
+  else hedefRenk.lerpColors(renkMor, renkMavi, (t - 0.5) * 2.0);
+  return hedefRenk;
+}
+
+/** Gün sayısına göre aşama bilgisi (orijinal eşikler). */
+export function asamaBilgisiGetir(gun) {
+  if (gun <= 15) return { ad: '1. Aşama: Çaba (Prefrontal)', kisa: 'Çaba', hex: '#ff7b1c' };
+  if (gun <= 40) return { ad: '2. Aşama: Tekrar', kisa: 'Tekrar', hex: '#a855f7' };
+  if (gun < GOAL_DAYS) return { ad: '3. Aşama: Yerleşiyor', kisa: 'Yerleşiyor', hex: '#6366f1' };
+  return { ad: '4. Aşama: Otomatik (Bazal Gangliyon)', kisa: 'Otomatik', hex: '#00e5ff' };
+}
+
+/**
+ * Sahneyi kurar.
+ * @param {{container:HTMLElement, labelsContainer:HTMLElement, leaderSvg:SVGElement,
+ *          onSelect:(id:string)=>void, onProgress?:(p:number)=>void}} opts
+ */
+export function createBrainScene({ container, labelsContainer, leaderSvg, onSelect, onProgress }) {
+  // =======================================================================
+  // SAHNE, KAMERA (AÇILIŞTA YANDAN GÖRÜNÜM), RENDERER VE POST-PROCESSING
+  // =======================================================================
+  const scene = new THREE.Scene();
+  scene.background = new THREE.Color(0x060913);
+
+  const camera = new THREE.PerspectiveCamera(42, window.innerWidth / window.innerHeight, 0.1, 100);
+  // Dikey ekranda yatay görüş dar: beyin sığsın diye kamerayı uzaklaştır.
+  const aspect = window.innerWidth / window.innerHeight;
+  const MESAFE_CARPANI = aspect < 1 ? Math.min(1.6, 0.7 / aspect) : 1;
+  camera.position.set(0.0, 0.12, 3.85 * MESAFE_CARPANI);
+
+  const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, MAX_PIXEL_RATIO));
+  renderer.setSize(window.innerWidth, window.innerHeight);
+  renderer.toneMapping = THREE.ACESFilmicToneMapping;
+  renderer.toneMappingExposure = 0.95;
+  renderer.outputColorSpace = THREE.SRGBColorSpace;
+  renderer.localClippingEnabled = false;
+  container.appendChild(renderer.domElement);
+
+  // Ortam ışığı dokusu: bir kez üretilir.
+  const pmremGenerator = new THREE.PMREMGenerator(renderer);
+  scene.environment = pmremGenerator.fromScene(new RoomEnvironment(), 0.04).texture;
+  scene.environmentIntensity = 0.45;
+  pmremGenerator.dispose();
+
+  const dirLight = new THREE.DirectionalLight(0xfff5ea, 1.35);
+  dirLight.position.set(3.5, 4.5, 3.0);
+  scene.add(dirLight);
+  const rimLight = new THREE.DirectionalLight(0x60a5fa, 0.75);
+  rimLight.position.set(-3.5, -1.5, -3.5);
+  scene.add(rimLight);
+  scene.add(new THREE.AmbientLight(0x1e293b, 0.6));
+
+  // Kesit düzlemi (Sagital kesit)
+  const clipPlane = new THREE.Plane(new THREE.Vector3(0, 0, -1), 0.02);
+
+  // Post-processing: Bloom (strength 0.4, threshold 0.85) + vinyet
+  const composer = new EffectComposer(renderer);
+  composer.addPass(new RenderPass(scene, camera));
+  const bloomPass = new UnrealBloomPass(
+    new THREE.Vector2(Math.floor(window.innerWidth * BLOOM_SCALE), Math.floor(window.innerHeight * BLOOM_SCALE)),
+    0.4, 0.35, 0.85);
+  // composer.setSize her pass'e tam boyut verir; bloom'u hep düşük çözünürlükte tut.
+  const bloomSetSize = bloomPass.setSize.bind(bloomPass);
+  bloomPass.setSize = (w, h) =>
+    bloomSetSize(Math.max(1, Math.floor(w * BLOOM_SCALE)), Math.max(1, Math.floor(h * BLOOM_SCALE)));
+  composer.addPass(bloomPass);
+
+  const VignetteShader = {
+    uniforms: {
+      tDiffuse: { value: null },
+      offset: { value: 1.05 },
+      darkness: { value: 1.15 },
+    },
+    vertexShader: `
+      varying vec2 vUv;
+      void main() {
+        vUv = uv;
+        gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+      }
+    `,
+    fragmentShader: `
+      uniform sampler2D tDiffuse;
+      uniform float offset;
+      uniform float darkness;
+      varying vec2 vUv;
+      void main() {
+        vec4 texel = texture2D(tDiffuse, vUv);
+        vec2 uv = (vUv - vec2(0.5)) * vec2(offset);
+        texel.rgb = mix(texel.rgb, texel.rgb * (1.0 - darkness), dot(uv, uv));
+        gl_FragColor = texel;
+      }
+    `,
+  };
+  composer.addPass(new ShaderPass(VignetteShader));
+  composer.addPass(new OutputPass());
+
+  // OrbitControls
+  const controls = new OrbitControls(camera, renderer.domElement);
+  controls.target.set(0.0, 0.04, 0.0);
+  controls.enableDamping = true;
+  controls.dampingFactor = 0.06;
+  controls.minDistance = 1.65;
+  controls.maxDistance = 6.5 * MESAFE_CARPANI;
+  controls.autoRotate = false;
+  controls.autoRotateSpeed = 0.32;
+
+  let odakHedefi = null;
+  let userInteracting = false;
+  let autoRotateTimer = setTimeout(() => {
+    if (!odakHedefi && !userInteracting) controls.autoRotate = true;
+  }, 6000);
+  controls.addEventListener('start', () => {
+    userInteracting = true;
+    controls.autoRotate = false;
+    if (autoRotateTimer) clearTimeout(autoRotateTimer);
+  });
+  controls.addEventListener('end', () => {
+    userInteracting = false;
+    autoRotateTimer = setTimeout(() => {
+      if (!odakHedefi) controls.autoRotate = true;
+    }, 5000);
+  });
+
+  // Arka plan toz parçacıkları
+  const tozParcaciklari = (() => {
+    const adet = 90;
+    const geo = new THREE.BufferGeometry();
+    const pos = new Float32Array(adet * 3);
+    for (let i = 0; i < adet; i++) {
+      pos[i * 3] = (Math.random() - 0.5) * 10;
+      pos[i * 3 + 1] = (Math.random() - 0.5) * 8;
+      pos[i * 3 + 2] = (Math.random() - 0.5) * 8;
+    }
+    geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+    const points = new THREE.Points(geo, new THREE.PointsMaterial({
+      color: 0x64748b, size: 0.025, transparent: true, opacity: 0.35, depthWrite: false,
+    }));
+    scene.add(points);
+    return points;
+  })();
+
+  // =======================================================================
+  // BEYİN MODELİ VE İÇİ BOŞ CAM (FRESNEL) ŞEFFAFLIK SİSTEMİ
+  // =======================================================================
+  const brainPivotGroup = new THREE.Group();
+  brainPivotGroup.rotation.set(
+    THREE.MathUtils.degToRad(AYARLAR.modelRot.x),
+    THREE.MathUtils.degToRad(AYARLAR.modelRot.y),
+    THREE.MathUtils.degToRad(AYARLAR.modelRot.z));
+  scene.add(brainPivotGroup);
+
+  let proceduralBrainGroup = null;
+  let loadedGlbModel = null;
+  let seffafModAcik = true; // Varsayılan: şeffaf mod açık
+
+  function enjekteFresnelShader(mat) {
+    if (mat.userData.fresnelKuruldu) return;
+    mat.userData.fresnelKuruldu = true;
+    mat.userData.uFresnelActive = { value: seffafModAcik ? 1.0 : 0.0 };
+    mat.onBeforeCompile = (shader) => {
+      shader.uniforms.uFresnelActive = mat.userData.uFresnelActive;
+      shader.fragmentShader = `
+        uniform float uFresnelActive;
+      ` + shader.fragmentShader;
+      shader.fragmentShader = shader.fragmentShader.replace(
+        '#include <dithering_fragment>',
+        `
+        #include <dithering_fragment>
+        if (uFresnelActive > 0.5) {
+          vec3 viewDir = normalize(vViewPosition);
+          vec3 nrm = normalize(vNormal);
+          float fresnel = pow(1.0 - abs(dot(nrm, viewDir)), 2.3);
+          vec3 rimColor = vec3(0.48, 0.84, 1.0);
+          gl_FragColor.rgb = mix(gl_FragColor.rgb, rimColor, fresnel * 0.78);
+          gl_FragColor.rgb += rimColor * fresnel * 0.42;
+          gl_FragColor.a = clamp(gl_FragColor.a + fresnel * 0.68, 0.0, 0.92);
+        }
+        `
+      );
+    };
+    mat.needsUpdate = true;
+  }
+
+  function gyriNoise(x, y, z) {
+    const f1 = Math.sin(x * 9.5 + Math.cos(y * 8.2) + z * 7.0);
+    const f2 = Math.cos(y * 11.0 - Math.sin(z * 9.5) + x * 6.5);
+    const f3 = Math.sin(z * 12.5 + x * 8.0 - y * 7.5);
+    return (f1 + f2 + f3) / 3.0;
+  }
+
+  // brain.glb yüklenene (ya da bulunamazsa) kadar görünen prosedürel beyin
+  function olusturProsedurelBeyin() {
+    const grup = new THREE.Group();
+    const cortexMat = new THREE.MeshPhysicalMaterial({
+      color: 0xd99b96, roughness: 0.68, metalness: 0.02, clearcoat: 0.18, clearcoatRoughness: 0.45,
+      clippingPlanes: [clipPlane], clipShadows: true,
+    });
+    enjekteFresnelShader(cortexMat);
+
+    // Sağ ve sol serebral yarımküreler
+    [-1, 1].forEach((side) => {
+      const geo = new THREE.SphereGeometry(0.95, 72, 56);
+      const pos = geo.attributes.position;
+      const v = new THREE.Vector3();
+      for (let i = 0; i < pos.count; i++) {
+        v.fromBufferAttribute(pos, i);
+        v.x *= 1.18; v.y *= 0.86; v.z *= 0.46;
+        if (side * v.z < 0 && Math.abs(v.z) < 0.22) v.z *= 0.28;
+        const n = gyriNoise(v.x * 1.6, v.y * 1.6, (v.z + side * 0.4) * 1.6);
+        const sulci = Math.pow(Math.abs(n), 0.65) * (n < 0 ? -0.055 : 0.042);
+        v.addScaledVector(v.clone().normalize(), sulci);
+        pos.setXYZ(i, v.x, v.y, v.z);
+      }
+      geo.computeVertexNormals();
+      const matClone = cortexMat.clone();
+      enjekteFresnelShader(matClone);
+      const mesh = new THREE.Mesh(geo, matClone);
+      mesh.position.set(0.05, 0.16, side * 0.43);
+      grup.add(mesh);
+    });
+
+    // Beyincik
+    const cerebGeo = new THREE.SphereGeometry(0.42, 48, 36);
+    const cPos = cerebGeo.attributes.position;
+    const cv = new THREE.Vector3();
+    for (let i = 0; i < cPos.count; i++) {
+      cv.fromBufferAttribute(cPos, i);
+      cv.x *= 0.95; cv.y *= 0.72; cv.z *= 1.35;
+      const folia = Math.sin(cv.y * 38.0 + Math.cos(cv.z * 8.0)) * 0.016;
+      cv.addScaledVector(cv.clone().normalize(), folia);
+      cPos.setXYZ(i, cv.x, cv.y, cv.z);
+    }
+    cerebGeo.computeVertexNormals();
+    const cerebMat = cortexMat.clone();
+    cerebMat.color.setHex(0xc4827d);
+    enjekteFresnelShader(cerebMat);
+    const cerebMesh = new THREE.Mesh(cerebGeo, cerebMat);
+    cerebMesh.position.set(-0.62, -0.42, 0);
+    grup.add(cerebMesh);
+
+    // Beyin sapı
+    const stemMat = cortexMat.clone();
+    stemMat.color.setHex(0xd49a94);
+    enjekteFresnelShader(stemMat);
+    const stemMesh = new THREE.Mesh(new THREE.CylinderGeometry(0.18, 0.12, 0.68, 28), stemMat);
+    stemMesh.position.set(-0.18, -0.58, 0);
+    stemMesh.rotation.z = -0.24;
+    grup.add(stemMesh);
+    return grup;
+  }
+
+  proceduralBrainGroup = olusturProsedurelBeyin();
+  brainPivotGroup.add(proceduralBrainGroup);
+
+  // Şeffaf modda iç küreler net görünür (depthTest: false); opak modda derinlik testi açık.
+  function guncelleIcDerinlikGorunumu() {
+    const derinlikTesti = !seffafModAcik;
+    [prefrontalMarker, basalMarker].forEach((m) => {
+      m.traverse((c) => { if (c.isMesh && c.material) c.material.depthTest = derinlikTesti; });
+    });
+    if (neuralTubeMesh) neuralTubeMesh.material.depthTest = derinlikTesti;
+    if (neuralCoreTubeMesh) neuralCoreTubeMesh.material.depthTest = derinlikTesti;
+    akisPoints.material.depthTest = derinlikTesti;
+    kureler.forEach((k) => {
+      k.mesh.material.depthTest = derinlikTesti;
+      k.halo.material.depthTest = derinlikTesti;
+    });
+  }
+
+  function guncelleBeyinMateryalleri() {
+    const hedefGrup = loadedGlbModel || proceduralBrainGroup;
+    if (!hedefGrup) return;
+    hedefGrup.traverse((child) => {
+      if (child.isMesh && child.material) {
+        child.renderOrder = 1;
+        const mats = Array.isArray(child.material) ? child.material : [child.material];
+        mats.forEach((mat) => {
+          enjekteFresnelShader(mat);
+          mat.clippingPlanes = [clipPlane];
+          mat.clipShadows = true;
+          if (seffafModAcik) {
+            mat.transparent = true;
+            mat.opacity = 0.20;
+            mat.depthWrite = false;
+            if (mat.userData.uFresnelActive) mat.userData.uFresnelActive.value = 1.0;
+          } else {
+            mat.transparent = false;
+            mat.opacity = 1.0;
+            mat.depthWrite = true;
+            if (mat.userData.uFresnelActive) mat.userData.uFresnelActive.value = 0.0;
+          }
+          mat.needsUpdate = true;
+        });
+      }
+    });
+    guncelleIcDerinlikGorunumu();
+  }
+
+  function sahneyeGlbModeliYerlestir(gltfScene) {
+    // Prosedürel beyni kaldır ve belleği boşalt
+    if (proceduralBrainGroup) {
+      brainPivotGroup.remove(proceduralBrainGroup);
+      proceduralBrainGroup.traverse((c) => {
+        if (c.isMesh) {
+          c.geometry?.dispose();
+          if (Array.isArray(c.material)) c.material.forEach((m) => m.dispose());
+          else c.material?.dispose();
+        }
+      });
+      proceduralBrainGroup = null;
+    }
+    // Ortala ve ölçekle
+    const box = new THREE.Box3().setFromObject(gltfScene);
+    const size = new THREE.Vector3();
+    const center = new THREE.Vector3();
+    box.getSize(size);
+    box.getCenter(center);
+    const hedefOlcek = 2.45 / (Math.max(size.x, size.y, size.z) || 1);
+    const wrapper = new THREE.Group();
+    gltfScene.position.sub(center);
+    wrapper.add(gltfScene);
+    wrapper.scale.setScalar(hedefOlcek);
+
+    wrapper.traverse((child) => {
+      if (child.isMesh && child.material) {
+        const mats = Array.isArray(child.material) ? child.material : [child.material];
+        mats.forEach((mat) => {
+          if (typeof mat.roughness === 'number') mat.roughness = Math.min(1.0, Math.max(mat.roughness + 0.25, 0.72));
+          if (typeof mat.metalness === 'number') mat.metalness = Math.min(mat.metalness, 0.08);
+          if (mat.emissiveIntensity !== undefined) mat.emissiveIntensity = Math.min(mat.emissiveIntensity, 0.1);
+          enjekteFresnelShader(mat);
+        });
+      }
+    });
+    loadedGlbModel = wrapper;
+    brainPivotGroup.add(loadedGlbModel);
+    guncelleBeyinMateryalleri();
+  }
+
+  /** brain.glb'yi assets'ten yükler (yerel Draco çözücü ile). Dönüş: başarılı mı. */
+  function loadBrain(url = 'brain.glb') {
+    return new Promise((resolve) => {
+      const dracoLoader = new DRACOLoader();
+      dracoLoader.setDecoderPath('lib/draco/');
+      const gltfLoader = new GLTFLoader();
+      gltfLoader.setDRACOLoader(dracoLoader);
+      gltfLoader.load(url,
+        (gltf) => { sahneyeGlbModeliYerlestir(gltf.scene); dracoLoader.dispose(); resolve(true); },
+        (e) => { if (e.total && onProgress) onProgress(e.loaded / e.total); },
+        (err) => { console.warn('brain.glb yüklenemedi:', err); dracoLoader.dispose(); resolve(false); });
+    });
+  }
+
+  // =======================================================================
+  // BÖLGE VURGULARI, PARLAK NÖRAL YOL VE KÜRELER
+  // =======================================================================
+  function olusturBolgeVurgusu(renkHex) {
+    const grup = new THREE.Group();
+    grup.renderOrder = 12;
+    const coreMesh = new THREE.Mesh(new THREE.SphereGeometry(0.06, 24, 24), new THREE.MeshBasicMaterial({
+      color: new THREE.Color(renkHex).multiplyScalar(1.8), transparent: true, opacity: 0.95, depthTest: !seffafModAcik,
+    }));
+    coreMesh.renderOrder = 12;
+    grup.add(coreMesh);
+    const shellMesh = new THREE.Mesh(new THREE.SphereGeometry(0.14, 24, 24), new THREE.MeshBasicMaterial({
+      color: renkHex, transparent: true, opacity: 0.25, depthWrite: false, depthTest: !seffafModAcik,
+    }));
+    shellMesh.renderOrder = 11;
+    grup.add(shellMesh);
+    const ringMesh = new THREE.Mesh(new THREE.RingGeometry(0.155, 0.175, 36), new THREE.MeshBasicMaterial({
+      color: new THREE.Color(renkHex).multiplyScalar(1.5), side: THREE.DoubleSide, transparent: true,
+      opacity: 0.75, depthWrite: false, depthTest: !seffafModAcik,
+    }));
+    ringMesh.renderOrder = 12;
+    grup.add(ringMesh);
+    grup.userData.ring = ringMesh;
+    return grup;
+  }
+
+  const prefrontalMarker = olusturBolgeVurgusu(0xff7b1c);
+  const basalMarker = olusturBolgeVurgusu(0x00e5ff);
+  scene.add(prefrontalMarker, basalMarker);
+
+  let neuralCurve = null;
+  let neuralTubeMesh = null;
+  let neuralCoreTubeMesh = null;
+
+  function olusturParcacikDokusu() {
+    const c = document.createElement('canvas');
+    c.width = 64; c.height = 64;
+    const ctx = c.getContext('2d');
+    const grad = ctx.createRadialGradient(32, 32, 2, 32, 32, 30);
+    grad.addColorStop(0, 'rgba(255, 255, 255, 1)');
+    grad.addColorStop(0.35, 'rgba(230, 210, 255, 0.9)');
+    grad.addColorStop(0.7, 'rgba(168, 85, 247, 0.35)');
+    grad.addColorStop(1, 'rgba(168, 85, 247, 0)');
+    ctx.fillStyle = grad;
+    ctx.fillRect(0, 0, 64, 64);
+    return new THREE.CanvasTexture(c);
+  }
+
+  // Yol boyunca akan parçacıklar
+  const akisParcacikSayisi = 45;
+  const akisGeo = new THREE.BufferGeometry();
+  const akisOffsets = new Float32Array(akisParcacikSayisi);
+  for (let i = 0; i < akisParcacikSayisi; i++) akisOffsets[i] = i / akisParcacikSayisi;
+  akisGeo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(akisParcacikSayisi * 3), 3));
+  const akisPoints = new THREE.Points(akisGeo, new THREE.PointsMaterial({
+    color: new THREE.Color(0xffffff).multiplyScalar(2.2), map: olusturParcacikDokusu(), size: 0.11,
+    transparent: true, opacity: 0.98, blending: THREE.AdditiveBlending, depthWrite: false, depthTest: !seffafModAcik,
+  }));
+  akisPoints.renderOrder = 18;
+  scene.add(akisPoints);
+
+  // Prefrontal → Bazal Gangliyon nöral yolu (sabit ayarlarla bir kez kurulur)
+  function olusturNoralYol() {
+    const p1 = new THREE.Vector3(AYARLAR.prefrontal.x, AYARLAR.prefrontal.y, AYARLAR.prefrontal.z);
+    const p2 = new THREE.Vector3(AYARLAR.basalGanglia.x, AYARLAR.basalGanglia.y, AYARLAR.basalGanglia.z);
+    prefrontalMarker.position.copy(p1);
+    basalMarker.position.copy(p2);
+
+    const mid1 = new THREE.Vector3().lerpVectors(p1, p2, 0.33);
+    mid1.y += 0.16; mid1.z += 0.08;
+    const mid2 = new THREE.Vector3().lerpVectors(p1, p2, 0.68);
+    mid2.y += 0.08; mid2.z -= 0.05;
+    neuralCurve = new THREE.CatmullRomCurve3([p1, mid1, mid2, p2]);
+
+    const tubeGeo = new THREE.TubeGeometry(neuralCurve, 72, 0.032, 16, false);
+    const count = tubeGeo.attributes.position.count;
+    const colors = new Float32Array(count * 3);
+    const uv = tubeGeo.attributes.uv;
+    const c = new THREE.Color();
+    for (let i = 0; i < count; i++) {
+      hesaplaAsamaRengi(uv.getX(i), c);
+      colors[i * 3] = c.r * 2.1;
+      colors[i * 3 + 1] = c.g * 2.1;
+      colors[i * 3 + 2] = c.b * 2.1;
+    }
+    tubeGeo.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+    neuralTubeMesh = new THREE.Mesh(tubeGeo, new THREE.MeshBasicMaterial({
+      vertexColors: true, transparent: true, opacity: 0.55, blending: THREE.AdditiveBlending,
+      depthWrite: false, depthTest: !seffafModAcik,
+    }));
+    neuralTubeMesh.renderOrder = 14;
+    scene.add(neuralTubeMesh);
+
+    const coreTubeGeo = new THREE.TubeGeometry(neuralCurve, 72, 0.013, 12, false);
+    coreTubeGeo.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+    neuralCoreTubeMesh = new THREE.Mesh(coreTubeGeo, new THREE.MeshBasicMaterial({
+      vertexColors: true, transparent: true, opacity: 0.95, depthWrite: false, depthTest: !seffafModAcik,
+    }));
+    neuralCoreTubeMesh.renderOrder = 15;
+    scene.add(neuralCoreTubeMesh);
+  }
+
+  // SVG kılavuz çizgisi + uç noktası
+  function olusturSvgBaglantiElemanlari(renk) {
+    const ns = 'http://www.w3.org/2000/svg';
+    const polyline = document.createElementNS(ns, 'polyline');
+    polyline.setAttribute('class', 'leader-line');
+    polyline.setAttribute('stroke', renk);
+    polyline.setAttribute('points', '-999,-999 -999,-999');
+    const dot = document.createElementNS(ns, 'circle');
+    dot.setAttribute('class', 'leader-dot');
+    dot.setAttribute('r', '2.8');
+    dot.setAttribute('cx', '-999');
+    dot.setAttribute('cy', '-999');
+    dot.setAttribute('fill', renk);
+    leaderSvg.appendChild(polyline);
+    leaderSvg.appendChild(dot);
+    return { polyline, dot };
+  }
+
+  // Bölge etiketleri
+  const labelEffortEl = document.createElement('div');
+  labelEffortEl.className = 'scene-label label-effort';
+  labelEffortEl.textContent = 'ÇABA / Prefrontal Korteks';
+  labelsContainer.appendChild(labelEffortEl);
+  const svgEffortBag = olusturSvgBaglantiElemanlari('#ff7b1c');
+
+  const labelAutoEl = document.createElement('div');
+  labelAutoEl.className = 'scene-label label-auto';
+  labelAutoEl.textContent = 'OTOMATİK / Bazal Gangliyon';
+  labelsContainer.appendChild(labelAutoEl);
+  const svgAutoBag = olusturSvgBaglantiElemanlari('#00e5ff');
+
+  // Ortak geometriler: tüm alışkanlık küreleri aynı geometriyi paylaşır.
+  const kureGeo = new THREE.SphereGeometry(0.104, 32, 32);
+  const haloGeo = new THREE.SphereGeometry(0.168, 24, 24);
+
+  /** Alışkanlık küreleri: id -> nesne. Sıra listeyle aynı tutulur. */
+  const kureler = new Map();
+
+  function kureOlustur(id) {
+    const grup = new THREE.Group();
+    grup.renderOrder = 25;
+    const mesh = new THREE.Mesh(kureGeo, new THREE.MeshStandardMaterial({
+      color: 0xffffff, emissive: 0xffffff, emissiveIntensity: 2.8, roughness: 0.15,
+      depthTest: !seffafModAcik, transparent: true,
+    }));
+    mesh.renderOrder = 26;
+    mesh.userData.habitId = id;
+    grup.add(mesh);
+    const halo = new THREE.Mesh(haloGeo, new THREE.MeshBasicMaterial({
+      color: 0xffffff, transparent: true, opacity: 0.36, blending: THREE.AdditiveBlending,
+      depthWrite: false, depthTest: !seffafModAcik,
+    }));
+    halo.renderOrder = 25;
+    halo.userData.habitId = id;
+    grup.add(halo);
+    scene.add(grup);
+
+    const labelEl = document.createElement('div');
+    labelEl.className = 'scene-label label-habit';
+    labelEl.innerHTML = '<span class="dot"></span><span class="lbl-text"></span>';
+    labelEl.addEventListener('click', (e) => { e.stopPropagation(); onSelect(id); });
+    labelsContainer.appendChild(labelEl);
+
+    return {
+      id, grup, mesh, halo, labelEl,
+      svgBag: olusturSvgBaglantiElemanlari('#ff7b1c'),
+      gun: 0, mevcutOran: 0, hedefOran: 0,
+      kacirildiZamanlayici: 0, kutlamaZamanlayici: 0,
+      etiketGenislik: 115,
+    };
+  }
+
+  function kureSil(k) {
+    scene.remove(k.grup);
+    k.mesh.material.dispose();
+    k.halo.material.dispose();
+    k.labelEl.remove();
+    k.svgBag.polyline.remove();
+    k.svgBag.dot.remove();
+  }
+
+  /**
+   * Küreleri alışkanlık listesine göre günceller.
+   * @param {{id:string, name:string, icon:string, count:number}[]} list
+   */
+  function setHabits(list) {
+    const ids = new Set(list.map((h) => h.id));
+    for (const [id, k] of kureler) if (!ids.has(id)) { kureSil(k); kureler.delete(id); }
+    const sirali = new Map();
+    for (const h of list) {
+      let k = kureler.get(h.id);
+      const yeni = !k;
+      if (!k) k = kureOlustur(h.id);
+      k.gun = h.count;
+      k.hedefOran = Math.min(h.count / GOAL_DAYS, 1);
+      if (yeni) k.mevcutOran = k.hedefOran;
+      const asama = asamaBilgisiGetir(h.count);
+      const dotEl = k.labelEl.querySelector('.dot');
+      dotEl.style.background = asama.hex;
+      dotEl.style.color = asama.hex;
+      k.labelEl.querySelector('.lbl-text').textContent = `${h.icon} ${h.name} · G${h.count}`;
+      k.svgBag.polyline.setAttribute('stroke', asama.hex);
+      k.svgBag.dot.setAttribute('fill', asama.hex);
+      // Etiket genişliği yalnızca metin değişince ölçülür (her karede ölçmek yavaştır).
+      k.etiketGenislik = 0;
+      sirali.set(h.id, k);
+    }
+    kureler.clear();
+    for (const [id, k] of sirali) kureler.set(id, k);
+  }
+
+  /** Seçili alışkanlığa kamerayı odakla (null: serbest). */
+  function select(id) {
+    const k = id ? kureler.get(id) : null;
+    odakHedefi = k ? k.grup.position.clone() : null;
+    if (k) controls.autoRotate = false;
+  }
+
+  /** Kaçırılan gün: küre bir kez sönükleşip titrer. */
+  function flashMiss(id) {
+    const k = kureler.get(id);
+    if (k) k.kacirildiZamanlayici = 1.0;
+  }
+
+  /** 66. gün kutlaması: küre büyüyüp parlar. */
+  function celebrate(id) {
+    const k = kureler.get(id);
+    if (k) k.kutlamaZamanlayici = 1.0;
+  }
+
+  function setTransparent(acik) {
+    seffafModAcik = acik;
+    guncelleBeyinMateryalleri();
+  }
+
+  function toggleClip() {
+    renderer.localClippingEnabled = !renderer.localClippingEnabled;
+    return renderer.localClippingEnabled;
+  }
+
+  // Dokunarak küre seçimi
+  const raycaster = new THREE.Raycaster();
+  const pointer = new THREE.Vector2();
+  renderer.domElement.addEventListener('pointerdown', (e) => {
+    const rect = renderer.domElement.getBoundingClientRect();
+    pointer.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
+    pointer.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
+    raycaster.setFromCamera(pointer, camera);
+    const hit = raycaster.intersectObjects([...kureler.values()].map((k) => k.halo), false)[0];
+    if (hit && hit.object.userData.habitId) onSelect(hit.object.userData.habitId);
+  });
+
+  // =======================================================================
+  // KÜRELERİN ÜZERİNE BİNMEYEN KILAVUZ ÇİZGİLİ ETİKET YERLEŞİMİ
+  // =======================================================================
+  const tempProjVec = new THREE.Vector3();
+
+  function guncelleEtiketKonumlari() {
+    const w = window.innerWidth;
+    const h = window.innerHeight;
+    const kameraMesafesi = camera.position.distanceTo(controls.target);
+    const icYapilarGorunur = seffafModAcik || renderer.localClippingEnabled;
+    const bolgeEtiketleriGorunur = kameraMesafesi < 4.25 * MESAFE_CARPANI && icYapilarGorunur;
+    const aktifEtiketler = [];
+    const kureEkranNoktalari = [];
+
+    kureler.forEach((k) => {
+      tempProjVec.copy(k.grup.position).project(camera);
+      if (tempProjVec.z <= 1) {
+        kureEkranNoktalari.push({ x: (tempProjVec.x * 0.5 + 0.5) * w, y: (-(tempProjVec.y * 0.5) + 0.5) * h });
+      }
+    });
+
+    function gizle(domEl, svgBag) {
+      domEl.style.opacity = '0';
+      domEl.style.left = '-9999px';
+      svgBag.polyline.style.opacity = '0';
+      svgBag.dot.style.opacity = '0';
+    }
+
+    function projekteYanEtiket(worldPos, domEl, svgBag, gorunurMu, tercihYonu, dikeyKayma, genislik) {
+      if (!gorunurMu) return gizle(domEl, svgBag);
+      tempProjVec.copy(worldPos).project(camera);
+      if (tempProjVec.z > 1) return gizle(domEl, svgBag);
+      const anchorX = (tempProjVec.x * 0.5 + 0.5) * w;
+      const anchorY = (-(tempProjVec.y * 0.5) + 0.5) * h;
+      // Etiket tercih edilen tarafa sığmıyorsa (dar dikey ekran) diğer tarafa geç.
+      let side = tercihYonu;
+      if (side > 0 && anchorX + 68 + genislik > w - 6) side = -1;
+      else if (side < 0 && anchorX - 68 - genislik < 6) side = 1;
+      aktifEtiketler.push({
+        domEl, svgBag, anchorX, anchorY,
+        x: anchorX + side * 68, y: anchorY + dikeyKayma, side, width: genislik,
+      });
+    }
+
+    projekteYanEtiket(prefrontalMarker.position, labelEffortEl, svgEffortBag, bolgeEtiketleriGorunur, 1, -34, 170);
+    projekteYanEtiket(basalMarker.position, labelAutoEl, svgAutoBag, bolgeEtiketleriGorunur, -1, -34, 175);
+
+    let idx = 0;
+    kureler.forEach((k) => {
+      if (!k.etiketGenislik) k.etiketGenislik = k.labelEl.offsetWidth || 115;
+      const side = k.mevcutOran < 0.5 ? 1 : -1;
+      projekteYanEtiket(k.grup.position, k.labelEl, k.svgBag, true, side, (idx - 1) * 26, k.etiketGenislik);
+      idx++;
+    });
+
+    // Etiket-etiket ve etiket-küre çakışmalarını dikey olarak ayır
+    aktifEtiketler.sort((a, b) => a.y - b.y);
+    const minDikeyMesafe = 36;
+    for (let iter = 0; iter < 4; iter++) {
+      aktifEtiketler.forEach((lbl) => {
+        const sol = lbl.side > 0 ? lbl.x : lbl.x - lbl.width;
+        const sag = lbl.side > 0 ? lbl.x + lbl.width : lbl.x;
+        kureEkranNoktalari.forEach((sp) => {
+          if (sp.x > sol - 24 && sp.x < sag + 24 && Math.abs(lbl.y - sp.y) < 28) {
+            lbl.y += (lbl.y >= sp.y ? 1 : -1) * (28 - Math.abs(lbl.y - sp.y) + 6);
+          }
+        });
+      });
+      for (let i = 0; i < aktifEtiketler.length; i++) {
+        for (let j = i + 1; j < aktifEtiketler.length; j++) {
+          const ust = aktifEtiketler[i];
+          const alt = aktifEtiketler[j];
+          const ustSol = ust.side > 0 ? ust.x : ust.x - ust.width;
+          const ustSag = ust.side > 0 ? ust.x + ust.width : ust.x;
+          const altSol = alt.side > 0 ? alt.x : alt.x - alt.width;
+          const altSag = alt.side > 0 ? alt.x + alt.width : alt.x;
+          const yatayCakisiyor = !(ustSag + 10 < altSol || altSag + 10 < ustSol);
+          if (yatayCakisiyor) {
+            const fark = alt.y - ust.y;
+            if (fark < minDikeyMesafe) {
+              const itme = (minDikeyMesafe - fark) * 0.55;
+              ust.y -= itme;
+              alt.y += itme;
+            }
+          }
+        }
+      }
+    }
+
+    // Üst bar ve alt liste ile çakışmasın
+    aktifEtiketler.forEach((item) => {
+      item.y = Math.max(115, Math.min(h - 195, item.y));
+      // Hiçbir tarafa sığmayan etiketi ekran içine it.
+      if (item.side > 0) item.x = Math.max(6, Math.min(item.x, w - 6 - item.width));
+      else item.x = Math.min(w - 6, Math.max(item.x, 6 + item.width));
+      item.domEl.classList.toggle('align-left', item.side < 0);
+      item.domEl.style.opacity = icYapilarGorunur ? '1' : '0.45';
+      item.domEl.style.left = `${item.x}px`;
+      item.domEl.style.top = `${item.y}px`;
+      const elbowX = item.anchorX + item.side * 26;
+      const endX = item.x - item.side * 5;
+      item.svgBag.polyline.setAttribute('points',
+        `${item.anchorX.toFixed(1)},${item.anchorY.toFixed(1)} ${elbowX.toFixed(1)},${item.y.toFixed(1)} ${endX.toFixed(1)},${item.y.toFixed(1)}`);
+      item.svgBag.polyline.style.opacity = icYapilarGorunur ? '0.82' : '0.3';
+      item.svgBag.dot.setAttribute('cx', item.anchorX.toFixed(1));
+      item.svgBag.dot.setAttribute('cy', item.anchorY.toFixed(1));
+      item.svgBag.dot.style.opacity = icYapilarGorunur ? '0.95' : '0.35';
+    });
+  }
+
+  // =======================================================================
+  // ANİMASYON DÖNGÜSÜ
+  // =======================================================================
+  const timer = new THREE.Timer();
+  timer.connect(document); // Arka plandan dönünce zaman sıçramasın
+  const geciciRenk = new THREE.Color();
+  const geciciNokta = new THREE.Vector3();
+  const merkez = new THREE.Vector3(0, 0.04, 0);
+
+  function animate() {
+    if (document.hidden) return; // Arka planda çizme (pil/ısınma)
+    timer.update();
+    const dt = Math.min(timer.getDelta(), 0.1);
+    const elapsed = timer.getElapsed();
+
+    prefrontalMarker.userData.ring.lookAt(camera.position);
+    basalMarker.userData.ring.lookAt(camera.position);
+
+    const posAttr = akisGeo.attributes.position;
+    for (let i = 0; i < akisParcacikSayisi; i++) {
+      neuralCurve.getPointAt((akisOffsets[i] + elapsed * 0.22) % 1.0, geciciNokta);
+      posAttr.setXYZ(i, geciciNokta.x, geciciNokta.y, geciciNokta.z);
+    }
+    posAttr.needsUpdate = true;
+
+    let idx = 0;
+    kureler.forEach((k) => {
+      k.mevcutOran += (k.hedefOran - k.mevcutOran) * Math.min(1, dt * 5.0);
+      let egriOrani = k.mevcutOran;
+      let emissiveYogunluk = 2.8;
+
+      // Kaçırılan gün: sönükleş ve titre
+      if (k.kacirildiZamanlayici > 0) {
+        k.kacirildiZamanlayici = Math.max(0, k.kacirildiZamanlayici - dt * 1.4);
+        const titreme = Math.sin(elapsed * 42.0) * 0.018 * k.kacirildiZamanlayici;
+        egriOrani = Math.max(0, egriOrani - 0.025 * k.kacirildiZamanlayici + titreme);
+        emissiveYogunluk = 0.45;
+      }
+
+      neuralCurve.getPointAt(Math.max(0, Math.min(1, egriOrani)), k.grup.position);
+
+      hesaplaAsamaRengi(k.mevcutOran, geciciRenk);
+      k.halo.material.color.copy(geciciRenk).multiplyScalar(1.8);
+      k.mesh.material.color.copy(geciciRenk);
+      k.mesh.material.emissive.copy(geciciRenk);
+      k.mesh.material.emissiveIntensity = emissiveYogunluk;
+
+      let olcek;
+      if (k.gun >= GOAL_DAYS) olcek = 1.0 + Math.sin(elapsed * 2.6 + idx) * 0.16;
+      else if (k.gun <= 15) olcek = 1.0 + Math.sin(elapsed * 8.0 + idx) * 0.06;
+      else olcek = 1.0;
+
+      // 66. gün kutlaması: büyük parlama dalgası (~2.5 sn)
+      if (k.kutlamaZamanlayici > 0) {
+        k.kutlamaZamanlayici = Math.max(0, k.kutlamaZamanlayici - dt * 0.4);
+        const dalga = Math.sin(k.kutlamaZamanlayici * Math.PI);
+        olcek *= 1 + dalga * 1.2;
+        k.mesh.material.emissiveIntensity = emissiveYogunluk + dalga * 4;
+      }
+      k.grup.scale.setScalar(olcek);
+      idx++;
+    });
+
+    if (!userInteracting) {
+      controls.target.lerp(odakHedefi || merkez, Math.min(1, dt * (odakHedefi ? 4.5 : 2.5)));
+    }
+    tozParcaciklari.rotation.y = elapsed * 0.015;
+
+    controls.update();
+    guncelleEtiketKonumlari();
+    composer.render();
+  }
+
+  olusturNoralYol();
+  guncelleBeyinMateryalleri();
+  renderer.setAnimationLoop(animate);
+
+  window.addEventListener('resize', () => {
+    camera.aspect = window.innerWidth / window.innerHeight;
+    camera.updateProjectionMatrix();
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    composer.setSize(window.innerWidth, window.innerHeight);
+  });
+
+  return { loadBrain, setHabits, select, flashMiss, celebrate, setTransparent, toggleClip };
+}

@@ -1,0 +1,71 @@
+name: Nöral Alışkanlık APK
+
+# NoralAliskanlik klasöründe değişiklik olunca (veya elle) debug APK derler.
+on:
+  push:
+    paths:
+      - 'NoralAliskanlik/**'
+      - '.github/workflows/noral-apk.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  apk:
+    runs-on: ubuntu-latest
+    env:
+      KEYSTORE_B64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      # Alışkanlık mantığı testleri (ek paket gerekmez)
+      - name: Testler
+        run: node --test "NoralAliskanlik/tests/*.test.mjs"
+
+      # brain.glb 25 MB'den büyük olduğu için depoda değil;
+      # "brain-model" etiketli GitHub Release'e ek olarak yüklenir.
+      - name: brain.glb indir
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if gh release download brain-model --repo "${{ github.repository }}" -p brain.glb \
+               -D NoralAliskanlik/app/src/main/assets --clobber; then
+            ls -lh NoralAliskanlik/app/src/main/assets/brain.glb
+          else
+            echo "::warning::brain.glb bulunamadı. 'brain-model' etiketli bir Release oluşturup brain.glb dosyasını ekleyin. APK yedek beyin modeliyle derleniyor."
+          fi
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+          cache: gradle
+
+      # TerraHabit ile aynı imza anahtarı: her APK öncekinin üzerine kurulabilir.
+      - name: İmza anahtarını hazırla
+        if: env.KEYSTORE_B64 != ''
+        run: |
+          printf '%s' "$KEYSTORE_B64" | tr -d '\r\n ' | base64 --decode > "$RUNNER_TEMP/release.jks"
+          echo "ANDROID_KEYSTORE_FILE=$RUNNER_TEMP/release.jks" >> "$GITHUB_ENV"
+
+      - name: Debug APK derle
+        working-directory: NoralAliskanlik
+        env:
+          VERSION_CODE: ${{ github.run_number }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          chmod +x gradlew
+          ./gradlew assembleDebug --no-daemon
+          mv app/build/outputs/apk/debug/app-debug.apk "../NoralAliskanlik-${{ github.run_number }}-debug.apk"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: NoralAliskanlik-${{ github.run_number }}-debug
+          path: NoralAliskanlik-${{ github.run_number }}-debug.apk

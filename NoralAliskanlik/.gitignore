@@ -1,0 +1,8 @@
+# brain.glb 25 MB'den büyük: depoya girmez, GitHub Release'ten indirilir.
+app/src/main/assets/brain.glb
+.gradle/
+build/
+app/build/
+local.properties
+.idea/
+*.iml

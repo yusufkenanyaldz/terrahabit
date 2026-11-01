@@ -1,0 +1,387 @@
+// Arayüz: liste, detay kartı, ekleme/silme, yedek, kutlama.
+// Oyun mantığı habits.js'te (saf, testli); 3B sahne brain-scene.js'te.
+import { createBrainScene, asamaBilgisiGetir, AYARLAR } from './brain-scene.js';
+import {
+  GOAL_DAYS, addHabit, removeHabit, markDone, doneCount, isDoneOn,
+  needsMissFlash, ackMisses, last30, migrate,
+} from './habits.js';
+import { todayKey, setNow } from './clock.js';
+import { loadState, saveState, exportBackup, requestImport } from './storage.js';
+
+// Geliştirici modu: tarayıcıda ?tarih=2026-05-01 ile sahte gün (test için).
+const tarihParam = new URLSearchParams(location.search).get('tarih');
+if (tarihParam) setNow(new Date(`${tarihParam}T12:00:00`));
+
+const $ = (id) => document.getElementById(id);
+
+// -------------------------------------------------------------------------
+// Durum
+// -------------------------------------------------------------------------
+let state;
+let kayitBozuk = false; // Kayıt okunamadıysa üzerine yazma (veri kaybolmasın)
+try {
+  state = loadState();
+} catch (e) {
+  state = { version: 1, habits: [] };
+  kayitBozuk = true;
+}
+let seciliId = null;
+
+function kaydet() {
+  if (kayitBozuk) {
+    bildirimGoster('Kayıt okunamadı; veriyi korumak için kaydedilmedi. Yedekten geri yükleyin.');
+    return;
+  }
+  saveState(state);
+}
+
+// -------------------------------------------------------------------------
+// 3B sahne
+// -------------------------------------------------------------------------
+const sahne = createBrainScene({
+  container: $('canvas-container'),
+  labelsContainer: $('labels-container'),
+  leaderSvg: $('leader-svg'),
+  onSelect: (id) => aliskanlikSec(id),
+  onProgress: (p) => { $('loading').textContent = `Beyin modeli yükleniyor… %${Math.round(p * 100)}`; },
+});
+
+sahne.loadBrain('brain.glb').then((ok) => {
+  $('loading').remove();
+  if (!ok) bildirimGoster('brain.glb bulunamadı — yedek beyin modeli gösteriliyor');
+});
+
+// -------------------------------------------------------------------------
+// Liste ve detay kartı
+// -------------------------------------------------------------------------
+function esc(s) {
+  return String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+}
+
+function ciz() {
+  const bugun = todayKey();
+  sahne.setHabits(state.habits.map((h) => ({ id: h.id, name: h.name, icon: h.icon, count: doneCount(h) })));
+
+  const listEl = $('habit-list-el');
+  listEl.innerHTML = '';
+  if (state.habits.length === 0) {
+    listEl.innerHTML = '<div class="empty-hint">Henüz alışkanlık yok.<br>＋ Ekle ile ilk nöral yolunu başlat.</div>';
+  }
+  state.habits.forEach((h) => {
+    const gun = doneCount(h);
+    const yuzde = Math.min(100, Math.round((gun / GOAL_DAYS) * 100));
+    const asama = asamaBilgisiGetir(gun);
+    const bugunYapildi = isDoneOn(h, bugun);
+    const row = document.createElement('div');
+    row.className = `habit-item ${seciliId === h.id ? 'selected' : ''} ${bugunYapildi ? 'done-today' : ''}`;
+    row.innerHTML = `
+      <div class="habit-item-top">
+        <span>${esc(h.icon)} ${esc(h.name)}${bugunYapildi ? '<span class="done-mark">✓</span>' : ''}</span>
+        <span class="habit-day-badge">Gün ${gun} / ${GOAL_DAYS} (${asama.kisa})</span>
+      </div>
+      <div class="progress-track">
+        <div class="progress-fill" style="width:${yuzde}%; background:${asama.hex};"></div>
+      </div>`;
+    uzunBasmaBagla(row, () => aliskanlikSec(h.id), () => silmeOnayi(h));
+    listEl.appendChild(row);
+  });
+
+  cizDetay();
+}
+
+function cizDetay() {
+  const h = state.habits.find((x) => x.id === seciliId);
+  if (!h) {
+    $('detail-card').classList.remove('visible');
+    return;
+  }
+  const bugun = todayKey();
+  const gun = doneCount(h);
+  const asama = asamaBilgisiGetir(gun);
+  const yuzde = Math.min(100, Math.round((gun / GOAL_DAYS) * 100));
+
+  $('det-icon').textContent = h.icon;
+  $('det-name').textContent = h.name;
+  const stageEl = $('det-stage');
+  stageEl.textContent = asama.ad;
+  stageEl.style.background = `${asama.hex}22`;
+  stageEl.style.color = asama.hex;
+  stageEl.style.border = `1px solid ${asama.hex}66`;
+  $('det-days').innerHTML = `Gün ${gun} <span>/ ${GOAL_DAYS}</span>`;
+  $('det-percent').textContent = gun >= GOAL_DAYS ? 'Artık Otomatik!' : `%${yuzde} Otomatikleşti`;
+
+  // Son 30 gün: yapıldı / kaçırıldı / bugün
+  const cal = $('det-calendar');
+  cal.innerHTML = '';
+  last30(h, bugun).forEach((d) => {
+    const dot = document.createElement('div');
+    dot.className = `cal-dot ${d.status}${d.isToday ? ' is-today' : ''}`;
+    const [y, m, g] = d.key.split('-');
+    dot.title = `${g}.${m}.${y}`;
+    cal.appendChild(dot);
+  });
+
+  const btn = $('btn-do-today');
+  const yapildi = isDoneOn(h, bugun);
+  btn.disabled = yapildi;
+  btn.textContent = yapildi ? 'Bugün tamamlandı ✓' : 'Bugün yaptım (+1)';
+  $('det-meta').textContent = `⏰ Hatırlatma: her gün ${h.time} · Silmek için listede uzun bas`;
+  $('detail-card').classList.add('visible');
+}
+
+function aliskanlikSec(id) {
+  seciliId = id;
+  sahne.select(id);
+  ciz();
+}
+
+function detayKapat() {
+  seciliId = null;
+  sahne.select(null);
+  ciz();
+}
+
+$('btn-close-detail').addEventListener('click', detayKapat);
+
+// "Bugün yaptım": günde yalnızca bir kez
+$('btn-do-today').addEventListener('click', () => {
+  if (!seciliId) return;
+  const r = markDone(state, seciliId, todayKey());
+  if (!r.changed) return;
+  state = r.state;
+  kaydet();
+  ciz();
+  if (r.reachedGoal) kutlamaGoster(state.habits.find((h) => h.id === seciliId));
+  else bildirimGoster('+1 gün — nöral yol güçleniyor');
+});
+
+// -------------------------------------------------------------------------
+// Uzun basma (silme) / kısa dokunma (seçme)
+// -------------------------------------------------------------------------
+function uzunBasmaBagla(el, kisaDokunma, uzunBasma) {
+  let zamanlayici = null;
+  let baslangic = null;
+  let uzunOldu = false;
+  const iptal = () => {
+    clearTimeout(zamanlayici);
+    zamanlayici = null;
+    el.classList.remove('pressing');
+  };
+  el.addEventListener('pointerdown', (e) => {
+    uzunOldu = false;
+    baslangic = { x: e.clientX, y: e.clientY };
+    el.classList.add('pressing');
+    zamanlayici = setTimeout(() => {
+      uzunOldu = true;
+      iptal();
+      if (navigator.vibrate) navigator.vibrate(30);
+      uzunBasma();
+    }, 600);
+  });
+  el.addEventListener('pointermove', (e) => {
+    if (baslangic && Math.hypot(e.clientX - baslangic.x, e.clientY - baslangic.y) > 10) iptal();
+  });
+  el.addEventListener('pointerup', () => {
+    const kisa = zamanlayici !== null && !uzunOldu;
+    iptal();
+    if (kisa) kisaDokunma();
+  });
+  el.addEventListener('pointercancel', iptal);
+  el.addEventListener('contextmenu', (e) => e.preventDefault());
+}
+
+async function silmeOnayi(h) {
+  const evet = await onayIste('Alışkanlık silinsin mi?',
+    `"${h.icon} ${h.name}" ve ${doneCount(h)} günlük kaydı silinecek. Bu işlem geri alınamaz.`, 'Sil');
+  if (!evet) return;
+  state = removeHabit(state, h.id);
+  if (seciliId === h.id) { seciliId = null; sahne.select(null); }
+  kaydet();
+  ciz();
+  bildirimGoster('Alışkanlık silindi');
+}
+
+// -------------------------------------------------------------------------
+// Açılır pencereler
+// -------------------------------------------------------------------------
+let onayCoz = null;
+function onayIste(baslik, metin, evetYazi = 'Evet') {
+  $('confirm-title').textContent = baslik;
+  $('confirm-text').textContent = metin;
+  $('confirm-yes').textContent = evetYazi;
+  $('modal-confirm').classList.add('open');
+  return new Promise((resolve) => { onayCoz = resolve; });
+}
+function onayKapat(sonuc) {
+  $('modal-confirm').classList.remove('open');
+  if (onayCoz) { onayCoz(sonuc); onayCoz = null; }
+}
+$('confirm-yes').addEventListener('click', () => onayKapat(true));
+$('confirm-no').addEventListener('click', () => onayKapat(false));
+
+// Alışkanlık ekleme
+const EMOJILER = ['💧', '📚', '🏃', '🧘', '🌙', '🍎', '💪', '✍️', '🎸', '🧠', '🚭', '☀️', '🦷', '💊', '🚶', '🙏'];
+let secilenEmoji = EMOJILER[0];
+const emojiGrid = $('emoji-grid');
+EMOJILER.forEach((em) => {
+  const b = document.createElement('button');
+  b.type = 'button';
+  b.className = 'emoji-btn';
+  b.textContent = em;
+  b.addEventListener('click', () => {
+    secilenEmoji = em;
+    $('add-emoji').value = '';
+    emojiGrid.querySelectorAll('.emoji-btn').forEach((x) => x.classList.toggle('selected', x === b));
+  });
+  emojiGrid.appendChild(b);
+});
+
+/** Yazılan metnin ilk karakteri (emoji birden çok kod noktasından oluşabilir). */
+function ilkGrafem(s) {
+  const t = s.trim();
+  if (!t) return '';
+  if (window.Intl && Intl.Segmenter) {
+    const it = new Intl.Segmenter('tr', { granularity: 'grapheme' }).segment(t)[Symbol.iterator]();
+    return it.next().value?.segment || '';
+  }
+  return Array.from(t)[0];
+}
+
+$('btn-add').addEventListener('click', () => {
+  $('add-form').reset();
+  $('add-time').value = '09:00';
+  secilenEmoji = EMOJILER[0];
+  emojiGrid.querySelectorAll('.emoji-btn').forEach((x, i) => x.classList.toggle('selected', i === 0));
+  $('modal-add').classList.add('open');
+  setTimeout(() => $('add-name').focus(), 50);
+});
+$('add-cancel').addEventListener('click', () => $('modal-add').classList.remove('open'));
+$('add-form').addEventListener('submit', (e) => {
+  e.preventDefault();
+  try {
+    const ozel = ilkGrafem($('add-emoji').value);
+    state = addHabit(state, {
+      name: $('add-name').value,
+      icon: ozel || secilenEmoji,
+      time: $('add-time').value,
+    }, todayKey());
+  } catch (err) {
+    bildirimGoster(err.message);
+    return;
+  }
+  $('modal-add').classList.remove('open');
+  $('add-name').blur();
+  kaydet();
+  aliskanlikSec(state.habits.at(-1).id);
+  bildirimGoster('Alışkanlık eklendi — hatırlatma kuruldu');
+});
+
+// Yedek
+$('model-credit').textContent = `Model: ${AYARLAR.modelYazar} (CC BY)`;
+$('btn-backup').addEventListener('click', () => $('modal-backup').classList.add('open'));
+$('backup-close').addEventListener('click', () => $('modal-backup').classList.remove('open'));
+$('backup-export').addEventListener('click', () => {
+  const r = exportBackup(state);
+  bildirimGoster(r.ok ? `Kaydedildi: İndirilenler/${r.message}` : r.message);
+  if (r.ok) $('modal-backup').classList.remove('open');
+});
+$('backup-import').addEventListener('click', () => requestImport(yedekGeldi));
+
+/** Seçilen yedek dosyasının metni (Android'den ya da tarayıcıdan). */
+async function yedekGeldi(metin) {
+  let yeni;
+  try {
+    yeni = migrate(metin);
+  } catch (e) {
+    bildirimGoster(`Yedek okunamadı: ${e.message}`);
+    return;
+  }
+  const evet = await onayIste('Yedek geri yüklensin mi?',
+    `Yedekte ${yeni.habits.length} alışkanlık var. Telefondaki mevcut veriler bu yedekle değiştirilecek.`,
+    'Geri yükle');
+  if (!evet) return;
+  state = yeni;
+  kayitBozuk = false; // Geçerli veri geldi; artık kaydetmek güvenli
+  seciliId = null;
+  sahne.select(null);
+  kaydet();
+  ciz();
+  $('modal-backup').classList.remove('open');
+  bildirimGoster('Yedek geri yüklendi');
+}
+
+// 66. gün kutlaması
+function kutlamaGoster(h) {
+  if (!h) return;
+  sahne.celebrate(h.id);
+  $('cel-icon').textContent = h.icon;
+  $('cel-sub').textContent = `"${h.name}" ${GOAL_DAYS} gündür nöral yolunda. Bazal gangliyona yerleşti!`;
+  $('celebration').classList.add('open');
+  if (navigator.vibrate) navigator.vibrate([60, 80, 60, 80, 160]);
+}
+$('celebration').addEventListener('click', () => $('celebration').classList.remove('open'));
+
+// Şeffaf mod / kesit
+const btnTransparent = $('btn-transparent');
+let seffaf = true;
+btnTransparent.addEventListener('click', () => {
+  seffaf = !seffaf;
+  btnTransparent.classList.toggle('active', seffaf);
+  sahne.setTransparent(seffaf);
+});
+$('btn-clip').addEventListener('click', (e) => {
+  e.currentTarget.classList.toggle('active', sahne.toggleClip());
+});
+
+// Bildirim hapı
+let toastZaman = null;
+function bildirimGoster(mesaj) {
+  const toast = $('toast');
+  toast.textContent = mesaj;
+  toast.classList.add('show');
+  clearTimeout(toastZaman);
+  toastZaman = setTimeout(() => toast.classList.remove('show'), 2600);
+}
+
+// -------------------------------------------------------------------------
+// Kaçırılan gün kontrolü: sayaç sıfırlanmaz, küre bir kez sönükleşip titrer
+// -------------------------------------------------------------------------
+function kacirilanlariKontrolEt() {
+  const bugun = todayKey();
+  const kacirilan = state.habits.filter((h) => needsMissFlash(h, bugun));
+  if (kacirilan.length === 0) return;
+  kacirilan.forEach((h, i) => setTimeout(() => sahne.flashMiss(h.id), 600 + i * 700));
+  bildirimGoster(kacirilan.length === 1
+    ? `${kacirilan[0].icon} ${kacirilan[0].name}: kaçırılan gün var — sayaç korunuyor`
+    : `${kacirilan.length} alışkanlıkta kaçırılan gün var — sayaçlar korunuyor`);
+  state = ackMisses(state, bugun); // Animasyon bir daha oynamasın
+  kaydet();
+}
+
+// -------------------------------------------------------------------------
+// Android köprüsü için genel fonksiyonlar (MainActivity çağırır)
+// -------------------------------------------------------------------------
+window.NoralApp = {
+  /** Geri tuşu: açık pencere varsa kapat ve true döndür. */
+  handleBack() {
+    if ($('celebration').classList.contains('open')) { $('celebration').classList.remove('open'); return true; }
+    if ($('modal-confirm').classList.contains('open')) { onayKapat(false); return true; }
+    for (const id of ['modal-add', 'modal-backup']) {
+      if ($(id).classList.contains('open')) { $(id).classList.remove('open'); return true; }
+    }
+    if (seciliId) { detayKapat(); return true; }
+    return false;
+  },
+  /** Uygulama öne gelince: gün değişmiş olabilir. */
+  onResume() {
+    ciz();
+    kacirilanlariKontrolEt();
+  },
+  /** Seçilen yedek dosyasının içeriği. */
+  onImport(metin) { yedekGeldi(metin); },
+};
+
+// Açılış
+ciz();
+if (kayitBozuk) bildirimGoster('Kayıt okunamadı. Yedekten geri yükleyebilirsiniz.');
+else setTimeout(kacirilanlariKontrolEt, 1200);

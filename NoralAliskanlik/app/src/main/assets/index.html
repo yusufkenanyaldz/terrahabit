@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+  <title>Nöral Alışkanlık — 3B Beyin Haritası</title>
+  <link rel="stylesheet" href="css/style.css" />
+
+  <!-- Three.js ve eklentileri yerel dosyalardan (internet gerekmez) -->
+  <script type="importmap">
+    {
+      "imports": {
+        "three": "./lib/three.module.js",
+        "three/addons/": "./lib/addons/"
+      }
+    }
+  </script>
+</head>
+<body>
+
+  <div id="canvas-container"></div>
+  <div id="labels-container">
+    <svg id="leader-svg"></svg>
+  </div>
+  <div id="toast"></div>
+  <div id="loading">Beyin modeli yükleniyor…</div>
+
+  <!-- ÜST BAR -->
+  <header class="top-bar">
+    <div class="brand-box">
+      <div class="brand-title">Nöral Alışkanlık</div>
+      <div class="brand-sub">Prefrontal Korteks → Bazal Gangliyon</div>
+    </div>
+    <div class="top-actions">
+      <button id="btn-transparent" class="icon-btn active">Şeffaf mod</button>
+      <button id="btn-clip" class="icon-btn">Kesit görünümü</button>
+      <button id="btn-backup" class="icon-btn">Yedek</button>
+    </div>
+  </header>
+
+  <!-- SEÇİLİ ALIŞKANLIK DETAY KARTI -->
+  <section id="detail-card">
+    <div class="detail-header">
+      <div>
+        <div class="detail-title"><span class="icon" id="det-icon"></span><span id="det-name"></span></div>
+        <div class="detail-stage" id="det-stage"></div>
+      </div>
+      <button class="close-btn" id="btn-close-detail" aria-label="Kapat">✕</button>
+    </div>
+    <div class="detail-stats">
+      <div class="day-counter" id="det-days"></div>
+      <div style="font-size: 12px; color: var(--text-muted);" id="det-percent"></div>
+    </div>
+    <div class="cal-title">Son 30 gün</div>
+    <div class="cal-grid" id="det-calendar"></div>
+    <div class="cal-legend">
+      <span><i style="background:#00e5ff"></i>Yapıldı</span>
+      <span><i style="border:1px solid rgba(255,90,90,.7);background:rgba(255,90,90,.2)"></i>Kaçırıldı</span>
+      <span><i style="border:2px solid #a855f7"></i>Bugün</span>
+    </div>
+    <div class="detail-actions">
+      <button class="btn-Check" id="btn-do-today">Bugün yaptım (+1)</button>
+    </div>
+    <div class="detail-meta" id="det-meta"></div>
+  </section>
+
+  <!-- ALT ALIŞKANLIK LİSTESİ -->
+  <section class="bottom-sheet">
+    <div class="sheet-header">
+      <span>Alışkanlıklarım · 66 gün</span>
+      <button class="add-btn" id="btn-add">＋ Ekle</button>
+    </div>
+    <div class="habit-list" id="habit-list-el"></div>
+  </section>
+
+  <!-- ALIŞKANLIK EKLEME -->
+  <div class="modal-backdrop" id="modal-add">
+    <form class="modal" id="add-form" autocomplete="off">
+      <h3>Yeni alışkanlık</h3>
+      <label class="field-label" for="add-name">İsim</label>
+      <input class="text-input" id="add-name" maxlength="40" placeholder="Örn. Kitap oku" required />
+      <label class="field-label">İkon</label>
+      <div class="emoji-grid" id="emoji-grid"></div>
+      <input class="text-input" id="add-emoji" maxlength="8" placeholder="…ya da kendi emojini yaz" style="margin-top:8px" />
+      <label class="field-label" for="add-time">Hatırlatma saati</label>
+      <input class="text-input" id="add-time" type="time" value="09:00" required />
+      <div class="modal-actions">
+        <button type="button" class="btn-small" id="add-cancel">Vazgeç</button>
+        <button type="submit" class="btn-small primary">Kaydet</button>
+      </div>
+    </form>
+  </div>
+
+  <!-- ONAY PENCERESİ (silme, geri yükleme) -->
+  <div class="modal-backdrop" id="modal-confirm">
+    <div class="modal">
+      <h3 id="confirm-title"></h3>
+      <p id="confirm-text"></p>
+      <div class="modal-actions">
+        <button class="btn-small" id="confirm-no">Vazgeç</button>
+        <button class="btn-danger" id="confirm-yes">Evet</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- YEDEKLE / GERİ YÜKLE -->
+  <div class="modal-backdrop" id="modal-backup">
+    <div class="modal">
+      <h3>Yedek</h3>
+      <div class="modal-actions" style="margin-top:0">
+        <button class="btn-small primary" id="backup-export">Yedekle</button>
+        <button class="btn-small" id="backup-import">Geri yükle</button>
+      </div>
+      <div class="backup-note">
+        Yedek, telefonun <b>İndirilenler (Download)</b> klasörüne JSON dosyası olarak kaydedilir.
+        Geri yüklerken bu dosyayı seçin.
+      </div>
+      <div class="backup-note" id="model-credit"></div>
+      <div class="modal-actions">
+        <button class="btn-small" id="backup-close">Kapat</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 66. GÜN KUTLAMASI -->
+  <div id="celebration">
+    <div class="cel-ring"></div><div class="cel-ring"></div><div class="cel-ring"></div>
+    <div class="cel-icon" id="cel-icon">🧠</div>
+    <div class="cel-title">Artık otomatik!</div>
+    <div class="cel-sub" id="cel-sub"></div>
+    <div class="cel-hint">Kapatmak için dokun</div>
+  </div>
+
+  <script type="module" src="js/main.js"></script>
+</body>
+</html>
