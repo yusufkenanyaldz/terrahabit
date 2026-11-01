@@ -960,3 +960,13 @@ body.ayar-acik #detail-card { opacity: 0; pointer-events: none; }
    (önce örnek beyin görünüp sonra modelin gelmesi "göz kırpma" yapıyordu). */
 #canvas-container, #labels-container { opacity: 0; transition: opacity 0.6s ease; }
 body.sahne-hazir #canvas-container, body.sahne-hazir #labels-container { opacity: 1; }
+
+/* Akıcılık: etiketler transform ile taşınır (main thread'de yerleşim hesabı yok);
+   left/top geçişi kaldırıldı, her karede yeniden başlayıp titremeye yol açıyordu. */
+.scene-label {
+  left: 0;
+  top: 0;
+  transform: translate3d(-9999px, 0, 0);
+  transition: opacity 0.2s ease;
+  will-change: transform;
+}

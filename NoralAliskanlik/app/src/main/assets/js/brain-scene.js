@@ -695,6 +695,35 @@ export function createBrainScene({ container, labelsContainer, leaderSvg, ayarla
   // =======================================================================
   const tempProjVec = new THREE.Vector3();
 
+  // Takılma (mikro donma) olmasın diye bu fonksiyon her karede yeni nesne üretmez:
+  // aynı nesneler yeniden kullanılır ve DOM'a yalnızca değişen değerler yazılır.
+  // Etiketler left/top yerine transform ile taşınır (sayfa yerleşimi yeniden hesaplanmaz).
+  const etiketHavuzu = [];
+  const aktifEtiketler = [];
+  const kureEkranNoktalari = [];
+  const yukaridanAsagi = (a, b) => a.y - b.y;
+
+  function havuzdan(i) {
+    if (!etiketHavuzu[i]) etiketHavuzu[i] = { domEl: null, svgBag: null, anchorX: 0, anchorY: 0, x: 0, y: 0, side: 1, width: 0 };
+    return etiketHavuzu[i];
+  }
+  function noktadan(i) {
+    if (!kureEkranNoktalari[i]) kureEkranNoktalari[i] = { x: 0, y: 0 };
+    return kureEkranNoktalari[i];
+  }
+
+  function gizle(domEl, svgBag) {
+    if (domEl._gizli) return;
+    domEl._gizli = true;
+    domEl._x = NaN;
+    domEl.style.opacity = '0';
+    domEl.style.transform = 'translate3d(-9999px, 0, 0)'; // Görünmez etiket dokunuş almasın
+    svgBag.polyline.style.opacity = '0';
+    svgBag.dot.style.opacity = '0';
+    svgBag._ax = NaN;
+    svgBag._op = '';
+  }
+
   function guncelleEtiketKonumlari() {
     const w = window.innerWidth;
     const h = window.innerHeight;
@@ -702,21 +731,16 @@ export function createBrainScene({ container, labelsContainer, leaderSvg, ayarla
     const icYapilarGorunur = seffafModAcik || renderer.localClippingEnabled;
     // Bir alışkanlık seçiliyken bölge etiketleri ve diğer alışkanlıkların etiketleri gizlenir.
     const bolgeEtiketleriGorunur = !seciliId && kameraMesafesi < 4.25 * MESAFE_CARPANI && icYapilarGorunur;
-    const aktifEtiketler = [];
-    const kureEkranNoktalari = [];
+    aktifEtiketler.length = 0;
+    let noktaSayisi = 0;
 
-    kureler.forEach((k) => {
+    for (const k of kureler.values()) {
       tempProjVec.copy(k.grup.position).project(camera);
       if (tempProjVec.z <= 1) {
-        kureEkranNoktalari.push({ x: (tempProjVec.x * 0.5 + 0.5) * w, y: (-(tempProjVec.y * 0.5) + 0.5) * h });
+        const n = noktadan(noktaSayisi++);
+        n.x = (tempProjVec.x * 0.5 + 0.5) * w;
+        n.y = (-(tempProjVec.y * 0.5) + 0.5) * h;
       }
-    });
-
-    function gizle(domEl, svgBag) {
-      domEl.style.opacity = '0';
-      domEl.style.left = '-9999px';
-      svgBag.polyline.style.opacity = '0';
-      svgBag.dot.style.opacity = '0';
     }
 
     function projekteYanEtiket(worldPos, domEl, svgBag, gorunurMu, tercihYonu, dikeyKayma, genislik) {
@@ -729,37 +753,40 @@ export function createBrainScene({ container, labelsContainer, leaderSvg, ayarla
       let side = tercihYonu;
       if (side > 0 && anchorX + 68 + genislik > w - 6) side = -1;
       else if (side < 0 && anchorX - 68 - genislik < 6) side = 1;
-      aktifEtiketler.push({
-        domEl, svgBag, anchorX, anchorY,
-        x: anchorX + side * 68, y: anchorY + dikeyKayma, side, width: genislik,
-      });
+      const e = havuzdan(aktifEtiketler.length);
+      e.domEl = domEl; e.svgBag = svgBag;
+      e.anchorX = anchorX; e.anchorY = anchorY;
+      e.x = anchorX + side * 68; e.y = anchorY + dikeyKayma;
+      e.side = side; e.width = genislik;
+      aktifEtiketler.push(e);
     }
 
     projekteYanEtiket(prefrontalMarker.position, labelEffortEl, svgEffortBag, bolgeEtiketleriGorunur, 1, -34, 170);
     projekteYanEtiket(basalMarker.position, labelAutoEl, svgAutoBag, bolgeEtiketleriGorunur, -1, -34, 175);
 
     let idx = 0;
-    kureler.forEach((k) => {
+    for (const k of kureler.values()) {
       if (!k.etiketGenislik) k.etiketGenislik = k.labelEl.offsetWidth || 115;
       const side = k.mevcutOran < 0.5 ? 1 : -1;
       const gorunur = !seciliId || seciliId === k.id;
       projekteYanEtiket(k.grup.position, k.labelEl, k.svgBag, gorunur, side, seciliId ? -30 : (idx - 1) * 26, k.etiketGenislik);
       idx++;
-    });
+    }
 
     // Etiket-etiket ve etiket-küre çakışmalarını dikey olarak ayır
-    aktifEtiketler.sort((a, b) => a.y - b.y);
+    aktifEtiketler.sort(yukaridanAsagi);
     const minDikeyMesafe = 36;
     for (let iter = 0; iter < 4; iter++) {
-      aktifEtiketler.forEach((lbl) => {
+      for (const lbl of aktifEtiketler) {
         const sol = lbl.side > 0 ? lbl.x : lbl.x - lbl.width;
         const sag = lbl.side > 0 ? lbl.x + lbl.width : lbl.x;
-        kureEkranNoktalari.forEach((sp) => {
+        for (let n = 0; n < noktaSayisi; n++) {
+          const sp = kureEkranNoktalari[n];
           if (sp.x > sol - 24 && sp.x < sag + 24 && Math.abs(lbl.y - sp.y) < 28) {
             lbl.y += (lbl.y >= sp.y ? 1 : -1) * (28 - Math.abs(lbl.y - sp.y) + 6);
           }
-        });
-      });
+        }
+      }
       for (let i = 0; i < aktifEtiketler.length; i++) {
         for (let j = i + 1; j < aktifEtiketler.length; j++) {
           const ust = aktifEtiketler[i];
@@ -781,25 +808,45 @@ export function createBrainScene({ container, labelsContainer, leaderSvg, ayarla
       }
     }
 
-    // Üst bar ve alt liste ile çakışmasın
-    aktifEtiketler.forEach((item) => {
+    // Üst bar ve alt panel ile çakışmasın; DOM'a yalnızca değişen değerleri yaz
+    const etiketOpak = icYapilarGorunur ? '1' : '0.45';
+    const cizgiOpak = icYapilarGorunur ? '0.82' : '0.3';
+    const noktaOpak = icYapilarGorunur ? '0.95' : '0.35';
+    for (const item of aktifEtiketler) {
       item.y = Math.max(ustSinir, Math.min(altSinir, item.y));
       // Hiçbir tarafa sığmayan etiketi ekran içine it.
       if (item.side > 0) item.x = Math.max(6, Math.min(item.x, w - 6 - item.width));
       else item.x = Math.min(w - 6, Math.max(item.x, 6 + item.width));
-      item.domEl.classList.toggle('align-left', item.side < 0);
-      item.domEl.style.opacity = icYapilarGorunur ? '1' : '0.45';
-      item.domEl.style.left = `${item.x}px`;
-      item.domEl.style.top = `${item.y}px`;
-      const elbowX = item.anchorX + item.side * 26;
-      const endX = item.x - item.side * 5;
-      item.svgBag.polyline.setAttribute('points',
-        `${item.anchorX.toFixed(1)},${item.anchorY.toFixed(1)} ${elbowX.toFixed(1)},${item.y.toFixed(1)} ${endX.toFixed(1)},${item.y.toFixed(1)}`);
-      item.svgBag.polyline.style.opacity = icYapilarGorunur ? '0.82' : '0.3';
-      item.svgBag.dot.setAttribute('cx', item.anchorX.toFixed(1));
-      item.svgBag.dot.setAttribute('cy', item.anchorY.toFixed(1));
-      item.svgBag.dot.style.opacity = icYapilarGorunur ? '0.95' : '0.35';
-    });
+
+      // Tam piksele yuvarla: alt piksel titremesi olmasın, gereksiz yazım azalsın
+      const x = Math.round(item.x), y = Math.round(item.y);
+      const ax = Math.round(item.anchorX), ay = Math.round(item.anchorY);
+      const el = item.domEl;
+      if (el._gizli) {
+        el._gizli = false;
+        el._op = '';
+      }
+      if (el._x !== x || el._y !== y || el._side !== item.side) {
+        el._x = x; el._y = y; el._side = item.side;
+        el.style.transform = `translate3d(${x}px, ${y}px, 0) translate(${item.side < 0 ? '-100%' : '0'}, -50%)`;
+      }
+      if (el._op !== etiketOpak) { el._op = etiketOpak; el.style.opacity = etiketOpak; }
+
+      const bag = item.svgBag;
+      const elbowX = ax + item.side * 26;
+      const endX = x - item.side * 5;
+      if (bag._ax !== ax || bag._ay !== ay || bag._y !== y || bag._ex !== endX) {
+        bag._ax = ax; bag._ay = ay; bag._y = y; bag._ex = endX;
+        bag.polyline.setAttribute('points', `${ax},${ay} ${elbowX},${y} ${endX},${y}`);
+        bag.dot.setAttribute('cx', ax);
+        bag.dot.setAttribute('cy', ay);
+      }
+      if (bag._op !== cizgiOpak) {
+        bag._op = cizgiOpak;
+        bag.polyline.style.opacity = cizgiOpak;
+        bag.dot.style.opacity = noktaOpak;
+      }
+    }
   }
 
   // =======================================================================
@@ -816,10 +863,36 @@ export function createBrainScene({ container, labelsContainer, leaderSvg, ayarla
   const DEMET_ARALIGI = 0.13; // kürelerin yoldan uzaklık adımı
   const merkez = new THREE.Vector3(0, 0.04, 0);
 
+  // Uyarlanabilir çözünürlük: telefon zorlanırsa (2 sn boyunca < 45 fps) çizim
+  // çözünürlüğünü kademeli düşür. Yalnızca aşağı iner; ileri geri zıplayıp takılma yapmaz.
+  let cizimOrani = renderer.getPixelRatio();
+  const MIN_CIZIM_ORANI = 1.25;
+  let olcumKare = 0;
+  let olcumSure = 0;
+  let isinmaSuresi = 4; // İlk saniyeler (model/shader hazırlığı) ölçülmez
+
+  function performansKontrol(hamDt) {
+    if (isinmaSuresi > 0) { isinmaSuresi -= hamDt; return; }
+    olcumKare++;
+    olcumSure += hamDt;
+    if (olcumSure < 2) return;
+    const fps = olcumKare / olcumSure;
+    olcumKare = 0;
+    olcumSure = 0;
+    if (fps < 45 && cizimOrani > MIN_CIZIM_ORANI) {
+      cizimOrani = Math.max(MIN_CIZIM_ORANI, cizimOrani - 0.25);
+      renderer.setPixelRatio(cizimOrani);
+      composer.setPixelRatio(cizimOrani);
+      isinmaSuresi = 1; // Değişiklik sonrası bir saniye bekle, sonra yeniden ölç
+    }
+  }
+
   function animate() {
     if (document.hidden) return; // Arka planda çizme (pil/ısınma)
     timer.update();
-    const dt = Math.min(timer.getDelta(), 0.1);
+    const hamDt = timer.getDelta();
+    performansKontrol(hamDt);
+    const dt = Math.min(hamDt, 0.1);
     const elapsed = timer.getElapsed();
 
     prefrontalMarker.userData.ring.lookAt(camera.position);
