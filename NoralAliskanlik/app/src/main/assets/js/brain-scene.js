@@ -63,7 +63,9 @@ export function createBrainScene({ container, labelsContainer, leaderSvg, ayarla
   const MESAFE_CARPANI = aspect < 1 ? Math.min(1.6, 0.7 / aspect) : 1;
   camera.position.set(0.0, 0.12, 3.85 * MESAFE_CARPANI);
 
-  const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
+  // antialias kapalı: sahne EffectComposer'ın ara dokusuna çizildiği için ekran
+  // tamponundaki MSAA görüntüye katkı yapmıyor, yalnızca bellek trafiği ekliyordu.
+  const renderer = new THREE.WebGLRenderer({ antialias: false, powerPreference: 'high-performance' });
   renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, MAX_PIXEL_RATIO));
   renderer.setSize(window.innerWidth, window.innerHeight);
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
@@ -887,8 +889,31 @@ export function createBrainScene({ container, labelsContainer, leaderSvg, ayarla
     }
   }
 
-  function animate() {
+  // Kare hızı 60'ta sabit: 120 Hz ekranda bazı karelerin 8 ms'ye yetişip bazılarının
+  // yetişememesi düzensiz akışa ("yalpalama") yol açar; düzenli 60 daha akıcı görünür.
+  const HEDEF_KARE_MS = 1000 / 60;
+  let sonKare = 0;
+
+  // Ölçüm göstergesi için (başlığa 3 kez dokununca görünür)
+  const olcum = { fps: 0, enUzun: 0, takilma: 0, kareler: 0, sure: 0, gecici: 0 };
+  let saniyeKare = 0, saniyeSure = 0, saniyeEnUzun = 0, saniyeTakilma = 0;
+
+  function animate(zaman) {
     if (document.hidden) return; // Arka planda çizme (pil/ısınma)
+    // 2 ms pay: 60 Hz ekranda hiçbir kare atlanmasın
+    if (zaman - sonKare < HEDEF_KARE_MS - 2) return;
+    const aralik = sonKare ? zaman - sonKare : HEDEF_KARE_MS;
+    sonKare = zaman;
+    saniyeKare++;
+    saniyeSure += aralik;
+    if (aralik > saniyeEnUzun) saniyeEnUzun = aralik;
+    if (aralik > 25) saniyeTakilma++; // 60 fps'de bir kareden fazla kaçırıldı
+    if (saniyeSure >= 1000) {
+      olcum.fps = Math.round((saniyeKare * 1000) / saniyeSure);
+      olcum.enUzun = Math.round(saniyeEnUzun);
+      olcum.takilma = saniyeTakilma;
+      saniyeKare = 0; saniyeSure = 0; saniyeEnUzun = 0; saniyeTakilma = 0;
+    }
     timer.update();
     const hamDt = timer.getDelta();
     performansKontrol(hamDt);
@@ -983,5 +1008,10 @@ export function createBrainScene({ container, labelsContainer, leaderSvg, ayarla
     composer.setSize(window.innerWidth, window.innerHeight);
   });
 
-  return { loadBrain, showFallbackBrain, setHabits, select, flashMiss, celebrate, setTransparent, toggleClip, applySettings, setGorunurAlan };
+  /** Ölçüm göstergesi: son saniyenin fps'i, en uzun kare (ms), takılma sayısı, çizim oranı. */
+  function getStats() {
+    return { fps: olcum.fps, enUzun: olcum.enUzun, takilma: olcum.takilma, oran: cizimOrani };
+  }
+
+  return { getStats, loadBrain, showFallbackBrain, setHabits, select, flashMiss, celebrate, setTransparent, toggleClip, applySettings, setGorunurAlan };
 }

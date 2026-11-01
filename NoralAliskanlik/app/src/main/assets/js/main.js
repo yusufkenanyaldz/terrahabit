@@ -638,6 +638,28 @@ window.NoralApp = {
   },
 };
 
+// -------------------------------------------------------------------------
+// Gizli ölçüm göstergesi: başlığa hızlıca 3 kez dokun → fps ve takılmalar
+// -------------------------------------------------------------------------
+let baslikDokunus = [];
+let olcumZaman = null;
+$('brand-title').addEventListener('click', () => {
+  const simdi = Date.now();
+  baslikDokunus = baslikDokunus.filter((t) => simdi - t < 800);
+  baslikDokunus.push(simdi);
+  if (baslikDokunus.length < 3) return;
+  baslikDokunus = [];
+  const hud = $('hud');
+  hud.hidden = !hud.hidden;
+  clearInterval(olcumZaman);
+  if (!hud.hidden) {
+    olcumZaman = setInterval(() => {
+      const s = sahne.getStats();
+      hud.textContent = `${s.fps} fps · en uzun kare ${s.enUzun} ms · takılma ${s.takilma}/sn · oran ${s.oran}`;
+    }, 500);
+  }
+});
+
 // Açılış
 ciz();
 kayitliModeliYukle();

@@ -970,3 +970,15 @@ body.sahne-hazir #canvas-container, body.sahne-hazir #labels-container { opacity
   transition: opacity 0.2s ease;
   will-change: transform;
 }
+
+/* Gizli ölçüm göstergesi */
+#hud {
+  margin-top: 4px;
+  font-size: 10.5px;
+  font-variant-numeric: tabular-nums;
+  color: #7df4ff;
+  background: rgba(0, 0, 0, 0.55);
+  padding: 3px 7px;
+  border-radius: 6px;
+  white-space: nowrap;
+}

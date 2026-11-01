@@ -99,7 +99,8 @@ class MainActivity : AppCompatActivity() {
 
         webView = WebView(this).apply {
             setBackgroundColor(android.graphics.Color.BLACK)
-            setLayerType(WebView.LAYER_TYPE_HARDWARE, null) // GPU ile çizim
+            // Not: setLayerType(LAYER_TYPE_HARDWARE) KULLANMA. Donanım hızlandırma manifestte
+            // açık; ek katman her kareyi bir kez daha kopyalatıp takılmaya yol açıyordu.
             settings.javaScriptEnabled = true
             settings.domStorageEnabled = true
             settings.allowFileAccess = false   // file:// kapalı
