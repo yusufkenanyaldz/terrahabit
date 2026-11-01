@@ -65,7 +65,20 @@ export function createBrainScene({ container, labelsContainer, leaderSvg, ayarla
 
   // antialias kapalı: sahne EffectComposer'ın ara dokusuna çizildiği için ekran
   // tamponundaki MSAA görüntüye katkı yapmıyor, yalnızca bellek trafiği ekliyordu.
-  const renderer = new THREE.WebGLRenderer({ antialias: false, powerPreference: 'high-performance' });
+  // WebGL bağlamını kendimiz oluşturuyoruz çünkü Three.js tuvali her zaman saydam (alpha)
+  // açar. Opak tuvali telefon her karede sayfayla harmanlamak zorunda kalmaz
+  // (arka plan zaten koyu); bu, görüntünün bir anlık kaybolmasını önlemeye yöneliktir.
+  const tuval = document.createElement('canvas');
+  const gl = tuval.getContext('webgl2', {
+    alpha: false,
+    antialias: false, // Composer'ın ara dokusuna çiziliyor; MSAA katkı yapmıyordu
+    depth: true,
+    stencil: false,
+    premultipliedAlpha: true,
+    preserveDrawingBuffer: false,
+    powerPreference: 'high-performance',
+  });
+  const renderer = new THREE.WebGLRenderer({ canvas: tuval, context: gl });
   renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, MAX_PIXEL_RATIO));
   renderer.setSize(window.innerWidth, window.innerHeight);
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
@@ -594,7 +607,7 @@ export function createBrainScene({ container, labelsContainer, leaderSvg, ayarla
 
   /**
    * Küreleri alışkanlık listesine göre günceller.
-   * @param {{id:string, name:string, icon:string, count:number}[]} list
+   * @param {{id:string, name:string, count:number}[]} list
    */
   function setHabits(list) {
     const ids = new Set(list.map((h) => h.id));
@@ -611,7 +624,7 @@ export function createBrainScene({ container, labelsContainer, leaderSvg, ayarla
       const dotEl = k.labelEl.querySelector('.dot');
       dotEl.style.background = asama.hex;
       dotEl.style.color = asama.hex;
-      k.labelEl.querySelector('.lbl-text').textContent = `${h.icon} ${h.name} · G${h.count}`;
+      k.labelEl.querySelector('.lbl-text').textContent = `${h.name} · G${h.count}`;
       k.svgBag.polyline.setAttribute('stroke', asama.hex);
       k.svgBag.dot.setAttribute('fill', asama.hex);
       // Etiket genişliği yalnızca metin değişince ölçülür (her karede ölçmek yavaştır).

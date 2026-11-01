@@ -133,7 +133,7 @@
         <div class="ring-text"><b id="det-days">0</b><span>/66</span></div>
       </div>
       <div class="det-info">
-        <div class="detail-title"><span id="det-icon"></span> <span id="det-name"></span></div>
+        <div class="detail-title"><span id="det-name"></span></div>
         <div class="det-sub">
           <span class="detail-stage" id="det-stage"></span>
           <span class="det-time" id="det-time"></span>
@@ -142,7 +142,7 @@
       <button class="close-btn" id="btn-edit-habit" aria-label="Düzenle">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20h4L19 9l-4-4L4 16z"/><path d="M13.5 6.5l4 4"/></svg>
       </button>
-      <button class="close-btn" id="btn-close-detail" aria-label="Kapat">✕</button>
+      <button class="close-btn" id="btn-close-detail" aria-label="Kapat"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
     </div>
     <div class="cal-head"><span>Son 30 gün</span><span id="det-percent"></span></div>
     <div class="cal-strip" id="det-calendar"></div>
@@ -164,9 +164,6 @@
       <h3 id="add-title">Yeni alışkanlık</h3>
       <label class="field-label" for="add-name">İsim</label>
       <input class="text-input" id="add-name" maxlength="40" placeholder="Örn. Kitap oku" required />
-      <label class="field-label">İkon</label>
-      <div class="emoji-grid" id="emoji-grid"></div>
-      <input class="text-input" id="add-emoji" maxlength="8" placeholder="…ya da kendi emojini yaz" style="margin-top:8px" />
       <label class="field-label" for="add-time">Hatırlatma saati</label>
       <input class="text-input" id="add-time" type="time" value="09:00" required />
       <div class="modal-actions">
@@ -209,7 +206,7 @@
   <!-- 66. GÜN KUTLAMASI -->
   <div id="celebration">
     <div class="cel-ring"></div><div class="cel-ring"></div><div class="cel-ring"></div>
-    <div class="cel-icon" id="cel-icon">🧠</div>
+    <div class="cel-orb"></div>
     <div class="cel-title">Artık otomatik!</div>
     <div class="cel-sub" id="cel-sub"></div>
     <div class="cel-hint">Kapatmak için dokun</div>

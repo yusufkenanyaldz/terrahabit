@@ -15,7 +15,7 @@ class DoneReceiver : BroadcastReceiver() {
         val changed = HabitStore.markDoneToday(context, habitId)
         NotificationManagerCompat.from(context).cancel(habitId.hashCode())
         if (changed) {
-            Toast.makeText(context, "Bugün tamamlandı ✓", Toast.LENGTH_SHORT).show()
+            Toast.makeText(context, "Bugün tamamlandı", Toast.LENGTH_SHORT).show()
             // Uygulama açıksa ekrandaki veriyi yenilesin (eski veriyle üzerine yazmasın).
             context.sendBroadcast(Intent(ACTION_DATA_CHANGED).setPackage(context.packageName))
         }

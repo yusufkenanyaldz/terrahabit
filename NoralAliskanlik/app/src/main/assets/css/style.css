@@ -637,15 +637,6 @@ html, body {
   color-scheme: dark;
 }
 .text-input:focus { outline: none; border-color: rgba(0, 229, 255, 0.55); }
-.emoji-grid { display: grid; grid-template-columns: repeat(8, 1fr); gap: 6px; }
-.emoji-btn {
-  font-size: 20px;
-  aspect-ratio: 1;
-  border-radius: 10px;
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  background: rgba(255, 255, 255, 0.04);
-}
-.emoji-btn.selected { border-color: rgba(0, 229, 255, 0.7); background: rgba(0, 229, 255, 0.14); }
 .modal-actions { display: flex; gap: 8px; margin-top: 16px; }
 .btn-danger {
   flex: 1;
@@ -689,7 +680,6 @@ html, body {
 }
 .cel-ring:nth-child(2) { animation-delay: 0.8s; border-color: #a855f7; }
 .cel-ring:nth-child(3) { animation-delay: 1.6s; border-color: #ff7b1c; }
-.cel-icon { font-size: 64px; animation: cel-pop 0.9s cubic-bezier(0.16, 1, 0.3, 1) both; position: relative; }
 .cel-title {
   font-size: 30px;
   font-weight: 800;
@@ -982,3 +972,26 @@ body.sahne-hazir #canvas-container, body.sahne-hazir #labels-container { opacity
   border-radius: 6px;
   white-space: nowrap;
 }
+
+/* Onay ve kapat ikonları (emoji yerine çizgi ikon) */
+.row-check svg { width: 15px; height: 15px; }
+.row-check:not(.done) svg { opacity: 0; }
+.close-btn { display: flex; align-items: center; justify-content: center; }
+.close-btn svg { width: 14px; height: 14px; }
+
+/* Kutlama: emoji yerine parlayan küre */
+.cel-orb {
+  position: relative;
+  width: 76px;
+  height: 76px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 40% 35%, #ffffff, #7df4ff 35%, #00a3c4 70%);
+  box-shadow: 0 0 30px rgba(0, 229, 255, 0.8), 0 0 70px rgba(168, 85, 247, 0.5);
+  animation: cel-pop 0.9s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+/* Kompozisyon aksaklığını önle: sürekli değişen WebGL tuvalinin üstünde
+   arka plan bulanıklaştırma (backdrop-filter) Android WebView'de görüntünün
+   bir anlık kaybolmasına yol açabiliyor. Paneller zaten neredeyse opak. */
+* { -webkit-backdrop-filter: none !important; backdrop-filter: none !important; }
+.bottom-sheet, #detail-card, #settings-panel, .menu-btn, .menu-dropdown { background: rgba(10, 15, 28, 0.94); }

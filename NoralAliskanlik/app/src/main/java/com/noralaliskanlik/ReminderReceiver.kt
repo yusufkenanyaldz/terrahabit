@@ -44,14 +44,14 @@ class ReminderReceiver : BroadcastReceiver() {
         )
         val n = NotificationCompat.Builder(context, CHANNEL_ID)
             .setSmallIcon(android.R.drawable.ic_popup_reminder)
-            .setContentTitle("${habit.icon} ${habit.name}")
+            .setContentTitle(habit.name)
             .setContentText("Bugün henüz yapılmadı. Nöronların seni bekliyor!")
             .setPriority(NotificationCompat.PRIORITY_DEFAULT)
             .setContentIntent(open)
             .setAutoCancel(true)
             // Uygulamayı açmadan işaretlemek için "Yaptım" butonu
             .addAction(
-                android.R.drawable.checkbox_on_background, "Yaptım ✓",
+                android.R.drawable.checkbox_on_background, "Yaptım",
                 DoneReceiver.pendingIntent(context, habit.id)
             )
             .build()

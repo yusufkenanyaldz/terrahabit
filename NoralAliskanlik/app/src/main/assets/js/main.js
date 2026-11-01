@@ -246,7 +246,7 @@ function esc(s) {
 
 function ciz() {
   const bugun = todayKey();
-  sahne.setHabits(state.habits.map((h) => ({ id: h.id, name: h.name, icon: h.icon, count: doneCount(h) })));
+  sahne.setHabits(state.habits.map((h) => ({ id: h.id, name: h.name, count: doneCount(h) })));
 
   const listEl = $('habit-list-el');
   listEl.innerHTML = '';
@@ -262,9 +262,9 @@ function ciz() {
     row.className = `habit-item ${seciliId === h.id ? 'selected' : ''} ${bugunYapildi ? 'done-today' : ''}`;
     row.innerHTML = `
       <div class="habit-item-top">
-        <span class="habit-name">${esc(h.icon)} ${esc(h.name)}</span>
+        <span class="habit-name">${esc(h.name)}</span>
         <span class="habit-day-badge">Gün ${gun} / ${GOAL_DAYS} (${asama.kisa})</span>
-        <button class="row-check ${bugunYapildi ? 'done' : ''}" aria-label="Bugün yaptım">✓</button>
+        <button class="row-check ${bugunYapildi ? 'done' : ''}" aria-label="Bugün yaptım"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg></button>
       </div>
       <div class="progress-track">
         <div class="progress-fill" style="width:${yuzde}%; background:${asama.hex};"></div>
@@ -272,7 +272,7 @@ function ciz() {
     uzunBasmaBagla(row, () => aliskanlikSec(h.id), () => silmeOnayi(h));
     row.querySelector('.row-check').addEventListener('click', (e) => {
       e.stopPropagation();
-      if (isDoneOn(h, todayKey())) bildirimGoster('Bugün zaten tamamlandı ✓');
+      if (isDoneOn(h, todayKey())) bildirimGoster('Bugün zaten tamamlandı');
       else yaptimIsaretle(h.id);
     });
     listEl.appendChild(row);
@@ -296,14 +296,13 @@ function cizDetay() {
   const asama = asamaBilgisiGetir(gun);
   const oran = Math.min(gun / GOAL_DAYS, 1);
 
-  $('det-icon').textContent = h.icon;
   $('det-name').textContent = h.name;
   const stageEl = $('det-stage');
   stageEl.textContent = asama.kisa;
   stageEl.style.background = `${asama.hex}22`;
   stageEl.style.color = asama.hex;
   stageEl.style.border = `1px solid ${asama.hex}66`;
-  $('det-time').textContent = `⏰ ${h.time}`;
+  $('det-time').textContent = `Hatırlatma ${h.time}`;
 
   // İlerleme halkası
   $('det-days').textContent = gun;
@@ -325,7 +324,7 @@ function cizDetay() {
   const btn = $('btn-do-today');
   const yapildi = isDoneOn(h, bugun);
   btn.disabled = yapildi;
-  btn.textContent = yapildi ? 'Bugün tamamlandı ✓' : 'Bugün yaptım';
+  btn.textContent = yapildi ? 'Bugün tamamlandı' : 'Bugün yaptım';
   $('detail-card').classList.add('visible');
   gorunurAlanGuncelle();
 }
@@ -369,7 +368,7 @@ function uzunBasmaBagla(el, kisaDokunma, uzunBasma) {
     el.classList.remove('pressing');
   };
   el.addEventListener('pointerdown', (e) => {
-    if (e.target.closest('.row-check')) return; // ✓ butonu seçme/silme başlatmaz
+    if (e.target.closest('.row-check')) return; // Onay butonu seçme/silme başlatmaz
     uzunOldu = false;
     baslangic = { x: e.clientX, y: e.clientY };
     el.classList.add('pressing');
@@ -394,7 +393,7 @@ function uzunBasmaBagla(el, kisaDokunma, uzunBasma) {
 
 async function silmeOnayi(h) {
   const evet = await onayIste('Alışkanlık silinsin mi?',
-    `"${h.icon} ${h.name}" ve ${doneCount(h)} günlük kaydı silinecek. Bu işlem geri alınamaz.`, 'Sil');
+    `"${h.name}" ve ${doneCount(h)} günlük kaydı silinecek. Bu işlem geri alınamaz.`, 'Sil');
   if (!evet) return;
   state = removeHabit(state, h.id);
   if (seciliId === h.id) { seciliId = null; sahne.select(null); }
@@ -422,33 +421,6 @@ $('confirm-yes').addEventListener('click', () => onayKapat(true));
 $('confirm-no').addEventListener('click', () => onayKapat(false));
 
 // Alışkanlık ekleme
-const EMOJILER = ['💧', '📚', '🏃', '🧘', '🌙', '🍎', '💪', '✍️', '🎸', '🧠', '🚭', '☀️', '🦷', '💊', '🚶', '🙏'];
-let secilenEmoji = EMOJILER[0];
-const emojiGrid = $('emoji-grid');
-EMOJILER.forEach((em) => {
-  const b = document.createElement('button');
-  b.type = 'button';
-  b.className = 'emoji-btn';
-  b.textContent = em;
-  b.addEventListener('click', () => {
-    secilenEmoji = em;
-    $('add-emoji').value = '';
-    emojiGrid.querySelectorAll('.emoji-btn').forEach((x) => x.classList.toggle('selected', x === b));
-  });
-  emojiGrid.appendChild(b);
-});
-
-/** Yazılan metnin ilk karakteri (emoji birden çok kod noktasından oluşabilir). */
-function ilkGrafem(s) {
-  const t = s.trim();
-  if (!t) return '';
-  if (window.Intl && Intl.Segmenter) {
-    const it = new Intl.Segmenter('tr', { granularity: 'grapheme' }).segment(t)[Symbol.iterator]();
-    return it.next().value?.segment || '';
-  }
-  return Array.from(t)[0];
-}
-
 let duzenlenenId = null; // null: yeni alışkanlık, değilse düzenleme
 
 function formAc(h) {
@@ -457,11 +429,6 @@ function formAc(h) {
   $('add-title').textContent = h ? 'Alışkanlığı düzenle' : 'Yeni alışkanlık';
   $('add-name').value = h ? h.name : '';
   $('add-time').value = h ? h.time : '09:00';
-  const hazir = h ? EMOJILER.indexOf(h.icon) : 0;
-  secilenEmoji = h ? h.icon : EMOJILER[0];
-  // Listede olmayan emoji, "kendi emojin" alanında görünür
-  $('add-emoji').value = h && hazir < 0 ? h.icon : '';
-  emojiGrid.querySelectorAll('.emoji-btn').forEach((x, i) => x.classList.toggle('selected', i === hazir));
   $('modal-add').classList.add('open');
   if (!h) setTimeout(() => $('add-name').focus(), 50);
 }
@@ -476,7 +443,6 @@ $('add-form').addEventListener('submit', (e) => {
   e.preventDefault();
   const veri = {
     name: $('add-name').value,
-    icon: ilkGrafem($('add-emoji').value) || secilenEmoji,
     time: $('add-time').value,
   };
   try {
@@ -535,7 +501,6 @@ async function yedekGeldi(metin) {
 function kutlamaGoster(h) {
   if (!h) return;
   sahne.celebrate(h.id);
-  $('cel-icon').textContent = h.icon;
   $('cel-sub').textContent = `"${h.name}" ${GOAL_DAYS} gündür nöral yolunda. Bazal gangliyona yerleşti!`;
   $('celebration').classList.add('open');
   if (navigator.vibrate) navigator.vibrate([60, 80, 60, 80, 160]);
@@ -573,7 +538,7 @@ function kacirilanlariKontrolEt() {
   if (kacirilan.length === 0) return;
   kacirilan.forEach((h, i) => setTimeout(() => sahne.flashMiss(h.id), 600 + i * 700));
   bildirimGoster(kacirilan.length === 1
-    ? `${kacirilan[0].icon} ${kacirilan[0].name}: kaçırılan gün var — sayaç korunuyor`
+    ? `${kacirilan[0].name}: kaçırılan gün var — sayaç korunuyor`
     : `${kacirilan.length} alışkanlıkta kaçırılan gün var — sayaçlar korunuyor`);
   state = ackMisses(state, bugun); // Animasyon bir daha oynamasın
   kaydet();

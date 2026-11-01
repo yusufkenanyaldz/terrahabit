@@ -30,7 +30,7 @@ export function migrate(raw) {
     .map((h) => ({
       id: h.id,
       name: h.name,
-      icon: typeof h.icon === 'string' && h.icon ? h.icon : '⭐',
+      icon: typeof h.icon === 'string' ? h.icon : '', // Artık gösterilmiyor; eski kayıtlarla uyum için duruyor
       time: /^\d{2}:\d{2}$/.test(h.time) ? h.time : '09:00',
       createdAt: isKey(h.createdAt) ? h.createdAt : (Array.isArray(h.done) && h.done.filter(isKey).sort()[0]) || '2000-01-01',
       done: [...new Set((Array.isArray(h.done) ? h.done : []).filter(isKey))].sort(),
@@ -51,7 +51,7 @@ export function addHabit(state, { name, icon, time }, today, id) {
   const habit = {
     id: id || `h_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 6)}`,
     name: clean.slice(0, 40),
-    icon: (icon || '⭐').trim() || '⭐',
+    icon: (icon || '').trim(), // Arayüzde ikon yok (emoji kullanılmıyor)
     time: /^\d{2}:\d{2}$/.test(time) ? time : '09:00',
     createdAt: today,
     done: [],
