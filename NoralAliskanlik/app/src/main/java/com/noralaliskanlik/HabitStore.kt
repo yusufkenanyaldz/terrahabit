@@ -191,7 +191,8 @@ object HabitStore {
         val guc: Int,
         val renk: Int,
         val durum: String,
-        val sayac: Boolean
+        val sayac: Boolean,
+        val sinirli: Boolean = false // Günlük sınırlı kötü alışkanlık (✓ yok, yalnızca +1)
     )
 
     /** Arşivde olmayan alışkanlıklar için widget satırları. Bozuk kayıtta boş liste. */
@@ -242,7 +243,8 @@ object HabitStore {
                     guc = guc,
                     renk = android.graphics.Color.parseColor(ASAMA_RENK[asama]),
                     durum = durum,
-                    sayac = sayac
+                    sayac = sayac,
+                    sinirli = kotu && miktar != null
                 )
             }
         } catch (e: Exception) {
@@ -252,21 +254,22 @@ object HabitStore {
 
     /** Kayıttaki alışkanlığı bul ve değiştir; değiştiyse kaydet. */
     @Synchronized
-    private fun degistir(context: Context, habitId: String, islem: (JSONObject, String) -> Boolean): Boolean {
+    private fun degistir(context: Context, habitId: String, islem: (JSONObject, String) -> String?): String? {
         val raw = load(context)
-        if (raw.isBlank()) return false
+        if (raw.isBlank()) return null
         return try {
             val root = JSONObject(raw)
-            val habits = root.optJSONArray("habits") ?: return false
+            val habits = root.optJSONArray("habits") ?: return null
             for (i in 0 until habits.length()) {
                 val h = habits.optJSONObject(i) ?: continue
                 if (h.optString("id") != habitId) continue
-                if (duraklatildi(h, todayKey())) return false
-                return islem(h, todayKey()) && save(context, root.toString())
+                if (duraklatildi(h, todayKey())) return null
+                val mesaj = islem(h, todayKey()) ?: return null
+                return if (save(context, root.toString())) mesaj else null
             }
-            false
+            null
         } catch (e: Exception) {
-            false // Bozuk kayıtta hiçbir şeye dokunma
+            null // Bozuk kayıtta hiçbir şeye dokunma
         }
     }
 
@@ -274,22 +277,43 @@ object HabitStore {
         h.put(alan, JSONArray(kume.sorted()))
     }
 
-    /** Widget'taki onay: bugünü işaretle ya da (yanlışlıkla basıldıysa) geri al. */
-    fun toggleDoneToday(context: Context, habitId: String): Boolean = degistir(context, habitId) { h, bugun ->
+    /**
+     * Widget'taki onay: bugünü işaretle ya da (yanlışlıkla basıldıysa) geri al.
+     * Miktarlı iyi alışkanlıkta miktar hedefe çıkar ya da (zaten tamsa) sıfırlanır —
+     * durum miktardan hesaplandığı için yalnızca "done" listesini değiştirmek görünmez kalırdı.
+     * Dönüş: kullanıcıya gösterilecek kısa mesaj (null = değişmedi).
+     */
+    fun toggleDoneToday(context: Context, habitId: String): String? = degistir(context, habitId) { h, bugun ->
+        val ad = h.optString("name")
         val done = kume(h.optJSONArray("done")).toMutableSet()
-        if (!done.remove(bugun)) done.add(bugun)
+        val miktar = h.optJSONObject("miktar")
+        val mesaj: String
+        if (miktar != null) {
+            if (h.optString("tip") == "kotu") return@degistir null // Sınırlı kötü alışkanlıkta yalnızca +1
+            val gunMiktar = h.optJSONObject("gunMiktar") ?: JSONObject().also { h.put("gunMiktar", it) }
+            val hedef = miktar.optInt("hedef", 1)
+            if (gunMiktar.optInt(bugun, 0) >= hedef) {
+                gunMiktar.put(bugun, 0); done.remove(bugun); mesaj = "$ad: işaret kaldırıldı"
+            } else {
+                gunMiktar.put(bugun, hedef); done.add(bugun); mesaj = "$ad: tamamlandı ($hedef/$hedef)"
+            }
+        } else if (done.remove(bugun)) {
+            mesaj = "$ad: işaret kaldırıldı"
+        } else {
+            done.add(bugun); mesaj = "$ad: bugün yapıldı"
+        }
         kumeYaz(h, "done", done)
         // Mazeret ile yapıldı aynı günde birlikte olmaz (JS setDayStatus ile aynı)
         kumeYaz(h, "mazeret", kume(h.optJSONArray("mazeret")) - bugun)
-        true
+        mesaj
     }
 
     /**
      * Miktarlı alışkanlıkta +1. İyi alışkanlıkta miktar hedefin yarısına ulaşınca gün
      * "yapıldı" sayılır; kötüde sınırın altı "temiz" (JS setAmount ile aynı kural).
      */
-    fun artir(context: Context, habitId: String): Boolean = degistir(context, habitId) { h, bugun ->
-        val miktar = h.optJSONObject("miktar") ?: return@degistir false
+    fun artir(context: Context, habitId: String): String? = degistir(context, habitId) { h, bugun ->
+        val miktar = h.optJSONObject("miktar") ?: return@degistir null
         val gunMiktar = h.optJSONObject("gunMiktar") ?: JSONObject().also { h.put("gunMiktar", it) }
         val m = gunMiktar.optInt(bugun, 0) + 1
         gunMiktar.put(bugun, m)
@@ -299,6 +323,6 @@ object HabitStore {
         if (basari) done.add(bugun) else done.remove(bugun)
         kumeYaz(h, "done", done)
         kumeYaz(h, "mazeret", kume(h.optJSONArray("mazeret")) - bugun)
-        true
+        "${h.optString("name")}: +1 ($m/$hedef)"
     }
 }

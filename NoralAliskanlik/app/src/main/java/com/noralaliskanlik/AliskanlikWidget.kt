@@ -15,6 +15,7 @@ import android.graphics.Path
 import android.os.Bundle
 import android.view.View
 import android.widget.RemoteViews
+import android.widget.Toast
 import androidx.core.app.NotificationManagerCompat
 import kotlin.math.abs
 import kotlin.math.min
@@ -43,9 +44,11 @@ class AliskanlikWidget : AppWidgetProvider() {
         super.onReceive(context, intent)
         if (intent.action != ACTION_ISARETLE) return
         val id = intent.getStringExtra(AlarmScheduler.EXTRA_HABIT_ID) ?: return
-        val degisti = if (intent.getBooleanExtra(EXTRA_SAYAC, false)) HabitStore.artir(context, id)
+        val mesaj = if (intent.getBooleanExtra(EXTRA_SAYAC, false)) HabitStore.artir(context, id)
         else HabitStore.toggleDoneToday(context, id)
-        if (!degisti) return
+        if (mesaj == null) return
+        // Dokunuşun işe yaradığı görünsün
+        Toast.makeText(context, mesaj, Toast.LENGTH_SHORT).show()
         // Bugünün bildirimi artık gereksiz; açık uygulama veriyi yeniden okusun
         NotificationManagerCompat.from(context).cancel(id.hashCode())
         context.sendBroadcast(Intent(DoneReceiver.ACTION_DATA_CHANGED).setPackage(context.packageName))
@@ -124,7 +127,14 @@ class AliskanlikWidget : AppWidgetProvider() {
                 // Onay düğmesi
                 val onayCizim = if (s.durum == "yapildi") ONAY_DOLU[s.asama] else ONAY_BOS[s.asama]
                 satir.setImageViewResource(R.id.satir_onay, onayCizim)
-                satir.setViewVisibility(R.id.satir_onay_alan, if (s.durum == "duraklatildi") View.INVISIBLE else View.VISIBLE)
+                satir.setViewVisibility(
+                    R.id.satir_onay_alan,
+                    when {
+                        s.sinirli -> View.GONE // Günlük sınırlı kötü alışkanlıkta yalnızca +1 sayaç
+                        s.durum == "duraklatildi" -> View.INVISIBLE
+                        else -> View.VISIBLE
+                    }
+                )
                 // "+" yalnızca miktarlı alışkanlıkta
                 satir.setImageViewResource(R.id.satir_arti, ARTI[s.asama])
                 // Miktarsız alışkanlıkta "+" yer kaplamasın (GONE): güç çubuğu uzar
@@ -138,7 +148,7 @@ class AliskanlikWidget : AppWidgetProvider() {
                 )
 
                 if (s.durum != "duraklatildi") {
-                    satir.setOnClickPendingIntent(R.id.satir_onay_alan, isaretleIntent(context, s.id, false))
+                    if (!s.sinirli) satir.setOnClickPendingIntent(R.id.satir_onay_alan, isaretleIntent(context, s.id, false))
                     if (s.sayac) satir.setOnClickPendingIntent(R.id.satir_arti_alan, isaretleIntent(context, s.id, true))
                 }
                 views.addView(R.id.widget_satirlar, satir)
