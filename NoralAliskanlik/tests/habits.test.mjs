@@ -128,7 +128,7 @@ test('ayarlar: bozuk/eksik veri varsayılana döner, geçerli alanlar korunur', 
   const a = normalizeAyarlar(JSON.stringify({ modelRot: { x: 90, y: 'a' }, prefrontal: { x: 1.2 }, modelYazar: 'Ali' }));
   assert.deepEqual(a.modelRot, { x: 90, y: 0, z: 0 });
   assert.equal(a.prefrontal.x, 1.2);
-  assert.equal(a.prefrontal.y, 0.34);
+  assert.equal(a.prefrontal.y, 0.24);
   assert.equal(a.modelYazar, 'Ali');
   // Eski HTML'in yer tutucusu boş sayılır
   assert.equal(normalizeAyarlar({ modelYazar: '[yazar adı]' }).modelYazar, '');

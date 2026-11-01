@@ -4,8 +4,9 @@
 /** Varsayılan değerler: "Sıfırla" ve yeni model yüklenince bunlara dönülür. */
 export const VARSAYILAN_AYARLAR = Object.freeze({
   modelRot: Object.freeze({ x: 0, y: 0, z: 0 }),                // Model döndürme (derece)
-  prefrontal: Object.freeze({ x: 0.78, y: 0.34, z: 0.18 }),     // Prefrontal Korteks (Çaba)
-  basalGanglia: Object.freeze({ x: -0.05, y: 0.02, z: 0.0 }),   // Bazal Gangliyon (Otomatik)
+  // Hazır beyin modeli (assets/brain.glb) için kullanıcının telefonda ayarladığı değerler
+  prefrontal: Object.freeze({ x: 1.06, y: 0.24, z: 0.0 }),      // Prefrontal Korteks (Çaba)
+  basalGanglia: Object.freeze({ x: -0.32, y: 0.18, z: 0.08 }),  // Bazal Gangliyon (Otomatik)
   modelYazar: '',                                               // Model kaynağı / yazar (CC BY)
   srbaiAcik: true,                                              // 14 günde bir otomatiklik anketi
   sonAcilis: null,                                              // Uzun yokluktan dönüş mesajı için
