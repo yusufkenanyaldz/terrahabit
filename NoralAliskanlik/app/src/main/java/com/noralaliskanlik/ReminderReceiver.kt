@@ -23,8 +23,8 @@ class ReminderReceiver : BroadcastReceiver() {
         // Bir sonraki günün alarmını hemen kur (alarmlar tek seferliktir).
         AlarmScheduler.schedule(context, habit.id, habit.time)
 
-        // Bugün zaten "yaptım" denmişse rahatsız etme.
-        if (habit.doneToday) return
+        // Bugün yapıldı / duraklatıldı / mazeretli / planlı değil / bakım modu: rahatsız etme.
+        if (!habit.bildirimGerekli) return
         showNotification(context, habit)
     }
 
@@ -45,13 +45,16 @@ class ReminderReceiver : BroadcastReceiver() {
         val n = NotificationCompat.Builder(context, CHANNEL_ID)
             .setSmallIcon(android.R.drawable.ic_popup_reminder)
             .setContentTitle(habit.name)
-            .setContentText("Bugün henüz yapılmadı. Nöronların seni bekliyor!")
+            .setContentText(
+                if (habit.kotu) "Bugünü temiz kapatmaya az kaldı."
+                else "Bugün henüz yapılmadı. Nöronların seni bekliyor!"
+            )
             .setPriority(NotificationCompat.PRIORITY_DEFAULT)
             .setContentIntent(open)
             .setAutoCancel(true)
             // Uygulamayı açmadan işaretlemek için "Yaptım" butonu
             .addAction(
-                android.R.drawable.checkbox_on_background, "Yaptım",
+                android.R.drawable.checkbox_on_background, if (habit.kotu) "Temiz geçti" else "Yaptım",
                 DoneReceiver.pendingIntent(context, habit.id)
             )
             .build()

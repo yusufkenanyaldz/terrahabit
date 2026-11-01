@@ -1028,3 +1028,99 @@ body.sahne-hazir #canvas-container, body.sahne-hazir #labels-container { opacity
   color: #7df4ff;
 }
 .ring-text span { margin-left: 0; }
+
+/* =====================================================================
+   v2: sıklık / zorluk / tür seçimleri, mazeret, duraklatma, arşiv, SRBAI
+   ===================================================================== */
+
+/* Uzun formlar ekrana sığsın */
+.modal { max-height: calc(100vh - 100px); overflow-y: auto; }
+
+/* Bölümlü seçim düğmeleri */
+.secim { display: flex; gap: 6px; flex-wrap: wrap; }
+.secim button {
+  flex: 1;
+  min-width: 0;
+  padding: 9px 6px;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--text-muted);
+  font-family: inherit;
+  font-size: 12.5px;
+  font-weight: 700;
+}
+.secim button.on {
+  border-color: rgba(0, 229, 255, 0.55);
+  background: rgba(0, 229, 255, 0.16);
+  color: #7df4ff;
+}
+.secim.gunler, #sec-hedef { margin-top: 6px; }
+.secim.gunler button { padding: 8px 0; }
+.form-not { font-size: 11px; color: var(--text-muted); margin-top: 10px; line-height: 1.5; }
+
+/* Detay kartı: ek bilgi satırları */
+.det-meta { font-size: 11px; color: var(--text-muted); margin-top: 4px; }
+.det-durak {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-top: 12px;
+  padding: 8px 10px;
+  border-radius: 12px;
+  background: rgba(99, 102, 241, 0.14);
+  border: 1px solid rgba(99, 102, 241, 0.45);
+  font-size: 12px;
+  color: #c7d2fe;
+}
+.det-durak[hidden] { display: none; }
+.det-durak .btn-small { flex: 0 0 auto; padding: 6px 12px; }
+.det-not {
+  margin-top: 12px;
+  font-size: 12px;
+  line-height: 1.5;
+  color: #cbd5e1;
+  padding: 8px 10px;
+  border-radius: 12px;
+  background: rgba(168, 85, 247, 0.1);
+  border: 1px solid rgba(168, 85, 247, 0.3);
+}
+.det-not[hidden] { display: none; }
+#btn-pause { align-self: flex-start; }
+#btn-pause svg { width: 14px; height: 14px; }
+#btn-pause[hidden] { display: none; }
+
+/* Takvim: mazeret, duraklatma, plan dışı günler */
+.cal-dot.mazeret { background: rgba(250, 204, 21, 0.45); }
+.cal-dot.duraklatma { background: rgba(99, 102, 241, 0.35); }
+.cal-dot.plansiz { background: rgba(255, 255, 255, 0.03); }
+
+/* Gün düğmesi: mazeretli */
+.gun-btn.mazeret {
+  border-color: rgba(250, 204, 21, 0.55);
+  background: rgba(250, 204, 21, 0.12);
+  color: #fde68a;
+}
+
+/* Listede duraklatılmış alışkanlık */
+.habit-item.durakli { opacity: 0.6; }
+
+/* Arşiv listesi */
+.arsiv-liste { display: flex; flex-direction: column; gap: 8px; }
+.arsiv-satir { display: flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 600; }
+.arsiv-satir span { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.arsiv-satir .btn-small, .arsiv-satir .btn-danger { flex: 0 0 auto; padding: 7px 12px; font-size: 12px; }
+
+/* Seçim penceresinde 3 düğme sığsın */
+#confirm-actions { flex-wrap: wrap; }
+#confirm-actions > button { flex: 1; min-width: 90px; }
+
+/* SRBAI anketi */
+.srbai-aciklama { font-size: 12px !important; margin-bottom: 8px !important; }
+.srbai-madde { margin-bottom: 12px; }
+.srbai-metin { font-size: 13px; font-weight: 600; margin-bottom: 6px; }
+.srbai-olcek button { padding: 8px 0; }
+
+/* "hidden" niteliği her zaman geçerli olsun (display: flex gibi kurallar onu ezmesin) */
+[hidden] { display: none !important; }

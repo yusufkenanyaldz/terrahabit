@@ -3,12 +3,17 @@
 import { createBrainScene, asamaBilgisiGetir } from './brain-scene.js';
 import { varsayilanAyarlar } from './settings.js';
 import {
-  addHabit, removeHabit, markDone, toggleDay, doneCount, isDoneOn,
+  addHabit, removeHabit, markDone, setDayStatus, dayStatus, doneCount, isDoneOn,
   needsMissFlash, ackMisses, last30, migrate,
   updateHabit, pendingCelebrations, markCelebrated,
+  setArchived, startPause, endPause, activePause, expiredPause, answerExpiredPause,
+  addSrbai, srbaiDue, syncDerived,
 } from './habits.js';
 import { todayKey, setNow, addDays } from './clock.js';
-import { computeState } from './guc.js';
+import { computeState, geriDonusTahmini, planliMi } from './guc.js';
+import {
+  CABA_UYARI_SAYISI, DURAKLATMA_EN_UZUN, MAZERET_HAKKI, MAZERET_PENCERE,
+} from './parametreler.js';
 import {
   loadState, saveState, exportBackup, requestImport,
   loadSettings, saveSettings, modelInfo,
@@ -39,8 +44,19 @@ function kaydet() {
     bildirimGoster('Kayıt okunamadı; veriyi korumak için kaydedilmedi. Yedekten geri yükleyin.');
     return;
   }
+  // Türetilmiş alanlar (bakım modu) bildirim tarafı için kayda yazılır
+  state = syncDerived(state, todayKey());
   saveState(state);
 }
+
+/** Kötü alışkanlıkta Otomatik yerine "Özgür" (Spesifikasyon kural 5). */
+function asamaBilgisi(asama, h) {
+  const a = asamaBilgisiGetir(asama);
+  if (h.tip === 'kotu' && asama === 3) return { ...a, ad: '4. Aşama: Özgür', kisa: 'Özgür' };
+  return a;
+}
+const gucAdi = (h) => (h.tip === 'kotu' ? 'Kontrol' : 'Güç');
+const aktifler = () => state.habits.filter((h) => !h.arsiv);
 
 // -------------------------------------------------------------------------
 // 3B sahne
@@ -248,28 +264,30 @@ function esc(s) {
 function ciz() {
   const bugun = todayKey();
   // Alışkanlık gücü her çizimde kayıt geçmişinden baştan hesaplanır (saf fonksiyon)
-  const durumlar = new Map(state.habits.map((h) => [h.id, computeState(h, bugun)]));
-  sahne.setHabits(state.habits.map((h) => {
+  const liste = aktifler();
+  const durumlar = new Map(liste.map((h) => [h.id, computeState(h, bugun)]));
+  sahne.setHabits(liste.map((h) => {
     const d = durumlar.get(h.id);
     return { id: h.id, name: h.name, H: d.H, P: d.P, asama: d.asama, son7Oran: d.son7Oran };
   }));
 
   const listEl = $('habit-list-el');
   listEl.innerHTML = '';
-  if (state.habits.length === 0) {
+  if (liste.length === 0) {
     listEl.innerHTML = '<div class="empty-hint">Henüz alışkanlık yok.<br>＋ Ekle ile ilk nöral yolunu başlat.</div>';
   }
-  state.habits.forEach((h) => {
+  liste.forEach((h) => {
     const d = durumlar.get(h.id);
     const yuzde = Math.round(d.H * 100);
-    const asama = asamaBilgisiGetir(d.asama);
+    const asama = asamaBilgisi(d.asama, h);
     const bugunYapildi = isDoneOn(h, bugun);
+    const rozet = d.bugunDuraklatildi ? 'Duraklatıldı' : `${gucAdi(h)} %${yuzde} · ${asama.kisa}`;
     const row = document.createElement('div');
-    row.className = `habit-item ${seciliId === h.id ? 'selected' : ''} ${bugunYapildi ? 'done-today' : ''}`;
+    row.className = `habit-item ${seciliId === h.id ? 'selected' : ''} ${bugunYapildi ? 'done-today' : ''} ${d.bugunDuraklatildi ? 'durakli' : ''}`;
     row.innerHTML = `
       <div class="habit-item-top">
         <span class="habit-name">${esc(h.name)}</span>
-        <span class="habit-day-badge">Güç %${yuzde} · ${asama.kisa}</span>
+        <span class="habit-day-badge">${rozet}</span>
         <button class="row-check ${bugunYapildi ? 'done' : ''}" aria-label="Bugün yaptım"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg></button>
       </div>
       <div class="progress-track">
@@ -278,7 +296,8 @@ function ciz() {
     uzunBasmaBagla(row, () => aliskanlikSec(h.id), () => silmeOnayi(h));
     row.querySelector('.row-check').addEventListener('click', (e) => {
       e.stopPropagation();
-      if (isDoneOn(h, todayKey())) bildirimGoster('Bugün zaten tamamlandı');
+      if (d.bugunDuraklatildi) bildirimGoster('Duraklatıldı — devam etmek için alışkanlığa dokun');
+      else if (isDoneOn(h, todayKey())) bildirimGoster('Bugün zaten işaretli');
       else yaptimIsaretle(h.id);
     });
     listEl.appendChild(row);
@@ -290,7 +309,7 @@ function ciz() {
 const HALKA_CEVRE = 2 * Math.PI * 27; // index.html'deki halka (r=27)
 
 function cizDetay() {
-  const h = state.habits.find((x) => x.id === seciliId);
+  const h = state.habits.find((x) => x.id === seciliId && !x.arsiv);
   document.body.classList.toggle('detay-acik', !!h);
   if (!h) {
     $('detail-card').classList.remove('visible');
@@ -299,7 +318,8 @@ function cizDetay() {
   }
   const bugun = todayKey();
   const d = computeState(h, bugun);
-  const asama = asamaBilgisiGetir(d.asama);
+  const asama = asamaBilgisi(d.asama, h);
+  const kotu = h.tip === 'kotu';
 
   $('det-name').textContent = h.name;
   const stageEl = $('det-stage');
@@ -307,7 +327,7 @@ function cizDetay() {
   stageEl.style.background = `${asama.hex}22`;
   stageEl.style.color = asama.hex;
   stageEl.style.border = `1px solid ${asama.hex}66`;
-  $('det-time').textContent = `Hatırlatma ${h.time}`;
+  $('det-time').textContent = `${siklikYazisi(h)} · ${h.time}`;
 
   // Güç halkası: alışkanlık gücü H (0–100)
   $('det-days').textContent = Math.round(d.H * 100);
@@ -317,36 +337,77 @@ function cizDetay() {
   halka.style.strokeDashoffset = String(HALKA_CEVRE * (1 - d.H));
   // Asla düşmeyen sayılar: toplam tekrar ve ulaşılan en yüksek güç (iz)
   const iz = d.P - d.H > 0.02 ? ` · en yüksek %${Math.round(d.P * 100)}` : '';
-  $('det-percent').textContent = `${d.toplamTekrar} tekrar${iz}`;
+  $('det-meta').textContent = `${d.toplamTekrar} ${kotu ? 'temiz gün' : 'tekrar'}${iz}`;
+  // İkincil metrikler: son 30 gün oranı (haftalıkta bu hafta) ve iki gün kuralı serisi
+  const oran = d.hafta ? `bu hafta ${Math.min(d.hafta.yapilan, d.hafta.hedef)}/${d.hafta.hedef}`
+    : `${d.son30.yapilan}/${d.son30.firsat}`;
+  $('det-percent').textContent = `${oran} · seri ${d.seri}`;
 
-  // Son 30 gün: yapıldı / kaçırıldı / bugün
+  // Duraklatma bandı
+  const durak = activePause(h, bugun);
+  $('det-durak').hidden = !durak;
+  if (durak) {
+    const bit = durak.bit || addDays(durak.bas, DURAKLATMA_EN_UZUN - 1);
+    const kalan = Math.round((tarihSayisi(bit) - tarihSayisi(bugun)) / 864e5) + 1;
+    $('det-durak-metin').textContent = `Duraklatıldı · güç donduruldu · ${kalan} gün kaldı`;
+  }
+  $('btn-pause').hidden = !!durak;
+
+  // Nazik not: kötü alışkanlıkta kayma / geri dönüş vaadi
+  let not = '';
+  if (kotu && d.nuks) not = 'Bir kayma, yolun sonu değil. Bugün temiz bir gün yeniden başlıyor. Kaymayı tetikleyen durum neydi?';
+  else {
+    const tahmin = !durak && geriDonusTahmini(h, bugun);
+    if (tahmin) not = `Daha önce ${kotu ? 'Özgür' : 'Otomatik'} aşamasına ulaştın; iz duruyor. Düzenli devam edersen yaklaşık ${tahmin} günde geri dönersin.`;
+  }
+  $('det-not').hidden = !not;
+  $('det-not').textContent = not;
+
+  // Son 30 gün
   const cal = $('det-calendar');
   cal.innerHTML = '';
-  last30(h, bugun).forEach((d) => {
+  last30(h, bugun).forEach((g) => {
     const dot = document.createElement('div');
-    dot.className = `cal-dot ${d.status}${d.isToday ? ' is-today' : ''}`;
+    dot.className = `cal-dot ${g.status}${g.isToday ? ' is-today' : ''}`;
     cal.appendChild(dot);
   });
 
-  // Geriye dönük kayıt: son 3 gün + bugün işaretlenebilir / geri alınabilir
+  // Geriye dönük kayıt: son 3 gün + bugün. Dokunuş sırası: boş → yapıldı → mazeret → boş
   const gecmis = $('det-gecmis');
   gecmis.innerHTML = '';
   for (let i = -3; i <= 0; i++) {
     const key = addDays(bugun, i);
     if (key < h.createdAt) continue;
+    const durum = dayStatus(h, key);
     const b = document.createElement('button');
-    b.className = `gun-btn${isDoneOn(h, key) ? ' done' : ''}`;
-    b.textContent = i === 0 ? 'Bugün' : i === -1 ? 'Dün' : gunAdi(key);
+    b.className = `gun-btn ${durum}`;
+    const ad = i === 0 ? 'Bugün' : i === -1 ? 'Dün' : gunAdi(key);
+    b.textContent = durum === 'mazeret' ? `${ad} · M` : ad;
     b.addEventListener('click', () => gunDegistir(h.id, key));
     gecmis.appendChild(b);
   }
 
   const btn = $('btn-do-today');
   const yapildi = isDoneOn(h, bugun);
-  btn.disabled = yapildi;
-  btn.textContent = yapildi ? 'Bugün tamamlandı' : 'Bugün yaptım';
+  btn.disabled = yapildi || !!durak;
+  if (durak) btn.textContent = 'Duraklatıldı';
+  else if (yapildi) btn.textContent = kotu ? 'Bugün temiz' : 'Bugün tamamlandı';
+  else if (!kotu && !planliMi(h, bugun)) btn.textContent = 'Bugün plan dışı · yine de yaptım';
+  else btn.textContent = kotu ? 'Bugün temiz geçti' : 'Bugün yaptım';
   $('detail-card').classList.add('visible');
   gorunurAlanGuncelle();
+}
+
+function tarihSayisi(key) {
+  const [y, m, g] = key.split('-').map(Number);
+  return new Date(y, m - 1, g, 12).getTime();
+}
+
+function siklikYazisi(h) {
+  const z = h.zamanlama || { tur: 'gunluk' };
+  if (z.tur === 'gunler') return [1, 2, 3, 4, 5, 6, 0].filter((g) => z.gunler.includes(g)).map((g) => GUN_ADLARI[g]).join(' ');
+  if (z.tur === 'haftalik') return `Haftada ${z.hedef}`;
+  return 'Her gün';
 }
 
 function aliskanlikSec(id) {
@@ -369,14 +430,28 @@ function gunAdi(key) {
   return GUN_ADLARI[new Date(y, m - 1, g, 12).getDay()];
 }
 
-/** Geriye dönük işaret koy / kaldır (unutulan gün ya da yanlışlıkla basılan "yaptım") */
+/**
+ * Geriye dönük kayıt (son 3 gün + bugün): dokunuş sırası boş → yapıldı → mazeret → boş.
+ * Mazeret (hastalık vb.) günü gücü değiştirmez; kayan 30 günde 4 hak var.
+ */
 function gunDegistir(id, key) {
-  const r = toggleDay(state, id, key, todayKey());
+  const h = state.habits.find((x) => x.id === id);
+  const simdi = dayStatus(h, key);
+  const sonraki = simdi === 'bos' ? 'done' : simdi === 'done' ? 'mazeret' : 'bos';
+  const r = setDayStatus(state, id, key, sonraki, todayKey());
   if (!r.changed) return;
   state = r.state;
   kaydet();
   ciz();
-  if (r.reachedGoal) kutlamaGoster(state.habits.find((h) => h.id === id));
+  if (sonraki === 'mazeret') {
+    const yeni = state.habits.find((x) => x.id === id);
+    const pencere = addDays(key, -(MAZERET_PENCERE - 1));
+    const kullanilan = yeni.mazeret.filter((m) => m >= pencere && m <= key).length;
+    bildirimGoster(kullanilan <= MAZERET_HAKKI
+      ? `Mazeret: bu gün gücün değişmez (30 günde ${MAZERET_HAKKI - kullanilan} hak kaldı)`
+      : 'Mazeret hakkı doldu: bu gün kaçırma sayılır');
+  }
+  if (r.reachedGoal) kutlamaGoster(state.habits.find((x) => x.id === id));
 }
 
 // "Bugün yaptım": günde yalnızca bir kez (detay kartı ve listedeki ✓ aynı işi yapar)
@@ -386,8 +461,9 @@ function yaptimIsaretle(id) {
   state = r.state;
   kaydet();
   ciz();
-  if (r.reachedGoal) kutlamaGoster(state.habits.find((h) => h.id === id));
-  else bildirimGoster('+1 gün — nöral yol güçleniyor');
+  const h = state.habits.find((x) => x.id === id);
+  if (r.reachedGoal) kutlamaGoster(h);
+  else bildirimGoster(h.tip === 'kotu' ? 'Temiz bir gün daha — kontrol güçleniyor' : '+1 tekrar — nöral yol güçleniyor');
 }
 $('btn-do-today').addEventListener('click', () => { if (seciliId) yaptimIsaretle(seciliId); });
 
@@ -427,37 +503,99 @@ function uzunBasmaBagla(el, kisaDokunma, uzunBasma) {
   el.addEventListener('contextmenu', (e) => e.preventDefault());
 }
 
+/**
+ * Uzun basma: arşivle (geçmiş ve iz korunur, geri açılabilir) ya da kalıcı sil (kural 10).
+ */
 async function silmeOnayi(h) {
-  const evet = await onayIste('Alışkanlık silinsin mi?',
-    `"${h.name}" ve ${doneCount(h)} tekrarlık kaydı silinecek. Bu işlem geri alınamaz.`, 'Sil');
-  if (!evet) return;
-  state = removeHabit(state, h.id);
+  const secim = await secimIste(`"${h.name}"`,
+    `Arşivlersen geçmişin ve izin korunur, istediğinde geri açabilirsin. Silmek ${doneCount(h)} tekrarlık kaydı kalıcı olarak yok eder.`,
+    [{ id: 'vazgec', yazi: 'Vazgeç' }, { id: 'sil', yazi: 'Sil', sinif: 'btn-danger' }, { id: 'arsiv', yazi: 'Arşivle', sinif: 'btn-small primary' }]);
+  if (secim === 'arsiv') {
+    state = setArchived(state, h.id, true);
+    bildirimGoster('Arşivlendi — ⚙ → Arşivdekiler\'den geri açabilirsin');
+  } else if (secim === 'sil') {
+    const emin = await onayIste('Kalıcı olarak silinsin mi?', 'Bu işlem geri alınamaz.', 'Sil');
+    if (!emin) return;
+    state = removeHabit(state, h.id);
+    bildirimGoster('Alışkanlık silindi');
+  } else return;
   if (seciliId === h.id) { seciliId = null; sahne.select(null); }
   kaydet();
   ciz();
-  bildirimGoster('Alışkanlık silindi');
 }
 
 // -------------------------------------------------------------------------
 // Açılır pencereler
 // -------------------------------------------------------------------------
-let onayCoz = null;
-function onayIste(baslik, metin, evetYazi = 'Evet') {
+let secimCoz = null;
+/**
+ * Genel seçim penceresi. secenekler: [{ id, yazi, sinif? }]. Seçilen id döner;
+ * geri tuşu ya da kapatma ilk seçeneği (vazgeç) döndürür.
+ */
+function secimIste(baslik, metin, secenekler) {
+  if (secimCoz) secimKapat(null);
   $('confirm-title').textContent = baslik;
   $('confirm-text').textContent = metin;
-  $('confirm-yes').textContent = evetYazi;
+  const kutu = $('confirm-actions');
+  kutu.innerHTML = '';
+  for (const o of secenekler) {
+    const b = document.createElement('button');
+    b.className = o.sinif || 'btn-small';
+    b.textContent = o.yazi;
+    b.addEventListener('click', () => secimKapat(o.id));
+    kutu.appendChild(b);
+  }
+  secimIlk = secenekler[0].id;
   $('modal-confirm').classList.add('open');
-  return new Promise((resolve) => { onayCoz = resolve; });
+  return new Promise((resolve) => { secimCoz = resolve; });
 }
-function onayKapat(sonuc) {
+let secimIlk = null;
+function secimKapat(sonuc) {
   $('modal-confirm').classList.remove('open');
-  if (onayCoz) { onayCoz(sonuc); onayCoz = null; }
+  if (secimCoz) { const c = secimCoz; secimCoz = null; c(sonuc ?? secimIlk); }
 }
-$('confirm-yes').addEventListener('click', () => onayKapat(true));
-$('confirm-no').addEventListener('click', () => onayKapat(false));
+async function onayIste(baslik, metin, evetYazi = 'Evet') {
+  return (await secimIste(baslik, metin, [
+    { id: 'hayir', yazi: 'Vazgeç' }, { id: 'evet', yazi: evetYazi, sinif: 'btn-danger' },
+  ])) === 'evet';
+}
 
 // Alışkanlık ekleme
 let duzenlenenId = null; // null: yeni alışkanlık, değilse düzenleme
+
+// Form seçim grupları (tek seçim; "Belirli günler" çoklu)
+const form = { tip: 'iyi', siklik: 'gunluk', gunler: new Set([1, 3, 5]), hedef: 3, zorluk: 'normal' };
+
+function secimGrubu(id, deger, coklu = false) {
+  $(id).querySelectorAll('button').forEach((b) => {
+    const v = b.dataset.v;
+    b.classList.toggle('on', coklu ? deger.has(Number(v)) : String(deger) === v);
+  });
+}
+function formuCiz() {
+  secimGrubu('sec-tip', form.tip);
+  secimGrubu('sec-siklik', form.siklik);
+  secimGrubu('sec-gunler', form.gunler, true);
+  secimGrubu('sec-hedef', form.hedef);
+  secimGrubu('sec-zorluk', form.zorluk);
+  $('sec-gunler').hidden = form.siklik !== 'gunler';
+  $('sec-hedef').hidden = form.siklik !== 'haftalik';
+  const T = { kolay: 60, normal: 66, zor: 90 }[form.zorluk];
+  $('form-not').textContent = form.siklik === 'haftalik'
+    ? `Daha seyrek davranışlar daha yavaş otomatikleşir (haftada ${form.hedef}: yaklaşık ${Math.round(T * Math.sqrt(form.hedef / 7))} tekrar).`
+    : `Kusursuz takipte ortalama ${T} günde otomatikleşir; kişiden kişiye çok değişir.`;
+}
+$('sec-tip').addEventListener('click', (e) => { if (e.target.dataset.v) { form.tip = e.target.dataset.v; formuCiz(); } });
+$('sec-siklik').addEventListener('click', (e) => { if (e.target.dataset.v) { form.siklik = e.target.dataset.v; formuCiz(); } });
+$('sec-hedef').addEventListener('click', (e) => { if (e.target.dataset.v) { form.hedef = Number(e.target.dataset.v); formuCiz(); } });
+$('sec-zorluk').addEventListener('click', (e) => { if (e.target.dataset.v) { form.zorluk = e.target.dataset.v; formuCiz(); } });
+$('sec-gunler').addEventListener('click', (e) => {
+  if (!e.target.dataset.v) return;
+  const g = Number(e.target.dataset.v);
+  if (form.gunler.has(g)) { if (form.gunler.size > 1) form.gunler.delete(g); } else form.gunler.add(g);
+  if (form.gunler.size === 7) form.siklik = 'gunluk'; // 7 gün = her gün
+  formuCiz();
+});
 
 function formAc(h) {
   duzenlenenId = h ? h.id : null;
@@ -465,8 +603,21 @@ function formAc(h) {
   $('add-title').textContent = h ? 'Alışkanlığı düzenle' : 'Yeni alışkanlık';
   $('add-name').value = h ? h.name : '';
   $('add-time').value = h ? h.time : '09:00';
+  const z = (h && h.zamanlama) || { tur: 'gunluk' };
+  form.tip = h ? h.tip || 'iyi' : 'iyi';
+  form.siklik = z.tur;
+  form.gunler = new Set(z.tur === 'gunler' ? z.gunler : [1, 3, 5]);
+  form.hedef = z.tur === 'haftalik' ? z.hedef : 3;
+  form.zorluk = h ? h.zorluk || 'normal' : 'normal';
+  formuCiz();
   $('modal-add').classList.add('open');
   if (!h) setTimeout(() => $('add-name').focus(), 50);
+}
+
+function formZamanlama() {
+  if (form.siklik === 'gunler') return { tur: 'gunler', gunler: [...form.gunler] };
+  if (form.siklik === 'haftalik') return { tur: 'haftalik', hedef: form.hedef };
+  return { tur: 'gunluk' };
 }
 
 $('btn-add').addEventListener('click', () => formAc(null));
@@ -475,12 +626,26 @@ $('btn-edit-habit').addEventListener('click', () => {
   if (h) formAc(h);
 });
 $('add-cancel').addEventListener('click', () => $('modal-add').classList.remove('open'));
-$('add-form').addEventListener('submit', (e) => {
+$('add-form').addEventListener('submit', async (e) => {
   e.preventDefault();
   const veri = {
     name: $('add-name').value,
     time: $('add-time').value,
+    tip: form.tip,
+    zamanlama: formZamanlama(),
+    zorluk: form.zorluk,
   };
+  // Aynı anda çok yeni alışkanlık: yumuşak uyarı, engel değil (kural 13)
+  if (!duzenlenenId) {
+    const bugun = todayKey();
+    const caba = aktifler().filter((h) => computeState(h, bugun).asama === 0).length;
+    if (caba >= CABA_UYARI_SAYISI) {
+      const devam = await secimIste('Yine de eklensin mi?',
+        `${caba} alışkanlık zaten Çaba aşamasında. Biri Tekrar'a geçince yenisini eklemeni öneririz; aynı anda çok başlangıç tutarlılığı zorlaştırır.`,
+        [{ id: 'hayir', yazi: 'Bekleyeyim' }, { id: 'evet', yazi: 'Yine de ekle', sinif: 'btn-small primary' }]);
+      if (devam !== 'evet') return;
+    }
+  }
   try {
     state = duzenlenenId ? updateHabit(state, duzenlenenId, veri) : addHabit(state, veri, todayKey());
   } catch (err) {
@@ -597,8 +762,9 @@ window.NoralApp = {
   handleBack() {
     if ($('menu').classList.contains('open')) { menuAc(false); return true; }
     if ($('celebration').classList.contains('open')) { $('celebration').classList.remove('open'); return true; }
-    if ($('modal-confirm').classList.contains('open')) { onayKapat(false); return true; }
-    for (const id of ['modal-add', 'modal-backup']) {
+    if ($('modal-confirm').classList.contains('open')) { secimKapat(null); return true; }
+    if ($('modal-srbai').classList.contains('open')) { srbaiKapat(); return true; }
+    for (const id of ['modal-add', 'modal-backup', 'modal-arsiv']) {
       if ($(id).classList.contains('open')) { $(id).classList.remove('open'); return true; }
     }
     if ($('settings-panel').classList.contains('open')) { ayarPaneliAc(false); return true; }
@@ -608,7 +774,7 @@ window.NoralApp = {
   /** Uygulama öne gelince: gün değişmiş, bildirimden "Yaptım" denmiş olabilir. */
   onResume() {
     this.reload();
-    kacirilanlariKontrolEt();
+    acilisKontrolleri();
   },
   /** Kayıt dışarıda (bildirim butonu) değişti: ekrandaki veriyi yenile. */
   reload() {
@@ -661,8 +827,188 @@ $('brand-title').addEventListener('click', () => {
   }
 });
 
+// -------------------------------------------------------------------------
+// Duraklatma (tatil / seyahat): ileriye dönük, en fazla 30 gün (kural 4)
+// -------------------------------------------------------------------------
+$('btn-pause').addEventListener('click', async () => {
+  const h = state.habits.find((x) => x.id === seciliId);
+  if (!h) return;
+  const evet = await secimIste('Duraklatılsın mı?',
+    `Tatil ya da yolculuk gibi bağlamın olmadığı günler için. Duraklatmada güç donar, hatırlatma gelmez. En fazla ${DURAKLATMA_EN_UZUN} gün sürer; istediğin an devam edebilirsin.`,
+    [{ id: 'hayir', yazi: 'Vazgeç' }, { id: 'evet', yazi: 'Duraklat', sinif: 'btn-small primary' }]);
+  if (evet !== 'evet') return;
+  state = startPause(state, h.id, todayKey());
+  kaydet();
+  ciz();
+});
+$('btn-resume').addEventListener('click', () => {
+  if (!seciliId) return;
+  state = endPause(state, seciliId, todayKey());
+  kaydet();
+  ciz();
+  bildirimGoster('Devam ediliyor — hoş geldin');
+});
+
+// -------------------------------------------------------------------------
+// Arşivdekiler: geri aç ya da kalıcı sil
+// -------------------------------------------------------------------------
+function arsivCiz() {
+  const kutu = $('arsiv-liste');
+  kutu.innerHTML = '';
+  const liste = state.habits.filter((h) => h.arsiv);
+  if (!liste.length) {
+    kutu.innerHTML = '<div class="empty-hint">Arşiv boş.</div>';
+    return;
+  }
+  for (const h of liste) {
+    const satir = document.createElement('div');
+    satir.className = 'arsiv-satir';
+    satir.innerHTML = `<span>${esc(h.name)}</span>`;
+    const ac = document.createElement('button');
+    ac.className = 'btn-small primary';
+    ac.textContent = 'Geri aç';
+    ac.addEventListener('click', () => {
+      state = setArchived(state, h.id, false);
+      kaydet();
+      ciz();
+      arsivCiz();
+      bildirimGoster('Geri açıldı — arşivdeki süre gücüne yansıdı, iz duruyor');
+    });
+    const sil = document.createElement('button');
+    sil.className = 'btn-danger';
+    sil.textContent = 'Sil';
+    sil.addEventListener('click', async () => {
+      if (!(await onayIste('Kalıcı olarak silinsin mi?', `"${h.name}" geri alınamaz şekilde silinecek.`, 'Sil'))) return;
+      state = removeHabit(state, h.id);
+      kaydet();
+      ciz();
+      arsivCiz();
+    });
+    satir.append(ac, sil);
+    kutu.appendChild(satir);
+  }
+}
+$('btn-arsiv').addEventListener('click', () => { arsivCiz(); $('modal-arsiv').classList.add('open'); });
+$('arsiv-kapat').addEventListener('click', () => $('modal-arsiv').classList.remove('open'));
+
+// -------------------------------------------------------------------------
+// SRBAI otomatiklik anketi: 14 günde bir 4 madde (§3.6). İsteğe bağlı.
+// -------------------------------------------------------------------------
+const SRBAI_MADDELER = [
+  'Otomatik olarak yaparım',
+  'Bilinçli olarak hatırlamaya gerek duymadan yaparım',
+  'Düşünmeden yaparım',
+  'Farkına varmadan yapmaya başlarım',
+];
+let srbaiAliskanlik = null;
+let srbaiCevaplar = [];
+const srbaiErtelenen = new Set(); // "Şimdi değil" → bu oturumda tekrar sorma
+
+function srbaiAc(h) {
+  srbaiAliskanlik = h.id;
+  srbaiCevaplar = [0, 0, 0, 0];
+  $('srbai-baslik').textContent = `"${h.name}" ne kadar otomatik?`;
+  const kutu = $('srbai-maddeler');
+  kutu.innerHTML = '';
+  SRBAI_MADDELER.forEach((metin, i) => {
+    const satir = document.createElement('div');
+    satir.className = 'srbai-madde';
+    satir.innerHTML = `<div class="srbai-metin">${metin}</div><div class="secim srbai-olcek"></div>`;
+    const olcek = satir.querySelector('.srbai-olcek');
+    for (let v = 1; v <= 7; v++) {
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.textContent = v;
+      b.addEventListener('click', () => {
+        srbaiCevaplar[i] = v;
+        olcek.querySelectorAll('button').forEach((x, j) => x.classList.toggle('on', j + 1 === v));
+        $('srbai-kaydet').disabled = srbaiCevaplar.some((c) => !c);
+      });
+      olcek.appendChild(b);
+    }
+    kutu.appendChild(satir);
+  });
+  $('srbai-kaydet').disabled = true;
+  $('modal-srbai').classList.add('open');
+}
+function srbaiKapat() {
+  if (srbaiAliskanlik) srbaiErtelenen.add(srbaiAliskanlik);
+  srbaiAliskanlik = null;
+  $('modal-srbai').classList.remove('open');
+}
+$('srbai-sonra').addEventListener('click', srbaiKapat);
+$('srbai-kaydet').addEventListener('click', () => {
+  const h = state.habits.find((x) => x.id === srbaiAliskanlik);
+  if (h) {
+    const bugun = todayKey();
+    state = addSrbai(state, h.id, bugun, srbaiCevaplar, computeState(h, bugun).asama);
+    kaydet();
+    ciz();
+    bildirimGoster('Teşekkürler — kişisel hızın buna göre ayarlanacak');
+  }
+  srbaiAliskanlik = null;
+  $('modal-srbai').classList.remove('open');
+});
+
+const btnSrbai = $('btn-srbai');
+btnSrbai.classList.toggle('on', ayarlar.srbaiAcik !== false);
+btnSrbai.addEventListener('click', () => {
+  ayarlar.srbaiAcik = !(ayarlar.srbaiAcik !== false);
+  btnSrbai.classList.toggle('on', ayarlar.srbaiAcik);
+  saveSettings(ayarlar);
+});
+
+// -------------------------------------------------------------------------
+// Açılış kontrolleri (sırayla, aynı anda en fazla bir pencere)
+// -------------------------------------------------------------------------
+let kontrolSuruyor = false;
+async function acilisKontrolleri() {
+  if (kayitBozuk || kontrolSuruyor) return;
+  kontrolSuruyor = true;
+  try {
+    const bugun = todayKey();
+    // Uzun yokluktan dönüş (14+ gün): kayıp grafiği yerine sıcak karşılama
+    const son = ayarlar.sonAcilis;
+    ayarlar.sonAcilis = bugun;
+    saveSettings(ayarlar);
+    if (son && addDays(son, 14) <= bugun && aktifler().length) {
+      await secimIste('Hoş geldin', 'Kürelerin biraz uykuya daldı ama izleri duruyor; geri dönüş ilk seferden hızlı olur. Ara verdiğin bir alışkanlık varsa ona dokunup duraklatabilir ya da uzun basıp arşivleyebilirsin.',
+        [{ id: 'tamam', yazi: 'Devam edelim', sinif: 'btn-small primary' }]);
+      state = ackMisses(state, bugun); // Uzun aradan sonra her küreyi tek tek titretme
+      kaydet();
+    }
+    kacirilanlariKontrolEt();
+    bekleyenKutlamalar();
+    // Süresi dolan duraklatmalar: uzat / arşivle / devam (kural 4)
+    for (const h of aktifler()) {
+      if (!expiredPause(h, bugun)) continue;
+      const secim = await secimIste(`"${h.name}" duraklatması bitti`,
+        `${DURAKLATMA_EN_UZUN} günlük duraklatma doldu. Ne yapalım?`,
+        [{ id: 'devam', yazi: 'Devam et', sinif: 'btn-small primary' }, { id: 'uzat', yazi: 'Uzat' }, { id: 'arsiv', yazi: 'Arşivle' }]);
+      state = answerExpiredPause(state, h.id, bugun, secim === 'uzat');
+      if (secim === 'arsiv') state = setArchived(state, h.id, true);
+      kaydet();
+      ciz();
+    }
+    // Yeni başlangıç etkisi: Pazartesi ya da ayın 1'inde, ara verilmiş alışkanlık varsa
+    const [, , gunNo] = bugun.split('-').map(Number);
+    const pazartesi = new Date(tarihSayisi(bugun)).getDay() === 1;
+    if ((pazartesi || gunNo === 1) && aktifler().some((h) => computeState(h, bugun).ardisikKacirma >= 2)) {
+      bildirimGoster(pazartesi ? 'Yeni bir hafta: yeniden başlamak için güzel bir gün' : 'Yeni bir ay: yeniden başlamak için güzel bir gün');
+    }
+    // Otomatiklik anketi (iyi alışkanlıklar; oturumda bir kez)
+    if (ayarlar.srbaiAcik !== false) {
+      const aday = aktifler().find((h) => h.tip !== 'kotu' && !srbaiErtelenen.has(h.id)
+        && srbaiDue(h, computeState(h, bugun), bugun));
+      if (aday) setTimeout(() => { if (!document.querySelector('.modal-backdrop.open')) srbaiAc(aday); }, 2500);
+    }
+  } finally {
+    kontrolSuruyor = false;
+  }
+}
+
 // Açılış
 ciz();
 kayitliModeliYukle();
 if (kayitBozuk) bildirimGoster('Kayıt okunamadı. Yedekten geri yükleyebilirsiniz.');
-else setTimeout(() => { kacirilanlariKontrolEt(); bekleyenKutlamalar(); }, 1200);
+else setTimeout(acilisKontrolleri, 1200);

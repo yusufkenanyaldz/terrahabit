@@ -3,13 +3,15 @@ package com.noralaliskanlik
 import android.content.Context
 import org.json.JSONArray
 import org.json.JSONObject
+import java.time.LocalDate
 import java.time.LocalDateTime
 
 /**
  * Alışkanlık verisinin tek kaynağı: SharedPreferences içinde tek bir JSON metni.
  * localStorage yerine burada tutulduğu için uygulama güncellenince silinmez.
  * JSON'un biçimini JS tarafı (assets/js/habits.js) belirler; Kotlin yalnızca
- * bildirimler için gerekli alanları (id, name, icon, time, done) okur.
+ * bildirimler için gerekli alanları (id, name, time, tip, done, mazeret, duraklatmalar,
+ * zamanlama, arsiv, bakim) okur.
  */
 object HabitStore {
     private const val PREFS = "noral_aliskanlik"
@@ -68,26 +70,91 @@ object HabitStore {
         }
     }
 
-    /** Bildirim için gereken alışkanlık özeti. */
-    data class Reminder(val id: String, val name: String, val icon: String, val time: String, val doneToday: Boolean)
+    /**
+     * Bildirim için gereken alışkanlık özeti.
+     * bildirimGerekli: bugün hatırlatma gösterilmeli mi (JS'teki kurallarla aynı mantık).
+     */
+    data class Reminder(
+        val id: String,
+        val name: String,
+        val time: String,
+        val kotu: Boolean,
+        val bildirimGerekli: Boolean
+    )
 
-    /** Kayıttaki tüm alışkanlıkları hatırlatma bilgisiyle döndürür. Bozuk kayıtta boş liste. */
+    /** JSON dizisini metin kümesine çevir. */
+    private fun kume(a: JSONArray?): Set<String> =
+        if (a == null) emptySet() else (0 until a.length()).map { a.optString(it) }.toSet()
+
+    /** JS'teki haftaGunu ile aynı: 0 Pazar … 6 Cumartesi */
+    private fun jsGunu(d: LocalDate): Int = d.dayOfWeek.value % 7
+
+    /** Gün bir duraklatma aralığında mı? Açık uçlu aralık en fazla 30 gün (JS: DURAKLATMA_EN_UZUN). */
+    private fun duraklatildi(h: JSONObject, gun: String): Boolean {
+        val liste = h.optJSONArray("duraklatmalar") ?: return false
+        for (i in 0 until liste.length()) {
+            val d = liste.optJSONObject(i) ?: continue
+            val bas = d.optString("bas")
+            val bit = if (d.isNull("bit") || d.optString("bit").isEmpty())
+                LocalDate.parse(bas).plusDays(29).toString() else d.optString("bit")
+            if (gun >= bas && gun <= bit) return true
+        }
+        return false
+    }
+
+    /** Gün planlı mı? ("belirli günler" türünde yalnızca seçili günler) */
+    private fun planli(z: JSONObject?, gun: LocalDate): Boolean {
+        if (z == null || z.optString("tur") != "gunler") return true
+        val gunler = z.optJSONArray("gunler") ?: return true
+        return (0 until gunler.length()).any { gunler.optInt(it) == jsGunu(gun) }
+    }
+
+    /**
+     * Bugün hatırlatma gerekiyor mu?
+     * Gelmez: bugün yapıldı / duraklatıldı / mazeretli / planlı gün değil / haftalık hedef tamam.
+     * Bakım modunda (Otomatik'ten 14 gün sonra) yalnızca bir kaçırmanın ertesi günü gelir.
+     */
+    private fun bildirimGerekli(h: JSONObject, bugunKey: String): Boolean {
+        val bugun = LocalDate.parse(bugunKey)
+        val done = kume(h.optJSONArray("done"))
+        val mazeret = kume(h.optJSONArray("mazeret"))
+        val z = h.optJSONObject("zamanlama")
+        if (bugunKey in done || bugunKey in mazeret || duraklatildi(h, bugunKey)) return false
+        if (z?.optString("tur") == "haftalik") {
+            val pazartesi = bugun.minusDays(((jsGunu(bugun) + 6) % 7).toLong())
+            var yapilan = 0
+            var g = pazartesi
+            while (!g.isAfter(bugun)) { if (g.toString() in done) yapilan++; g = g.plusDays(1) }
+            return yapilan < z.optInt("hedef", 3)
+        }
+        if (!planli(z, bugun)) return false
+        if (h.optBoolean("bakim", false)) {
+            // Bakım modu: dün planlı bir gün kaçırıldıysa hatırlat, yoksa sessiz kal
+            val dun = bugun.minusDays(1)
+            val dunKey = dun.toString()
+            val kacirildi = planli(z, dun) && dunKey >= h.optString("createdAt") &&
+                dunKey !in done && dunKey !in mazeret && !duraklatildi(h, dunKey)
+            return kacirildi
+        }
+        return true
+    }
+
+    /** Arşivde olmayan alışkanlıkları hatırlatma bilgisiyle döndürür. Bozuk kayıtta boş liste. */
     fun reminders(context: Context): List<Reminder> {
         val raw = load(context)
         if (raw.isBlank()) return emptyList()
         return try {
-            val today = todayKey() // YYYY-MM-DD, yerel saat
+            val today = todayKey()
             val habits: JSONArray = JSONObject(raw).optJSONArray("habits") ?: return emptyList()
             (0 until habits.length()).mapNotNull { i ->
                 val h = habits.optJSONObject(i) ?: return@mapNotNull null
-                val done = h.optJSONArray("done") ?: JSONArray()
-                val doneToday = (0 until done.length()).any { done.optString(it) == today }
+                if (h.optBoolean("arsiv", false)) return@mapNotNull null // Arşivdekine alarm kurulmaz
                 Reminder(
                     id = h.optString("id"),
                     name = h.optString("name"),
-                    icon = h.optString("icon"),
                     time = h.optString("time"),
-                    doneToday = doneToday
+                    kotu = h.optString("tip") == "kotu",
+                    bildirimGerekli = bildirimGerekli(h, today)
                 )
             }.filter { it.id.isNotEmpty() }
         } catch (e: Exception) {

@@ -48,6 +48,8 @@
         <button class="menu-item toggle" id="btn-clip"><svg class="mi-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="4" width="16" height="16" rx="4"/><path d="M12 2v20"/></svg>Kesit görünümü<span class="switch"></span></button>
         <button class="menu-item" id="btn-settings"><svg class="mi-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h9M17 7h3M4 17h3M11 17h9"/><circle cx="15" cy="7" r="2"/><circle cx="9" cy="17" r="2"/></svg>Model ayarları</button>
         <button class="menu-item" id="btn-backup"><svg class="mi-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4v10M8 10l4 4 4-4M4 16v3a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-3"/></svg>Yedekle / geri yükle</button>
+        <button class="menu-item" id="btn-arsiv"><svg class="mi-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="5" rx="1.5"/><path d="M5 9v10a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V9M10 13h4"/></svg>Arşivdekiler</button>
+        <button class="menu-item toggle on" id="btn-srbai"><svg class="mi-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l3 3 8-8"/><path d="M20 12v7a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1h11"/></svg>Otomatiklik anketi<span class="switch"></span></button>
       </div>
     </div>
   </header>
@@ -138,12 +140,24 @@
           <span class="detail-stage" id="det-stage"></span>
           <span class="det-time" id="det-time"></span>
         </div>
+        <!-- Asla düşmeyen sayılar: toplam tekrar, en yüksek güç -->
+        <div class="det-meta" id="det-meta"></div>
       </div>
+      <button class="close-btn" id="btn-pause" aria-label="Duraklat">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M9 6v12M15 6v12"/></svg>
+      </button>
       <button class="close-btn" id="btn-edit-habit" aria-label="Düzenle">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20h4L19 9l-4-4L4 16z"/><path d="M13.5 6.5l4 4"/></svg>
       </button>
       <button class="close-btn" id="btn-close-detail" aria-label="Kapat"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
     </div>
+    <!-- Duraklatma bandı (tatil / seyahat) -->
+    <div class="det-durak" id="det-durak" hidden>
+      <span id="det-durak-metin"></span>
+      <button class="btn-small" id="btn-resume">Devam et</button>
+    </div>
+    <!-- Nazik mesaj: geri dönüş vaadi / kötü alışkanlıkta kayma -->
+    <div class="det-not" id="det-not" hidden></div>
     <div class="cal-head"><span>Son 30 gün</span><span id="det-percent"></span></div>
     <div class="cal-strip" id="det-calendar"></div>
     <!-- Unutulan günü işaretle / yanlış işareti geri al (son 3 gün + bugün) -->
@@ -168,6 +182,38 @@
       <input class="text-input" id="add-name" maxlength="40" placeholder="Örn. Kitap oku" required />
       <label class="field-label" for="add-time">Hatırlatma saati</label>
       <input class="text-input" id="add-time" type="time" value="09:00" required />
+
+      <label class="field-label">Tür</label>
+      <div class="secim" id="sec-tip">
+        <button type="button" data-v="iyi">Kazanmak istediğim</button>
+        <button type="button" data-v="kotu">Bırakmak istediğim</button>
+      </div>
+
+      <label class="field-label">Sıklık</label>
+      <div class="secim" id="sec-siklik">
+        <button type="button" data-v="gunluk">Her gün</button>
+        <button type="button" data-v="gunler">Belirli günler</button>
+        <button type="button" data-v="haftalik">Haftada</button>
+      </div>
+      <div class="secim gunler" id="sec-gunler" hidden>
+        <button type="button" data-v="1">Pzt</button><button type="button" data-v="2">Sal</button>
+        <button type="button" data-v="3">Çar</button><button type="button" data-v="4">Per</button>
+        <button type="button" data-v="5">Cum</button><button type="button" data-v="6">Cmt</button>
+        <button type="button" data-v="0">Paz</button>
+      </div>
+      <div class="secim" id="sec-hedef" hidden>
+        <button type="button" data-v="1">1</button><button type="button" data-v="2">2</button>
+        <button type="button" data-v="3">3</button><button type="button" data-v="4">4</button>
+        <button type="button" data-v="5">5</button><button type="button" data-v="6">6 kez</button>
+      </div>
+
+      <label class="field-label">Zorluk</label>
+      <div class="secim" id="sec-zorluk">
+        <button type="button" data-v="kolay">Kolay</button>
+        <button type="button" data-v="normal">Normal</button>
+        <button type="button" data-v="zor">Zor</button>
+      </div>
+      <div class="form-not" id="form-not"></div>
       <div class="modal-actions">
         <button type="button" class="btn-small" id="add-cancel">Vazgeç</button>
         <button type="submit" class="btn-small primary">Kaydet</button>
@@ -180,9 +226,31 @@
     <div class="modal">
       <h3 id="confirm-title"></h3>
       <p id="confirm-text"></p>
+      <!-- Seçenekler main.js'te duruma göre doldurulur -->
+      <div class="modal-actions" id="confirm-actions"></div>
+    </div>
+  </div>
+
+  <!-- ARŞİVDEKİ ALIŞKANLIKLAR -->
+  <div class="modal-backdrop" id="modal-arsiv">
+    <div class="modal">
+      <h3>Arşivdekiler</h3>
+      <div class="arsiv-liste" id="arsiv-liste"></div>
       <div class="modal-actions">
-        <button class="btn-small" id="confirm-no">Vazgeç</button>
-        <button class="btn-danger" id="confirm-yes">Evet</button>
+        <button class="btn-small" id="arsiv-kapat">Kapat</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- SRBAI OTOMATİKLİK ANKETİ (14 günde bir, 4 madde, 1–7) -->
+  <div class="modal-backdrop" id="modal-srbai">
+    <div class="modal">
+      <h3 id="srbai-baslik"></h3>
+      <p class="srbai-aciklama">Ne kadar katılıyorsun? 1 = hiç, 7 = tamamen</p>
+      <div id="srbai-maddeler"></div>
+      <div class="modal-actions">
+        <button class="btn-small" id="srbai-sonra">Şimdi değil</button>
+        <button class="btn-small primary" id="srbai-kaydet" disabled>Kaydet</button>
       </div>
     </div>
   </div>

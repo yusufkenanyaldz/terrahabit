@@ -103,7 +103,7 @@ test('kayıt/yedek doğrulama ve taşıma', () => {
   const m = migrate({ habits: [{ id: 'a', name: 'X', done: ['2026-01-02', '2026-01-02', 'x'] }] });
   assert.deepEqual(m.habits[0].done, ['2026-01-02']);
   assert.equal(m.habits[0].createdAt, '2026-01-02');
-  assert.equal(m.version, 1);
+  assert.equal(m.version, 2);
 });
 
 test('tarih yardımcıları ay/yıl geçişinde doğru', () => {

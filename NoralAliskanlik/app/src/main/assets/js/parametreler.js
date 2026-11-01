@@ -2,9 +2,19 @@
 // Bilimsel kaynaklarla uyumlu kalibre edilmiş TASARIM KARARLARI; gerçek kullanım
 // verisi geldikçe yalnızca bu dosyadan ayarlanır.
 
-/** Kazanım hızı α. 1 - 0.05^(1/66) = 0.0444 aşama günlerini 16/42/66 yapıyor;
- *  0.045 mevcut 16/41/66 sınırlarını aynen koruyor (spesifikasyon tabloları da bununla). */
+/** Normal zorlukta kazanım hızı α. 1 - 0.05^(1/66) = 0.0444 aşama günlerini 16/42/66
+ *  yapıyor; 0.045 mevcut 16/41/66 sınırlarını aynen koruyor (spesifikasyon tabloları da bununla). */
 export const ALFA = 0.045;
+
+/** Zorluk → hedef süre T (gün). Lally: içme 59, yeme 65, egzersiz 91 (Spesifikasyon kural 14). */
+export const ZORLUK_T = { kolay: 60, normal: 66, zor: 90 };
+
+/** T günde (ya da R tekrarda) kusursuz takipte kalan pay: (1 - α)^66 ≈ 0,048.
+ *  α(R) = 1 - KALAN^(1/R) → Normal'de tam 0,045; Kolay/Zor aynı eğriden türer. */
+const KALAN = Math.pow(1 - ALFA, ZORLUK_T.normal);
+export function alfaHesapla(tekrar) {
+  return 1 - Math.pow(KALAN, 1 / tekrar);
+}
 
 /** İlk kaçırmada çözülme (tepede ≈0,7 puan; Lally'de ölçülen tek kaçırma etkisi). */
 export const LAMBDA_ILK = 0.01;
@@ -37,3 +47,28 @@ export const GUN_BASLANGIC_SAATI = 4;
 
 /** Geriye dönük serbest kayıt: bugünden önceki kaç güne işaret konabilir/kaldırılabilir. */
 export const GERIYE_DONUK_GUN = 3;
+
+/** Mazeret (hastalık vb.): kayan 30 günde en fazla 4 gün; fazlası kaçırma sayılır (kural 3). */
+export const MAZERET_HAKKI = 4;
+export const MAZERET_PENCERE = 30;
+
+/** Duraklatma (tatil/seyahat) tek seferde en fazla bu kadar gün sürer (kural 4). */
+export const DURAKLATMA_EN_UZUN = 30;
+
+/** SRBAI otomatiklik anketi (kural §3.6): aralıklar, fark eşiği, T ayar adımı ve sınırları. */
+export const SRBAI_ARALIK = 14;
+export const SRBAI_BAKIM_ARALIK = 30;
+export const SRBAI_FARK = 0.15;
+export const SRBAI_ADIM = 0.10;
+export const T_EN_AZ = 30;
+export const T_EN_COK = 150;
+
+/** Bakım modu: H ≥ 0,95 bu kadar gün sürünce hatırlatmalar seyrelir (kural 12). */
+export const BAKIM_GUN = 14;
+
+/** Kötü alışkanlıkta "nüks": son 7 günde 3 veya daha fazla kayma (kural 5). */
+export const NUKS_PENCERE = 7;
+export const NUKS_KAYMA = 3;
+
+/** Aynı anda Çaba aşamasında önerilen en fazla alışkanlık (kural 13; uyarı, engel değil). */
+export const CABA_UYARI_SAYISI = 3;

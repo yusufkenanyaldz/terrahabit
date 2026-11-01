@@ -7,6 +7,8 @@ export const VARSAYILAN_AYARLAR = Object.freeze({
   prefrontal: Object.freeze({ x: 0.78, y: 0.34, z: 0.18 }),     // Prefrontal Korteks (Çaba)
   basalGanglia: Object.freeze({ x: -0.05, y: 0.02, z: 0.0 }),   // Bazal Gangliyon (Otomatik)
   modelYazar: '',                                               // Model kaynağı / yazar (CC BY)
+  srbaiAcik: true,                                              // 14 günde bir otomatiklik anketi
+  sonAcilis: null,                                              // Uzun yokluktan dönüş mesajı için
 });
 
 /** Varsayılanların değiştirilebilir bir kopyası. */
@@ -41,5 +43,7 @@ export function normalizeAyarlar(raw) {
     basalGanglia: vec(data.basalGanglia, v.basalGanglia),
     modelYazar: typeof data.modelYazar === 'string' && data.modelYazar !== '[yazar adı]'
       ? data.modelYazar.slice(0, 200) : '',
+    srbaiAcik: data.srbaiAcik !== false,
+    sonAcilis: typeof data.sonAcilis === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(data.sonAcilis) ? data.sonAcilis : null,
   };
 }
