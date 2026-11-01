@@ -22,6 +22,7 @@ class ReminderReceiver : BroadcastReceiver() {
 
         // Bir sonraki günün alarmını hemen kur (alarmlar tek seferliktir).
         AlarmScheduler.schedule(context, habit.id, habit.time)
+        AliskanlikWidget.guncelleHepsi(context) // Gün değişmiş olabilir
 
         // Bugün yapıldı / duraklatıldı / mazeretli / planlı değil / bakım modu: rahatsız etme.
         if (!habit.bildirimGerekli) return

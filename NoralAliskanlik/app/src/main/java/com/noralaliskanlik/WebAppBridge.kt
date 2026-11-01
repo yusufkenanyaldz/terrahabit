@@ -23,6 +23,7 @@ class WebAppBridge(private val activity: MainActivity) {
     fun save(json: String): Boolean {
         val ok = HabitStore.save(activity, json)
         AlarmScheduler.scheduleAll(activity)
+        AliskanlikWidget.guncelleHepsi(activity) // Ana ekran widget'ı da güncellensin
         return ok
     }
 

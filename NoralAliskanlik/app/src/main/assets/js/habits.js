@@ -122,6 +122,8 @@ function habitTemizle(h) {
     arsiv: !!h.arsiv,
     srbai: temizSrbai(h.srbai),
     bakim: !!h.bakim, // Türetilmiş; bildirim tarafı (Kotlin) okur
+    guc: Number.isInteger(h.guc) ? h.guc : 0,       // Türetilmiş; widget okur
+    asama: Number.isInteger(h.asama) ? h.asama : 0, // Türetilmiş; widget okur
     // v3 alanları
     miktar: temizMiktar(h.miktar, tip),
     gunMiktar: temizGunMiktar(h.gunMiktar),
@@ -163,6 +165,8 @@ export function addHabit(state, { name, icon, time, zorluk, tip, zamanlama, mikt
     arsiv: false,
     srbai: [],
     bakim: false,
+    guc: 0,
+    asama: 0,
     gunMiktar: {},
     gecKayit: [],
   };
@@ -479,16 +483,19 @@ export function ackMisses(state, today) {
 }
 
 /**
- * Türetilmiş "bakım modu" bayrağını kayda yazar (bildirim tarafı okur; kural 12).
+ * Türetilmiş alanları kayda yazar: bakım modu (bildirimler, kural 12), güç ve aşama
+ * (ana ekran widget'ı).
  * Değişen yoksa aynı state döner (gereksiz kayıt olmasın).
  */
 export function syncDerived(state, today) {
   let degisti = false;
   const habits = state.habits.map((h) => {
-    const bakim = computeState(h, today).bakim;
-    if (bakim === !!h.bakim) return h;
+    const d = computeState(h, today);
+    // guc (0–100) ve asama: ana ekran widget'ı (Kotlin) bu önbellekten gösterir
+    const guc = Math.round(d.H * 100);
+    if (d.bakim === !!h.bakim && guc === h.guc && d.asama === h.asama) return h;
     degisti = true;
-    return { ...h, bakim };
+    return { ...h, bakim: d.bakim, guc, asama: d.asama };
   });
   return degisti ? { ...state, habits } : state;
 }

@@ -169,4 +169,135 @@ object HabitStore {
             emptyList()
         }
     }
+
+    // -----------------------------------------------------------------------
+    // Ana ekran widget'ı
+    // -----------------------------------------------------------------------
+
+    /** Aşama adları ve renkleri (JS brain-scene.js ile aynı). */
+    private val ASAMA_AD = arrayOf("Çaba", "Tekrar", "Yerleşiyor", "Otomatik")
+    private val ASAMA_RENK = arrayOf("#FF7B1C", "#A855F7", "#6366F1", "#00E5FF")
+
+    /**
+     * Widget'ın bir satırı.
+     * durum: "yapildi" | "bekliyor" | "duraklatildi" | "plansiz"
+     * sayac: miktarlı alışkanlık (onay yerine +1)
+     */
+    data class WidgetSatiri(
+        val id: String,
+        val ad: String,
+        val alt: String,
+        val renk: Int,
+        val durum: String,
+        val sayac: Boolean
+    )
+
+    /** Arşivde olmayan alışkanlıklar için widget satırları. Bozuk kayıtta boş liste. */
+    fun widgetSatirlari(context: Context): List<WidgetSatiri> {
+        val raw = load(context)
+        if (raw.isBlank()) return emptyList()
+        return try {
+            val bugunKey = todayKey()
+            val bugun = LocalDate.parse(bugunKey)
+            val habits = JSONObject(raw).optJSONArray("habits") ?: return emptyList()
+            (0 until habits.length()).mapNotNull { i ->
+                val h = habits.optJSONObject(i) ?: return@mapNotNull null
+                if (h.optBoolean("arsiv", false) || h.optString("id").isEmpty()) return@mapNotNull null
+                val kotu = h.optString("tip") == "kotu"
+                val asama = h.optInt("asama", 0).coerceIn(0, 3)
+                val asamaAd = if (kotu && asama == 3) "Özgür" else ASAMA_AD[asama]
+                // Güç ve aşama uygulamanın son hesabından (uygulama her kayıtta günceller)
+                val gucYazi = "${if (kotu) "Kontrol" else "Güç"} %${h.optInt("guc", 0)}"
+                val done = kume(h.optJSONArray("done"))
+                val z = h.optJSONObject("zamanlama")
+                val miktar = h.optJSONObject("miktar")
+                val yapildi = bugunKey in done
+                var durum = if (yapildi) "yapildi" else "bekliyor"
+                var alt = "$asamaAd · $gucYazi"
+                var sayac = false
+                when {
+                    duraklatildi(h, bugunKey) -> { durum = "duraklatildi"; alt = "Duraklatıldı" }
+                    z?.optString("tur") == "haftalik" -> {
+                        val pazartesi = bugun.minusDays(((jsGunu(bugun) + 6) % 7).toLong())
+                        var yapilan = 0
+                        var g = pazartesi
+                        while (!g.isAfter(bugun)) { if (g.toString() in done) yapilan++; g = g.plusDays(1) }
+                        alt = "Bu hafta $yapilan/${z?.optInt("hedef", 3) ?: 3} · $gucYazi"
+                    }
+                    miktar != null -> {
+                        sayac = true
+                        val m = h.optJSONObject("gunMiktar")?.optInt(bugunKey, 0) ?: 0
+                        val hedef = miktar.optInt("hedef", 1)
+                        val birim = miktar.optString("birim")
+                        alt = if (kotu) "$m / sınır $hedef $birim · $gucYazi" else "$m/$hedef $birim · $gucYazi"
+                        durum = if (!kotu && m >= hedef) "yapildi" else "bekliyor"
+                        if (!kotu && m >= hedef) sayac = false
+                    }
+                    !planli(z, bugun) && !yapildi -> { durum = "plansiz"; alt = "Bugün plan dışı · $gucYazi" }
+                }
+                WidgetSatiri(
+                    id = h.optString("id"),
+                    ad = h.optString("name"),
+                    alt = alt,
+                    renk = android.graphics.Color.parseColor(ASAMA_RENK[asama]),
+                    durum = durum,
+                    sayac = sayac
+                )
+            }
+        } catch (e: Exception) {
+            emptyList()
+        }
+    }
+
+    /** Kayıttaki alışkanlığı bul ve değiştir; değiştiyse kaydet. */
+    @Synchronized
+    private fun degistir(context: Context, habitId: String, islem: (JSONObject, String) -> Boolean): Boolean {
+        val raw = load(context)
+        if (raw.isBlank()) return false
+        return try {
+            val root = JSONObject(raw)
+            val habits = root.optJSONArray("habits") ?: return false
+            for (i in 0 until habits.length()) {
+                val h = habits.optJSONObject(i) ?: continue
+                if (h.optString("id") != habitId) continue
+                if (duraklatildi(h, todayKey())) return false
+                return islem(h, todayKey()) && save(context, root.toString())
+            }
+            false
+        } catch (e: Exception) {
+            false // Bozuk kayıtta hiçbir şeye dokunma
+        }
+    }
+
+    private fun kumeYaz(h: JSONObject, alan: String, kume: Set<String>) {
+        h.put(alan, JSONArray(kume.sorted()))
+    }
+
+    /** Widget'taki onay: bugünü işaretle ya da (yanlışlıkla basıldıysa) geri al. */
+    fun toggleDoneToday(context: Context, habitId: String): Boolean = degistir(context, habitId) { h, bugun ->
+        val done = kume(h.optJSONArray("done")).toMutableSet()
+        if (!done.remove(bugun)) done.add(bugun)
+        kumeYaz(h, "done", done)
+        // Mazeret ile yapıldı aynı günde birlikte olmaz (JS setDayStatus ile aynı)
+        kumeYaz(h, "mazeret", kume(h.optJSONArray("mazeret")) - bugun)
+        true
+    }
+
+    /**
+     * Miktarlı alışkanlıkta +1. İyi alışkanlıkta miktar hedefin yarısına ulaşınca gün
+     * "yapıldı" sayılır; kötüde sınırın altı "temiz" (JS setAmount ile aynı kural).
+     */
+    fun artir(context: Context, habitId: String): Boolean = degistir(context, habitId) { h, bugun ->
+        val miktar = h.optJSONObject("miktar") ?: return@degistir false
+        val gunMiktar = h.optJSONObject("gunMiktar") ?: JSONObject().also { h.put("gunMiktar", it) }
+        val m = gunMiktar.optInt(bugun, 0) + 1
+        gunMiktar.put(bugun, m)
+        val hedef = miktar.optInt("hedef", 1)
+        val basari = if (h.optString("tip") == "kotu") m <= hedef else m * 2 >= hedef
+        val done = kume(h.optJSONArray("done")).toMutableSet()
+        if (basari) done.add(bugun) else done.remove(bugun)
+        kumeYaz(h, "done", done)
+        kumeYaz(h, "mazeret", kume(h.optJSONArray("mazeret")) - bugun)
+        true
+    }
 }

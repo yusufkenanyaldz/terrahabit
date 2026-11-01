@@ -1,0 +1,4 @@
+<resources>
+    <!-- Simge arka planı: görselin kendi koyu gri tonu -->
+    <color name="ikon_arka_plan">#282725</color>
+</resources>

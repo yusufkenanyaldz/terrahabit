@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Widget paneli: uygulamadaki koyu cam paneller (rgba(10,15,28,0.94)) -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android" android:shape="rectangle">
+    <solid android:color="#F00A0F1C" />
+    <stroke android:width="1dp" android:color="#1CFFFFFF" />
+    <corners android:radius="22dp" />
+</shape>

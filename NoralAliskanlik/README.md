@@ -11,7 +11,8 @@ Three.js beyin haritası + alışkanlık takibi. WebView içinde, internetsiz ç
   - `js/settings.js` — Ayar paneli varsayılanları
   - `js/main.js` — arayüz
   - `lib/` — yerel Three.js + eklentiler + Draco çözücü (`scripts/vendor-three.mjs` ile üretilir)
-- `app/src/main/java/com/noralaliskanlik/` — Kotlin: WebView, SharedPreferences köprüsü, yedek, alarmlar
+- `app/src/main/java/com/noralaliskanlik/` — Kotlin: WebView, SharedPreferences köprüsü, yedek, alarmlar, ana ekran widget'ı (`AliskanlikWidget`)
+- `app/src/main/res/mipmap-*` — uygulama simgesi (uyarlanabilir: ön plan + `ikon_arka_plan` rengi)
 
 ## Beyin modeli
 APK'nın içinde hazır bir model var: `assets/brain.glb` (orijinal 30 MB modelden
