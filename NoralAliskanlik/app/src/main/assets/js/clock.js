@@ -1,4 +1,6 @@
 // Tek saat kaynağı. Testlerde sahte tarih vermek için setNow kullanılır.
+import { GUN_BASLANGIC_SAATI } from './parametreler.js';
+
 let fakeNow = null;
 
 /** Şu anki zaman (Date). */
@@ -19,9 +21,14 @@ export function dateKey(d = now()) {
   return `${y}-${m}-${day}`;
 }
 
-/** Bugünün anahtarı. */
+/**
+ * Bugünün anahtarı. Gün 04:00'te başlar (Spesifikasyon kural 7): gece 01:00'de
+ * işaretlenen "akşam" alışkanlığı önceki güne yazılır.
+ */
 export function todayKey() {
-  return dateKey(now());
+  const t = now();
+  t.setHours(t.getHours() - GUN_BASLANGIC_SAATI);
+  return dateKey(t);
 }
 
 /** 'YYYY-MM-DD' anahtarına n gün ekle (negatif olabilir). Öğlen saati: yaz saati kaymalarından etkilenmez. */

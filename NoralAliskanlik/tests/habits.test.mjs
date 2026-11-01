@@ -2,11 +2,13 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  emptyState, addHabit, removeHabit, markDone, progress, doneCount,
-  needsMissFlash, ackMisses, last30, migrate, GOAL_DAYS,
+  emptyState, addHabit, removeHabit, markDone, doneCount,
+  needsMissFlash, ackMisses, last30, migrate,
   updateHabit, pendingCelebrations, markCelebrated,
 } from '../app/src/main/assets/js/habits.js';
 import { addDays, setNow, todayKey } from '../app/src/main/assets/js/clock.js';
+import { computeState } from '../app/src/main/assets/js/guc.js';
+const GOAL_DAYS = 66; // Kusursuz takipte Otomatik'e ulaşılan gün
 
 const D0 = '2026-03-01';
 const make = () => addHabit(emptyState(), { name: 'Kitap', icon: '📚', time: '08:30' }, D0, 'h1');
@@ -33,13 +35,15 @@ test('"Bugün yaptım" günde yalnızca bir kez sayılır', () => {
   assert.equal(doneCount(r2.state.habits[0]), 1);
 });
 
-test('ilerleme = gün / 66 ve kaçırılan gün sayacı sıfırlamaz', () => {
+test('kaçırılan gün toplam sayacı sıfırlamaz, güç yalnızca biraz düşer', () => {
   let s = make();
   s = markDone(s, 'h1', D0).state;
   // 1 gün kaçır, sonra devam et
   s = markDone(s, 'h1', addDays(D0, 2)).state;
   assert.equal(doneCount(s.habits[0]), 2);
-  assert.equal(progress(s.habits[0]), 2 / GOAL_DAYS);
+  const g = computeState(s.habits[0], addDays(D0, 2));
+  assert.equal(g.toplamTekrar, 2);
+  assert.ok(g.H > 0.08 && g.H < 0.09, `H=${g.H}`); // 2 kazanım + 1 küçük çözülme
 });
 
 test('kaçırılan gün animasyonu bir kez oynar', () => {
@@ -69,7 +73,7 @@ test('66. günde bir kez kutlama', () => {
     s = r.state;
   }
   assert.equal(reached, 1);
-  assert.equal(progress(s.habits[0]), 1);
+  assert.ok(computeState(s.habits[0], addDays(D0, GOAL_DAYS + 2)).H > 0.95);
 });
 
 test('son 30 gün takvimi', () => {
@@ -107,6 +111,11 @@ test('tarih yardımcıları ay/yıl geçişinde doğru', () => {
   assert.equal(addDays('2026-03-01', -1), '2026-02-28');
   setNow(new Date(2026, 4, 9, 23, 59));
   assert.equal(todayKey(), '2026-05-09');
+  // Gün 04:00'te başlar: gece 01:30 hâlâ önceki gün, 04:00 yeni gün
+  setNow(new Date(2026, 4, 10, 1, 30));
+  assert.equal(todayKey(), '2026-05-09');
+  setNow(new Date(2026, 4, 10, 4, 0));
+  assert.equal(todayKey(), '2026-05-10');
   setNow(null);
 });
 
@@ -150,7 +159,8 @@ test('bekleyen kutlama: uygulama dışında 66. gün tamamlanınca bir kez', () 
   let s = make();
   // Bildirimden işaretlenmiş gibi: done doğrudan 66 gün
   s.habits[0].done = Array.from({ length: GOAL_DAYS }, (_, i) => addDays(D0, i));
-  assert.equal(pendingCelebrations(s).length, 1);
+  const t = addDays(D0, GOAL_DAYS - 1);
+  assert.equal(pendingCelebrations(s, t).length, 1);
   s = markCelebrated(s, 'h1');
-  assert.equal(pendingCelebrations(s).length, 0);
+  assert.equal(pendingCelebrations(s, t).length, 0);
 });

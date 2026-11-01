@@ -5,6 +5,8 @@ Three.js beyin haritası + alışkanlık takibi. WebView içinde, internetsiz ç
 ## Klasörler
 - `app/src/main/assets/` — HTML/CSS/JS (WebViewAssetLoader ile `https://appassets.androidplatform.net/assets/index.html`)
   - `js/habits.js` — alışkanlık mantığı (saf, testli)
+  - `js/guc.js` — alışkanlık gücü (H) modeli: kayıt geçmişinden baştan hesaplanır (saf, testli)
+  - `js/parametreler.js` — modelin tüm sabitleri (α, λ, taban, eşikler, gün başlangıç saati)
   - `js/brain-scene.js` — 3B sahne
   - `js/settings.js` — Ayar paneli varsayılanları
   - `js/main.js` — arayüz

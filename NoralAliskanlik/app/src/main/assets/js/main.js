@@ -3,11 +3,12 @@
 import { createBrainScene, asamaBilgisiGetir } from './brain-scene.js';
 import { varsayilanAyarlar } from './settings.js';
 import {
-  GOAL_DAYS, addHabit, removeHabit, markDone, doneCount, isDoneOn,
+  addHabit, removeHabit, markDone, toggleDay, doneCount, isDoneOn,
   needsMissFlash, ackMisses, last30, migrate,
   updateHabit, pendingCelebrations, markCelebrated,
 } from './habits.js';
-import { todayKey, setNow } from './clock.js';
+import { todayKey, setNow, addDays } from './clock.js';
+import { computeState } from './guc.js';
 import {
   loadState, saveState, exportBackup, requestImport,
   loadSettings, saveSettings, modelInfo,
@@ -246,7 +247,12 @@ function esc(s) {
 
 function ciz() {
   const bugun = todayKey();
-  sahne.setHabits(state.habits.map((h) => ({ id: h.id, name: h.name, count: doneCount(h) })));
+  // Alışkanlık gücü her çizimde kayıt geçmişinden baştan hesaplanır (saf fonksiyon)
+  const durumlar = new Map(state.habits.map((h) => [h.id, computeState(h, bugun)]));
+  sahne.setHabits(state.habits.map((h) => {
+    const d = durumlar.get(h.id);
+    return { id: h.id, name: h.name, H: d.H, P: d.P, asama: d.asama, son7Oran: d.son7Oran };
+  }));
 
   const listEl = $('habit-list-el');
   listEl.innerHTML = '';
@@ -254,16 +260,16 @@ function ciz() {
     listEl.innerHTML = '<div class="empty-hint">Henüz alışkanlık yok.<br>＋ Ekle ile ilk nöral yolunu başlat.</div>';
   }
   state.habits.forEach((h) => {
-    const gun = doneCount(h);
-    const yuzde = Math.min(100, Math.round((gun / GOAL_DAYS) * 100));
-    const asama = asamaBilgisiGetir(gun);
+    const d = durumlar.get(h.id);
+    const yuzde = Math.round(d.H * 100);
+    const asama = asamaBilgisiGetir(d.asama);
     const bugunYapildi = isDoneOn(h, bugun);
     const row = document.createElement('div');
     row.className = `habit-item ${seciliId === h.id ? 'selected' : ''} ${bugunYapildi ? 'done-today' : ''}`;
     row.innerHTML = `
       <div class="habit-item-top">
         <span class="habit-name">${esc(h.name)}</span>
-        <span class="habit-day-badge">Gün ${gun} / ${GOAL_DAYS} (${asama.kisa})</span>
+        <span class="habit-day-badge">Güç %${yuzde} · ${asama.kisa}</span>
         <button class="row-check ${bugunYapildi ? 'done' : ''}" aria-label="Bugün yaptım"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg></button>
       </div>
       <div class="progress-track">
@@ -292,9 +298,8 @@ function cizDetay() {
     return;
   }
   const bugun = todayKey();
-  const gun = doneCount(h);
-  const asama = asamaBilgisiGetir(gun);
-  const oran = Math.min(gun / GOAL_DAYS, 1);
+  const d = computeState(h, bugun);
+  const asama = asamaBilgisiGetir(d.asama);
 
   $('det-name').textContent = h.name;
   const stageEl = $('det-stage');
@@ -304,13 +309,15 @@ function cizDetay() {
   stageEl.style.border = `1px solid ${asama.hex}66`;
   $('det-time').textContent = `Hatırlatma ${h.time}`;
 
-  // İlerleme halkası
-  $('det-days').textContent = gun;
+  // Güç halkası: alışkanlık gücü H (0–100)
+  $('det-days').textContent = Math.round(d.H * 100);
   const halka = $('det-ring');
   halka.style.stroke = asama.hex;
   halka.style.color = asama.hex;
-  halka.style.strokeDashoffset = String(HALKA_CEVRE * (1 - oran));
-  $('det-percent').textContent = gun >= GOAL_DAYS ? 'Artık otomatik!' : `%${Math.round(oran * 100)} otomatikleşti`;
+  halka.style.strokeDashoffset = String(HALKA_CEVRE * (1 - d.H));
+  // Asla düşmeyen sayılar: toplam tekrar ve ulaşılan en yüksek güç (iz)
+  const iz = d.P - d.H > 0.02 ? ` · en yüksek %${Math.round(d.P * 100)}` : '';
+  $('det-percent').textContent = `${d.toplamTekrar} tekrar${iz}`;
 
   // Son 30 gün: yapıldı / kaçırıldı / bugün
   const cal = $('det-calendar');
@@ -320,6 +327,19 @@ function cizDetay() {
     dot.className = `cal-dot ${d.status}${d.isToday ? ' is-today' : ''}`;
     cal.appendChild(dot);
   });
+
+  // Geriye dönük kayıt: son 3 gün + bugün işaretlenebilir / geri alınabilir
+  const gecmis = $('det-gecmis');
+  gecmis.innerHTML = '';
+  for (let i = -3; i <= 0; i++) {
+    const key = addDays(bugun, i);
+    if (key < h.createdAt) continue;
+    const b = document.createElement('button');
+    b.className = `gun-btn${isDoneOn(h, key) ? ' done' : ''}`;
+    b.textContent = i === 0 ? 'Bugün' : i === -1 ? 'Dün' : gunAdi(key);
+    b.addEventListener('click', () => gunDegistir(h.id, key));
+    gecmis.appendChild(b);
+  }
 
   const btn = $('btn-do-today');
   const yapildi = isDoneOn(h, bugun);
@@ -342,6 +362,22 @@ function detayKapat() {
 }
 
 $('btn-close-detail').addEventListener('click', detayKapat);
+
+const GUN_ADLARI = ['Paz', 'Pzt', 'Sal', 'Çar', 'Per', 'Cum', 'Cmt'];
+function gunAdi(key) {
+  const [y, m, g] = key.split('-').map(Number);
+  return GUN_ADLARI[new Date(y, m - 1, g, 12).getDay()];
+}
+
+/** Geriye dönük işaret koy / kaldır (unutulan gün ya da yanlışlıkla basılan "yaptım") */
+function gunDegistir(id, key) {
+  const r = toggleDay(state, id, key, todayKey());
+  if (!r.changed) return;
+  state = r.state;
+  kaydet();
+  ciz();
+  if (r.reachedGoal) kutlamaGoster(state.habits.find((h) => h.id === id));
+}
 
 // "Bugün yaptım": günde yalnızca bir kez (detay kartı ve listedeki ✓ aynı işi yapar)
 function yaptimIsaretle(id) {
@@ -393,7 +429,7 @@ function uzunBasmaBagla(el, kisaDokunma, uzunBasma) {
 
 async function silmeOnayi(h) {
   const evet = await onayIste('Alışkanlık silinsin mi?',
-    `"${h.name}" ve ${doneCount(h)} günlük kaydı silinecek. Bu işlem geri alınamaz.`, 'Sil');
+    `"${h.name}" ve ${doneCount(h)} tekrarlık kaydı silinecek. Bu işlem geri alınamaz.`, 'Sil');
   if (!evet) return;
   state = removeHabit(state, h.id);
   if (seciliId === h.id) { seciliId = null; sahne.select(null); }
@@ -497,11 +533,11 @@ async function yedekGeldi(metin) {
   bildirimGoster('Yedek geri yüklendi');
 }
 
-// 66. gün kutlaması
+// Otomatik aşamasına ilk ulaşma kutlaması
 function kutlamaGoster(h) {
   if (!h) return;
   sahne.celebrate(h.id);
-  $('cel-sub').textContent = `"${h.name}" ${GOAL_DAYS} gündür nöral yolunda. Bazal gangliyona yerleşti!`;
+  $('cel-sub').textContent = `"${h.name}" bazal gangliyona yerleşti. Artık daha az çaba istiyor.`;
   $('celebration').classList.add('open');
   if (navigator.vibrate) navigator.vibrate([60, 80, 60, 80, 160]);
 }
@@ -538,15 +574,15 @@ function kacirilanlariKontrolEt() {
   if (kacirilan.length === 0) return;
   kacirilan.forEach((h, i) => setTimeout(() => sahne.flashMiss(h.id), 600 + i * 700));
   bildirimGoster(kacirilan.length === 1
-    ? `${kacirilan[0].name}: kaçırılan gün var — sayaç korunuyor`
-    : `${kacirilan.length} alışkanlıkta kaçırılan gün var — sayaçlar korunuyor`);
+    ? `${kacirilan[0].name}: küren biraz uykuya daldı; bir tekrar onu uyandırır`
+    : `${kacirilan.length} küre biraz uykuya daldı; bir tekrar onları uyandırır`);
   state = ackMisses(state, bugun); // Animasyon bir daha oynamasın
   kaydet();
 }
 
-/** Uygulama kapalıyken (bildirimden) 66. güne ulaşanlar için kutlamayı şimdi göster. */
+/** Uygulama kapalıyken (bildirimden) Otomatik'e ulaşanlar için kutlamayı şimdi göster. */
 function bekleyenKutlamalar() {
-  const h = pendingCelebrations(state)[0];
+  const h = pendingCelebrations(state, todayKey())[0];
   if (!h) return;
   state = markCelebrated(state, h.id);
   kaydet();

@@ -124,13 +124,13 @@
   <!-- SEÇİLİ ALIŞKANLIK DETAY KARTI (açılınca alttaki listenin yerini alır) -->
   <section id="detail-card">
     <div class="det-top">
-      <!-- İlerleme halkası: gün / 66 -->
+      <!-- Güç halkası: alışkanlık gücü (0–100) -->
       <div class="det-ring">
         <svg viewBox="0 0 64 64">
           <circle class="ring-bg" cx="32" cy="32" r="27" />
           <circle class="ring-fg" id="det-ring" cx="32" cy="32" r="27" />
         </svg>
-        <div class="ring-text"><b id="det-days">0</b><span>/66</span></div>
+        <div class="ring-text"><b id="det-days">0</b><span>%</span></div>
       </div>
       <div class="det-info">
         <div class="detail-title"><span id="det-name"></span></div>
@@ -146,13 +146,15 @@
     </div>
     <div class="cal-head"><span>Son 30 gün</span><span id="det-percent"></span></div>
     <div class="cal-strip" id="det-calendar"></div>
+    <!-- Unutulan günü işaretle / yanlış işareti geri al (son 3 gün + bugün) -->
+    <div class="gecmis-satir"><span>İşaretle</span><div class="gecmis-gunler" id="det-gecmis"></div></div>
     <button class="btn-Check" id="btn-do-today">Bugün yaptım</button>
   </section>
 
   <!-- ALT ALIŞKANLIK LİSTESİ -->
   <section class="bottom-sheet">
     <div class="sheet-header">
-      <span>Alışkanlıklarım · 66 gün</span>
+      <span>Alışkanlıklarım</span>
       <button class="add-btn" id="btn-add">＋ Ekle</button>
     </div>
     <div class="habit-list" id="habit-list-el"></div>
@@ -203,7 +205,7 @@
     </div>
   </div>
 
-  <!-- 66. GÜN KUTLAMASI -->
+  <!-- OTOMATİK AŞAMASINA ULAŞMA KUTLAMASI -->
   <div id="celebration">
     <div class="cel-ring"></div><div class="cel-ring"></div><div class="cel-ring"></div>
     <div class="cel-orb"></div>

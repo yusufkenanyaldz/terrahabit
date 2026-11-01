@@ -3,7 +3,7 @@ package com.noralaliskanlik
 import android.content.Context
 import org.json.JSONArray
 import org.json.JSONObject
-import java.time.LocalDate
+import java.time.LocalDateTime
 
 /**
  * Alışkanlık verisinin tek kaynağı: SharedPreferences içinde tek bir JSON metni.
@@ -15,6 +15,12 @@ object HabitStore {
     private const val PREFS = "noral_aliskanlik"
     private const val KEY_DATA = "data"
     private const val KEY_SETTINGS = "settings"
+
+    /** Gün bu saatte başlar — JS'teki parametreler.js GUN_BASLANGIC_SAATI ile AYNI olmalı. */
+    private const val GUN_BASLANGIC_SAATI = 4L
+
+    /** Bugünün anahtarı (YYYY-MM-DD): gece 01:00 hâlâ önceki gün sayılır. */
+    fun todayKey(): String = LocalDateTime.now().minusHours(GUN_BASLANGIC_SAATI).toLocalDate().toString()
 
     /** Kayıtlı JSON'u döndürür; hiç kayıt yoksa boş metin. */
     fun load(context: Context): String =
@@ -46,7 +52,7 @@ object HabitStore {
         return try {
             val root = JSONObject(raw)
             val habits = root.optJSONArray("habits") ?: return false
-            val today = LocalDate.now().toString()
+            val today = todayKey()
             for (i in 0 until habits.length()) {
                 val h = habits.optJSONObject(i) ?: continue
                 if (h.optString("id") != habitId) continue
@@ -70,7 +76,7 @@ object HabitStore {
         val raw = load(context)
         if (raw.isBlank()) return emptyList()
         return try {
-            val today = LocalDate.now().toString() // YYYY-MM-DD, yerel saat
+            val today = todayKey() // YYYY-MM-DD, yerel saat
             val habits: JSONArray = JSONObject(raw).optJSONArray("habits") ?: return emptyList()
             (0 until habits.length()).mapNotNull { i ->
                 val h = habits.optJSONObject(i) ?: return@mapNotNull null

@@ -12,7 +12,7 @@ import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
-import { GOAL_DAYS } from './habits.js';
+import { yolKonumu } from './guc.js';
 
 const MAX_PIXEL_RATIO = 2;
 const BLOOM_SCALE = 0.5; // Bloom, ekran çözünürlüğünün yarısında hesaplanır
@@ -29,12 +29,15 @@ export function hesaplaAsamaRengi(oran, hedefRenk = new THREE.Color()) {
   return hedefRenk;
 }
 
-/** Gün sayısına göre aşama bilgisi (orijinal eşikler). */
-export function asamaBilgisiGetir(gun) {
-  if (gun <= 15) return { ad: '1. Aşama: Çaba (Prefrontal)', kisa: 'Çaba', hex: '#ff7b1c' };
-  if (gun <= 40) return { ad: '2. Aşama: Tekrar', kisa: 'Tekrar', hex: '#a855f7' };
-  if (gun < GOAL_DAYS) return { ad: '3. Aşama: Yerleşiyor', kisa: 'Yerleşiyor', hex: '#6366f1' };
-  return { ad: '4. Aşama: Otomatik (Bazal Gangliyon)', kisa: 'Otomatik', hex: '#00e5ff' };
+/** Aşama bilgisi (0 Çaba, 1 Tekrar, 2 Yerleşiyor, 3 Otomatik) — guc.js hesaplar. */
+const ASAMALAR = [
+  { ad: '1. Aşama: Çaba (Prefrontal)', kisa: 'Çaba', hex: '#ff7b1c' },
+  { ad: '2. Aşama: Tekrar', kisa: 'Tekrar', hex: '#a855f7' },
+  { ad: '3. Aşama: Yerleşiyor', kisa: 'Yerleşiyor', hex: '#6366f1' },
+  { ad: '4. Aşama: Otomatik (Bazal Gangliyon)', kisa: 'Otomatik', hex: '#00e5ff' },
+];
+export function asamaBilgisiGetir(asama) {
+  return ASAMALAR[Math.max(0, Math.min(3, asama))];
 }
 
 /**
@@ -326,6 +329,7 @@ export function createBrainScene({ container, labelsContainer, leaderSvg, ayarla
     kureler.forEach((k) => {
       k.mesh.material.depthTest = derinlikTesti;
       k.halo.material.depthTest = derinlikTesti;
+      k.iz.material.depthTest = derinlikTesti;
     });
   }
 
@@ -565,6 +569,7 @@ export function createBrainScene({ container, labelsContainer, leaderSvg, ayarla
   // Ortak geometriler: tüm alışkanlık küreleri aynı geometriyi paylaşır.
   const kureGeo = new THREE.SphereGeometry(0.104, 32, 32);
   const haloGeo = new THREE.SphereGeometry(0.168, 24, 24);
+  const izGeo = new THREE.RingGeometry(0.12, 0.14, 40);
 
   /** Alışkanlık küreleri: id -> nesne. Sıra listeyle aynı tutulur. */
   const kureler = new Map();
@@ -588,6 +593,16 @@ export function createBrainScene({ container, labelsContainer, leaderSvg, ayarla
     grup.add(halo);
     scene.add(grup);
 
+    // "İz" halkası: ulaşılan en yüksek gücün (P) yerinde soluk bir halka.
+    // "Daha önce buraya ulaştın, geri dönüş daha hızlı" mesajı (Spesifikasyon §3.5).
+    const iz = new THREE.Mesh(izGeo, new THREE.MeshBasicMaterial({
+      color: 0xffffff, transparent: true, opacity: 0, side: THREE.DoubleSide,
+      depthWrite: false, depthTest: !seffafModAcik,
+    }));
+    iz.renderOrder = 24;
+    iz.visible = false;
+    scene.add(iz);
+
     const labelEl = document.createElement('div');
     labelEl.className = 'scene-label label-habit';
     labelEl.innerHTML = '<span class="dot"></span><span class="lbl-text"></span>';
@@ -595,9 +610,10 @@ export function createBrainScene({ container, labelsContainer, leaderSvg, ayarla
     labelsContainer.appendChild(labelEl);
 
     return {
-      id, grup, mesh, halo, labelEl,
+      id, grup, mesh, halo, iz, labelEl,
       svgBag: olusturSvgBaglantiElemanlari('#ff7b1c'),
-      gun: 0, mevcutOran: 0, hedefOran: 0,
+      asama: 0, mevcutOran: 0, hedefOran: 0, izOran: 0,
+      parlaklik: 1, mevcutParlaklik: 1,
       kacirildiZamanlayici: 0, kutlamaZamanlayici: 0,
       etiketGenislik: 115,
     };
@@ -605,8 +621,10 @@ export function createBrainScene({ container, labelsContainer, leaderSvg, ayarla
 
   function kureSil(k) {
     scene.remove(k.grup);
+    scene.remove(k.iz);
     k.mesh.material.dispose();
     k.halo.material.dispose();
+    k.iz.material.dispose();
     k.labelEl.remove();
     k.svgBag.polyline.remove();
     k.svgBag.dot.remove();
@@ -614,7 +632,7 @@ export function createBrainScene({ container, labelsContainer, leaderSvg, ayarla
 
   /**
    * Küreleri alışkanlık listesine göre günceller.
-   * @param {{id:string, name:string, count:number}[]} list
+   * @param {{id:string, name:string, H:number, P:number, asama:number, son7Oran:number}[]} list
    */
   function setHabits(list) {
     const ids = new Set(list.map((h) => h.id));
@@ -624,14 +642,16 @@ export function createBrainScene({ container, labelsContainer, leaderSvg, ayarla
       let k = kureler.get(h.id);
       const yeni = !k;
       if (!k) k = kureOlustur(h.id);
-      k.gun = h.count;
-      k.hedefOran = Math.min(h.count / GOAL_DAYS, 1);
-      if (yeni) k.mevcutOran = k.hedefOran;
-      const asama = asamaBilgisiGetir(h.count);
+      k.asama = h.asama;
+      k.hedefOran = yolKonumu(h.H);   // Konum = alışkanlık gücü (parçalı eşleme)
+      k.izOran = yolKonumu(h.P);      // İz = ulaşılan en yüksek güç
+      k.parlaklik = h.son7Oran;       // Parlaklık = son 7 günün performansı
+      if (yeni) { k.mevcutOran = k.hedefOran; k.mevcutParlaklik = k.parlaklik; }
+      const asama = asamaBilgisiGetir(h.asama);
       const dotEl = k.labelEl.querySelector('.dot');
       dotEl.style.background = asama.hex;
       dotEl.style.color = asama.hex;
-      k.labelEl.querySelector('.lbl-text').textContent = `${h.name} · G${h.count}`;
+      k.labelEl.querySelector('.lbl-text').textContent = `${h.name} · %${Math.round(h.H * 100)}`;
       k.svgBag.polyline.setAttribute('stroke', asama.hex);
       k.svgBag.dot.setAttribute('fill', asama.hex);
       // Etiket genişliği yalnızca metin değişince ölçülür (her karede ölçmek yavaştır).
@@ -889,6 +909,24 @@ export function createBrainScene({ container, labelsContainer, leaderSvg, ayarla
   const geciciUst = new THREE.Vector3();
   const YUKARI = new THREE.Vector3(0, 1, 0);
   const DEMET_ARALIGI = 0.13; // kürelerin yoldan uzaklık adımı
+
+  /**
+   * Yol üzerindeki t (0..1) noktası; idx > 0 ise küre yolun etrafında kendi açısında
+   * biraz yana kayık durur (aynı güçteki alışkanlıklar üst üste binmesin).
+   */
+  function demetKonumu(tHam, idx, hedef) {
+    const t = Math.max(0, Math.min(1, tHam));
+    neuralCurve.getPointAt(t, hedef);
+    if (idx === 0) return hedef;
+    neuralCurve.getTangentAt(t, geciciTanjant);
+    geciciYan.crossVectors(geciciTanjant, YUKARI);
+    if (geciciYan.lengthSq() < 1e-6) geciciYan.set(1, 0, 0); // yol dikse
+    geciciYan.normalize();
+    geciciUst.crossVectors(geciciYan, geciciTanjant).normalize();
+    const aci = idx * 2.39996; // altın açı
+    const r = DEMET_ARALIGI * Math.sqrt(idx);
+    return hedef.addScaledVector(geciciYan, Math.cos(aci) * r).addScaledVector(geciciUst, Math.sin(aci) * r);
+  }
   const merkez = new THREE.Vector3(0, 0.04, 0);
 
   // Uyarlanabilir çözünürlük: telefon zorlanırsa (2 sn boyunca < 45 fps) çizim
@@ -961,9 +999,13 @@ export function createBrainScene({ container, labelsContainer, leaderSvg, ayarla
 
     let idx = 0;
     kureler.forEach((k) => {
-      k.mevcutOran += (k.hedefOran - k.mevcutOran) * yumusat(5.0, dt);
+      // Geri hareket ileri hareketten daha yavaş ve sakin (Spesifikasyon §3.5)
+      const geri = k.hedefOran < k.mevcutOran;
+      k.mevcutOran += (k.hedefOran - k.mevcutOran) * yumusat(geri ? 1.5 : 5.0, dt);
+      k.mevcutParlaklik += (k.parlaklik - k.mevcutParlaklik) * yumusat(2.0, dt);
       let egriOrani = k.mevcutOran;
-      let emissiveYogunluk = 2.8;
+      // Önce ışık, sonra konum: birkaç gün kaçırılınca küre yerinden oynamadan sönükleşir
+      let emissiveYogunluk = 2.8 * (0.3 + 0.7 * k.mevcutParlaklik);
 
       // Kaçırılan gün: sönükleş ve titre
       if (k.kacirildiZamanlayici > 0) {
@@ -973,33 +1015,31 @@ export function createBrainScene({ container, labelsContainer, leaderSvg, ayarla
         emissiveYogunluk = 0.45;
       }
 
-      const t = Math.max(0, Math.min(1, egriOrani));
-      neuralCurve.getPointAt(t, k.grup.position);
-      // Aynı güne yakın alışkanlıklar üst üste binmesin: her küre yolun etrafında
-      // kendi açısında, biraz yana kayık durur (ilk küre tam yolun üstünde).
-      if (idx > 0) {
-        neuralCurve.getTangentAt(t, geciciTanjant);
-        geciciYan.crossVectors(geciciTanjant, YUKARI);
-        if (geciciYan.lengthSq() < 1e-6) geciciYan.set(1, 0, 0); // yol dikse
-        geciciYan.normalize();
-        geciciUst.crossVectors(geciciYan, geciciTanjant).normalize();
-        const aci = idx * 2.39996; // altın açı
-        const r = DEMET_ARALIGI * Math.sqrt(idx);
-        k.grup.position.addScaledVector(geciciYan, Math.cos(aci) * r).addScaledVector(geciciUst, Math.sin(aci) * r);
+      demetKonumu(egriOrani, idx, k.grup.position);
+
+      // İz halkası: güç, ulaşılan en yüksek seviyenin belirgin altındaysa görünür
+      const izGorunur = k.izOran - k.mevcutOran > 0.02;
+      k.iz.visible = izGorunur;
+      if (izGorunur) {
+        demetKonumu(k.izOran, idx, k.iz.position);
+        k.iz.lookAt(camera.position);
+        hesaplaAsamaRengi(k.izOran, geciciRenk);
+        k.iz.material.color.copy(geciciRenk);
+        k.iz.material.opacity = 0.35 + Math.sin(elapsed * 1.5 + idx) * 0.08;
       }
 
       hesaplaAsamaRengi(k.mevcutOran, geciciRenk);
-      k.halo.material.color.copy(geciciRenk).multiplyScalar(1.8);
+      k.halo.material.color.copy(geciciRenk).multiplyScalar(1.8 * (0.4 + 0.6 * k.mevcutParlaklik));
       k.mesh.material.color.copy(geciciRenk);
       k.mesh.material.emissive.copy(geciciRenk);
       k.mesh.material.emissiveIntensity = emissiveYogunluk;
 
       let olcek;
-      if (k.gun >= GOAL_DAYS) olcek = 1.0 + Math.sin(elapsed * 2.6 + idx) * 0.16;
-      else if (k.gun <= 15) olcek = 1.0 + Math.sin(elapsed * 8.0 + idx) * 0.06;
+      if (k.asama === 3) olcek = 1.0 + Math.sin(elapsed * 2.6 + idx) * 0.16;
+      else if (k.asama === 0) olcek = 1.0 + Math.sin(elapsed * 8.0 + idx) * 0.06;
       else olcek = 1.0;
 
-      // 66. gün kutlaması: büyük parlama dalgası (~2.5 sn)
+      // Otomatik'e ulaşma kutlaması: büyük parlama dalgası (~2.5 sn)
       if (k.kutlamaZamanlayici > 0) {
         k.kutlamaZamanlayici = Math.max(0, k.kutlamaZamanlayici - dt * 0.4);
         const dalga = Math.sin(k.kutlamaZamanlayici * Math.PI);

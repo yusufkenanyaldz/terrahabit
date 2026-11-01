@@ -1,8 +1,7 @@
 // Alışkanlık mantığı: saf fonksiyonlar, DOM/Three.js yok. Testleri: NoralAliskanlik/tests
 import { addDays } from './clock.js';
-
-/** Bir alışkanlığın "otomatik" sayılması için gereken gün sayısı. */
-export const GOAL_DAYS = 66;
+import { computeState, OTOMATIK } from './guc.js';
+import { GERIYE_DONUK_GUN } from './parametreler.js';
 /** Kayıt biçimi sürümü. Alan eklerken artır ve migrate() içine taşıma adımı yaz. */
 export const SCHEMA_VERSION = 1;
 
@@ -83,8 +82,8 @@ export function updateHabit(state, id, { name, icon, time }) {
  * 66 güne ulaşmış ama kutlaması gösterilmemiş alışkanlıklar
  * (ör. bildirimdeki "Yaptım" ile, uygulama kapalıyken tamamlananlar).
  */
-export function pendingCelebrations(state) {
-  return state.habits.filter((h) => h.done.length >= GOAL_DAYS && !h.celebrated);
+export function pendingCelebrations(state, today) {
+  return state.habits.filter((h) => !h.celebrated && computeState(h, today).asama === OTOMATIK);
 }
 
 /** Kutlama gösterildi olarak işaretle. */
@@ -103,29 +102,43 @@ export function isDoneOn(habit, key) {
 
 /**
  * "Bugün yaptım". Günde yalnızca bir kez sayılır.
- * Dönüş: { state, changed, reachedGoal } — reachedGoal: tam bu tıklamayla 66'ya ulaşıldı.
+ * Dönüş: { state, changed, reachedGoal } — reachedGoal: bu işaretle ilk kez Otomatik aşamasına ulaşıldı.
  */
 export function markDone(state, id, today) {
   const habit = state.habits.find((h) => h.id === id);
   if (!habit || isDoneOn(habit, today)) return { state, changed: false, reachedGoal: false };
-  const done = [...habit.done, today].sort();
-  const reachedGoal = done.length >= GOAL_DAYS && !habit.celebrated;
+  return gunleriDegistir(state, habit, [...habit.done, today].sort(), today);
+}
+
+/** Tarih aralığı içinde mi: bugün ve geriye dönük serbest düzenleme penceresi. */
+export function isEditable(habit, key, today) {
+  return key <= today && key >= addDays(today, -GERIYE_DONUK_GUN) && key >= habit.createdAt;
+}
+
+/**
+ * Geriye dönük kayıt (Spesifikasyon kural 9): bugün ve son 3 gün işaretlenebilir
+ * ya da işareti kaldırılabilir. Daha eski günlere dokunulmaz.
+ */
+export function toggleDay(state, id, key, today) {
+  const habit = state.habits.find((h) => h.id === id);
+  if (!habit || !isEditable(habit, key, today)) return { state, changed: false, reachedGoal: false };
+  const done = isDoneOn(habit, key) ? habit.done.filter((d) => d !== key) : [...habit.done, key].sort();
+  return gunleriDegistir(state, habit, done, today);
+}
+
+function gunleriDegistir(state, habit, done, today) {
+  const reachedGoal = !habit.celebrated && computeState({ ...habit, done }, today).asama === OTOMATIK;
   const updated = { ...habit, done, celebrated: habit.celebrated || reachedGoal };
   return {
-    state: { ...state, habits: state.habits.map((h) => (h.id === id ? updated : h)) },
+    state: { ...state, habits: state.habits.map((h) => (h.id === habit.id ? updated : h)) },
     changed: true,
     reachedGoal,
   };
 }
 
-/** Tamamlanan gün sayısı (sayaç asla sıfırlanmaz). */
+/** Toplam tamamlama sayısı (asla düşmez; motivasyon için gösterilir). */
 export function doneCount(habit) {
   return habit.done.length;
-}
-
-/** İlerleme 0..1 = tamamlanan gün / 66. */
-export function progress(habit) {
-  return Math.min(habit.done.length / GOAL_DAYS, 1);
 }
 
 /** Bu alışkanlık için, son onaydan (missAck) sonra dünden geriye kaçırılan günler. */
@@ -166,7 +179,7 @@ export function last30(habit, today) {
     else if (key === today) status = 'today';
     else if (key < habit.createdAt) status = 'none';
     else status = 'missed';
-    days.push({ key, status, isToday: key === today });
+    days.push({ key, status, isToday: key === today, duzenlenebilir: isEditable(habit, key, today) });
   }
   return days;
 }
