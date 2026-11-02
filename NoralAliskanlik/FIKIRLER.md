@@ -37,6 +37,23 @@ _2 Kasım 2026 — Claude (grafik çalışırken fark edildi)_
 beyindeki küreye ve widget'a bakarken "Tekrar" mı "Yerleşiyor" mu belli olmuyor. Çözüm: 3. aşamayı
 mora değil maviye/turkuaza doğru kaydırmak (0. turuncu → 3. camgöbeği geçişi zaten o yönde).
 
+### 4. Şeffaf arka planlı ikon
+_2 Kasım 2026 — kullanıcı_
+
+Yeni beyin görseli ikon olarak, arka plan zemini olmadan kullanılsın: ana ekranda boşlukta
+duran bir beyin gibi görünsün. Kaynak resim depoda: `tasarim/ikon-kaynak-2026-11-02.png`
+(1024×1024; koyu lacivert zemin ve altta "AI tarafından oluşturulan içerik" yazısı temizlenmeli).
+
+Bilinmesi gerekenler:
+- **Mümkün**, zorunlu bir arka plan yok. Uyarlanabilir ikonun arka plan katmanı şeffaf bırakılır.
+- **Samsung "simge çerçeveleri" ayarı** açıksa telefon şeffaf ikonların arkasına kendi beyaz/gri
+  çerçevesini koyar. Kullanıcının ayarı, bizim elimizde değil.
+- **Kırpma**: telefon ikonu daire/kare/damla şekline kırpar, kenarlar kaybolur. Şeffaf zeminde
+  bu daha çok göze batar, beyin güvenli alanın içine çekilmeli.
+- Karar için iki sürüm (zeminli / zeminsiz) derlenip telefonda karşılaştırılmalı.
+
+Şu anki ikon: düz renk zemin `#282725` + beyin ön katmanı.
+
 ## Claude'un önerdikleri (kullanıcı henüz seçmedi)
 
 1. **Otomatik yedekleme** — haftada bir sessizce İndirilenler'e yedek. Küçük iş, en çok değeri
@@ -55,3 +72,23 @@ Beyni canlı duvar kağıdına gömüp üstüne şeffaf buton widget'ı koymak. 
 Three.js canlı duvar kağıdında çalışmaz, sahnenin tamamı Kotlin + OpenGL ES ile baştan
 yazılmalı; ayrıca duvar kağıdı sayfa kaydırınca widget'tan ayrılıyor, telefonun fotoğraf
 duvar kağıdı kaybediliyor ve sürekli dönen sahne pil yakıyor.
+
+## Bilgi notları
+
+Soruldu, cevaplandı; bir daha sorulmasın diye burada.
+
+### Otomatiklik anketi (SRBAI) ne işe yarıyor?
+_2 Kasım 2026_
+
+Modelin kendini kişiye göre ayarlaması için. Güç bir formülle hesaplanıyor ama formül "ortalama
+insan"a göre; anket, hesaplanan sayıyı kişinin gerçekte ne hissettiğiyle karşılaştırıyor.
+
+14 günde bir (bakım modunda 30 günde bir) ve her aşama yükselişinde dört madde sorulur, her biri
+1–7: "Otomatik olarak yaparım", "Bilinçli olarak hatırlamaya gerek duymadan yaparım", "Düşünmeden
+yaparım", "Farkına varmadan yapmaya başlarım". Bunlar psikolojideki standart **SRBAI** ölçeği.
+Ortalama 0–1 arası otomatiklik puanına (S) çevrilir.
+
+Üst üste **iki** ölçümde S ile hesaplanan H arasında aynı yönde %15'ten fazla fark olursa, kişisel
+hedef süre T %10 kaydırılır (30–150 gün arası). Tek ölçüm yetmez: bir günlük ruh hali modeli
+savurmasın diye. ⚙ menüsünden kapatılabilir; kapalıyken model herkes için geçerli ortalama süreyi
+kullanır. Kod: `habits.js` (srbaiPuani, srbaiDue, addSrbai), `guc.js` (olcumleriUygula).
