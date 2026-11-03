@@ -59,7 +59,7 @@ class AliskanlikWidget : AppWidgetProvider() {
         const val ACTION_ISARETLE = "com.noralaliskanlik.WIDGET_ISARETLE"
         private const val EXTRA_SAYAC = "sayac"
         private const val EN_COK_SATIR = 4
-        private const val SATIR_DP = 56f         // Bir satırın içeriği: iki 28 dp'lik sıra
+        private const val SATIR_DP = 38f         // Bir satırın içeriği: tek 28 dp'lik sıra + boşluk
 
         // Düzendeki oranlar (widget_aliskanlik.xml ağırlıklarıyla AYNI olmalı)
         private const val BEYIN_PAY = 0.55f      // Beyin sütunu genişliği
@@ -110,13 +110,11 @@ class AliskanlikWidget : AppWidgetProvider() {
             views.removeAllViews(R.id.widget_satirlar)
             satirlar.forEach { s ->
                 val satir = RemoteViews(pkg, R.layout.widget_satir)
-                satir.setTextViewText(R.id.satir_ad, s.ad)
-                // Alışkanlığın simgesi, aşama renginde (beyaz çizim boyanır)
+                // Ad yazmıyor: alışkanlık simgesinden tanınıyor (aşama renginde)
                 satir.setImageViewResource(R.id.satir_ikon, ikonKaynagi(s.ikon))
                 satir.setInt(R.id.satir_ikon, "setColorFilter", s.renk)
                 satir.setTextViewText(R.id.satir_yuzde, s.bilgi)
                 satir.setTextColor(R.id.satir_yuzde, s.renk)
-                satir.setOnClickPendingIntent(R.id.satir_ad, uygulamayiAc)
                 satir.setOnClickPendingIntent(R.id.satir_ikon, uygulamayiAc)
                 // Aşama renginde güç çubuğu (4 renkten biri görünür; API 26 uyumlu yol)
                 val barlar = intArrayOf(R.id.satir_bar0, R.id.satir_bar1, R.id.satir_bar2, R.id.satir_bar3)
@@ -236,10 +234,10 @@ class AliskanlikWidget : AppWidgetProvider() {
                 val yayilma = (i - (satirlar.size - 1) / 2f) * 0.07f
                 val bx = gx + BEYIN_EN * olcek * (PFC_X + (BG_X - PFC_X) * t - abs(yayilma) * 0.03f)
                 val by = gy + BEYIN_BOY * olcek * (PFC_Y + (BG_Y - PFC_Y) * t + yayilma)
-                // Bitiş: satırın güç çubuğu hizası (içerik satırda ortalı; çubuk alt sıranın ortası:
-                // satır ortası + 14 dp), sağ sütunun hemen solu
+                // Bitiş: satırın ortası (tek sıra), sağ sütunun hemen solu — yol doğrudan
+                // alışkanlığın simgesinin yanında biter
                 val ex = solDp - 2f
-                val ey = satirBoy * i + satirBoy / 2f + SATIR_DP / 4f
+                val ey = satirBoy * i + satirBoy / 2f
                 val yol = Path().apply {
                     moveTo(px(bx), py(by))
                     val ortaX = (bx + ex) / 2f

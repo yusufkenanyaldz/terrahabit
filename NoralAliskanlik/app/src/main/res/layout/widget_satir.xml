@@ -1,5 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Widget'ta bir alışkanlık: üstte ad (+ miktarlıda "+"), altta güç çubuğu, yüzde ve onay.
+<!-- Widget'ta bir alışkanlık, tek satır: simge, güç çubuğu, yüzde ve düğmeler.
+     Ad yazmıyor (kullanıcı isteği); alışkanlık simgesinden tanınıyor ve beyinden
+     gelen yol doğrudan simgenin yanında bitiyor.
      Yükseklik eşit paylaşılır (weight=1): yollar her satırın ortasına bağlanır. -->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:id="@+id/satir_kok"
@@ -7,101 +9,66 @@
     android:layout_height="0dp"
     android:layout_weight="1"
     android:gravity="center_vertical"
-    android:orientation="vertical">
+    android:orientation="horizontal">
 
-    <LinearLayout
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:gravity="center_vertical"
-        android:orientation="horizontal">
-        <!-- Simge ve ad birlikte sağa yaslanır; uzun ad simgeyi itmez, kendisi kısalır -->
-        <LinearLayout
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_weight="1"
-            android:gravity="end|center_vertical"
-            android:orientation="horizontal">
-            <ImageView
-                android:id="@+id/satir_ikon"
-                android:layout_width="15dp"
-                android:layout_height="15dp"
-                android:layout_marginEnd="5dp"
-                android:contentDescription="@null" />
-            <TextView
-                android:id="@+id/satir_ad"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:ellipsize="end"
-                android:fontFamily="sans-serif-medium"
-                android:gravity="end"
-                android:letterSpacing="0.04"
-                android:maxLines="1"
-                android:shadowColor="#E6000000"
-                android:shadowRadius="8"
-                android:textAllCaps="true"
-                android:textColor="#F8FAFC"
-                android:textSize="14sp" />
-        </LinearLayout>
-        <!-- Sağ kenar boşluğu: ad, alttaki onay düğmesiyle aynı hizada bitsin -->
-        <FrameLayout
-            android:layout_width="4dp"
-            android:layout_height="28dp" />
-    </LinearLayout>
+    <ImageView
+        android:id="@+id/satir_ikon"
+        android:layout_width="19dp"
+        android:layout_height="19dp"
+        android:layout_marginEnd="7dp"
+        android:contentDescription="@null" />
 
-    <LinearLayout
-        android:layout_width="match_parent"
+    <FrameLayout
+        android:layout_width="0dp"
+        android:layout_height="4dp"
+        android:layout_weight="1">
+        <ProgressBar android:id="@+id/satir_bar0" style="@android:style/Widget.ProgressBar.Horizontal"
+            android:layout_width="match_parent" android:layout_height="4dp" android:max="100"
+            android:progressDrawable="@drawable/widget_bar_0" android:visibility="gone" />
+        <ProgressBar android:id="@+id/satir_bar1" style="@android:style/Widget.ProgressBar.Horizontal"
+            android:layout_width="match_parent" android:layout_height="4dp" android:max="100"
+            android:progressDrawable="@drawable/widget_bar_1" android:visibility="gone" />
+        <ProgressBar android:id="@+id/satir_bar2" style="@android:style/Widget.ProgressBar.Horizontal"
+            android:layout_width="match_parent" android:layout_height="4dp" android:max="100"
+            android:progressDrawable="@drawable/widget_bar_2" android:visibility="gone" />
+        <ProgressBar android:id="@+id/satir_bar3" style="@android:style/Widget.ProgressBar.Horizontal"
+            android:layout_width="match_parent" android:layout_height="4dp" android:max="100"
+            android:progressDrawable="@drawable/widget_bar_3" android:visibility="gone" />
+    </FrameLayout>
+
+    <TextView
+        android:id="@+id/satir_yuzde"
+        android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:gravity="center_vertical"
-        android:orientation="horizontal">
-        <FrameLayout
-            android:layout_width="0dp"
-            android:layout_height="4dp"
-            android:layout_weight="1">
-            <ProgressBar android:id="@+id/satir_bar0" style="@android:style/Widget.ProgressBar.Horizontal"
-                android:layout_width="match_parent" android:layout_height="4dp" android:max="100"
-                android:progressDrawable="@drawable/widget_bar_0" android:visibility="gone" />
-            <ProgressBar android:id="@+id/satir_bar1" style="@android:style/Widget.ProgressBar.Horizontal"
-                android:layout_width="match_parent" android:layout_height="4dp" android:max="100"
-                android:progressDrawable="@drawable/widget_bar_1" android:visibility="gone" />
-            <ProgressBar android:id="@+id/satir_bar2" style="@android:style/Widget.ProgressBar.Horizontal"
-                android:layout_width="match_parent" android:layout_height="4dp" android:max="100"
-                android:progressDrawable="@drawable/widget_bar_2" android:visibility="gone" />
-            <ProgressBar android:id="@+id/satir_bar3" style="@android:style/Widget.ProgressBar.Horizontal"
-                android:layout_width="match_parent" android:layout_height="4dp" android:max="100"
-                android:progressDrawable="@drawable/widget_bar_3" android:visibility="gone" />
-        </FrameLayout>
-        <TextView
-            android:id="@+id/satir_yuzde"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_marginStart="8dp"
-            android:layout_marginEnd="2dp"
-            android:fontFamily="sans-serif-medium"
-            android:textStyle="bold"
-            android:shadowColor="#E6000000"
-            android:shadowRadius="6"
-            android:textSize="12sp" />
-        <FrameLayout
-            android:id="@+id/satir_arti_alan"
-            android:layout_width="32dp"
-            android:layout_height="28dp">
-            <ImageView
-                android:id="@+id/satir_arti"
-                android:layout_width="26dp"
-                android:layout_height="26dp"
-                android:layout_gravity="center"
-                android:contentDescription="+1" />
-        </FrameLayout>
-        <FrameLayout
-            android:id="@+id/satir_onay_alan"
-            android:layout_width="34dp"
-            android:layout_height="28dp">
-            <ImageView
-                android:id="@+id/satir_onay"
-                android:layout_width="26dp"
-                android:layout_height="26dp"
-                android:layout_gravity="center"
-                android:contentDescription="Bugün yaptım" />
-        </FrameLayout>
-    </LinearLayout>
+        android:layout_marginStart="8dp"
+        android:layout_marginEnd="2dp"
+        android:fontFamily="sans-serif-medium"
+        android:textStyle="bold"
+        android:shadowColor="#E6000000"
+        android:shadowRadius="6"
+        android:textSize="12sp" />
+
+    <FrameLayout
+        android:id="@+id/satir_arti_alan"
+        android:layout_width="32dp"
+        android:layout_height="28dp">
+        <ImageView
+            android:id="@+id/satir_arti"
+            android:layout_width="26dp"
+            android:layout_height="26dp"
+            android:layout_gravity="center"
+            android:contentDescription="+1" />
+    </FrameLayout>
+
+    <FrameLayout
+        android:id="@+id/satir_onay_alan"
+        android:layout_width="34dp"
+        android:layout_height="28dp">
+        <ImageView
+            android:id="@+id/satir_onay"
+            android:layout_width="26dp"
+            android:layout_height="26dp"
+            android:layout_gravity="center"
+            android:contentDescription="Bugün yaptım" />
+    </FrameLayout>
 </LinearLayout>

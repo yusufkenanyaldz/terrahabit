@@ -562,18 +562,8 @@ export function createBrainScene({ container, labelsContainer, leaderSvg, ayarla
     return { polyline, dot };
   }
 
-  // Bölge etiketleri
-  const labelEffortEl = document.createElement('div');
-  labelEffortEl.className = 'scene-label label-effort';
-  labelEffortEl.textContent = 'ÇABA / Prefrontal Korteks';
-  labelsContainer.appendChild(labelEffortEl);
-  const svgEffortBag = olusturSvgBaglantiElemanlari('#ff7b1c');
-
-  const labelAutoEl = document.createElement('div');
-  labelAutoEl.className = 'scene-label label-auto';
-  labelAutoEl.textContent = 'OTOMATİK / Bazal Gangliyon';
-  labelsContainer.appendChild(labelAutoEl);
-  const svgAutoBag = olusturSvgBaglantiElemanlari('#00e5ff');
+  // Bölge etiketleri ("ÇABA / Prefrontal Korteks", "OTOMATİK / Bazal Gangliyon") kaldırıldı:
+  // beyin üzerinde yalnız alışkanlık etiketleri kalsın. Bölgeler zaten renkleriyle anlaşılıyor.
 
   // Ortak geometriler: tüm alışkanlık küreleri aynı geometriyi paylaşır.
   const kureGeo = new THREE.SphereGeometry(0.104, 32, 32);
@@ -819,13 +809,6 @@ export function createBrainScene({ container, labelsContainer, leaderSvg, ayarla
   function guncelleEtiketKonumlari() {
     const w = window.innerWidth;
     const h = window.innerHeight;
-    const kameraMesafesi = camera.position.distanceTo(controls.target);
-    const icYapilarGorunur = seffafModAcik || renderer.localClippingEnabled;
-    // Bir alışkanlık seçiliyken bölge etiketleri ve diğer alışkanlıkların etiketleri gizlenir.
-    // Üçten çok alışkanlıkta bölge etiketleri gizlenir: dar alanda alışkanlık
-    // etiketleriyle çakışıyorlardı.
-    const bolgeEtiketleriGorunur = !seciliId && kureler.size <= 3
-      && kameraMesafesi < 4.25 * MESAFE_CARPANI && icYapilarGorunur;
     aktifEtiketler.length = 0;
     let noktaSayisi = 0;
 
@@ -855,9 +838,6 @@ export function createBrainScene({ container, labelsContainer, leaderSvg, ayarla
       e.side = side; e.width = genislik;
       aktifEtiketler.push(e);
     }
-
-    projekteYanEtiket(prefrontalMarker.position, labelEffortEl, svgEffortBag, bolgeEtiketleriGorunur, 1, -34, 170);
-    projekteYanEtiket(basalMarker.position, labelAutoEl, svgAutoBag, bolgeEtiketleriGorunur, -1, -34, 175);
 
     let idx = 0;
     for (const k of kureler.values()) {
@@ -904,6 +884,8 @@ export function createBrainScene({ container, labelsContainer, leaderSvg, ayarla
     }
 
     // Üst bar ve alt panel ile çakışmasın; DOM'a yalnızca değişen değerleri yaz
+    // Şeffaf mod kapalıyken küreler beynin içinde kalıyor: etiketler de soluklaşır
+    const icYapilarGorunur = seffafModAcik || renderer.localClippingEnabled;
     const etiketOpak = icYapilarGorunur ? '1' : '0.45';
     const cizgiOpak = icYapilarGorunur ? '0.82' : '0.3';
     const noktaOpak = icYapilarGorunur ? '0.95' : '0.35';

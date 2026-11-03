@@ -107,18 +107,6 @@ html, body {
   transform: translate(-100%, -50%);
 }
 
-.label-effort {
-  color: #ffb074;
-  background: rgba(255, 123, 28, 0.16);
-  border: 1px solid rgba(255, 123, 28, 0.5);
-}
-
-.label-auto {
-  color: #7df4ff;
-  background: rgba(0, 229, 255, 0.16);
-  border: 1px solid rgba(0, 229, 255, 0.5);
-}
-
 .label-habit {
   color: #ffffff;
   background: rgba(12, 19, 36, 0.88);
