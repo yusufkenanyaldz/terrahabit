@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Uygulama simgesinin zemini: koyu uzay + beynin iki düğümünün ışığı.
+     Telefonun kendi çerçevesi devreye girince boş siyah kare yerine bu görünür.
+     108 dp tuvalde görünen alan ortadaki 72 dp; ışık merkezleri ona göre seçildi
+     (0,70 → görünen alanın sağ %80'i: turuncu düğüm; 0,33 → sol %25'i: camgöbeği). -->
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <item>
+        <color android:color="#080B16" />
+    </item>
+    <item>
+        <shape android:shape="rectangle">
+            <gradient
+                android:type="radial"
+                android:centerX="0.70"
+                android:centerY="0.50"
+                android:gradientRadius="28%p"
+                android:startColor="#4DFF7B1C"
+                android:endColor="#00FF7B1C" />
+        </shape>
+    </item>
+    <item>
+        <shape android:shape="rectangle">
+            <gradient
+                android:type="radial"
+                android:centerX="0.33"
+                android:centerY="0.52"
+                android:gradientRadius="24%p"
+                android:startColor="#3D00E5FF"
+                android:endColor="#0000E5FF" />
+        </shape>
+    </item>
+</layer-list>

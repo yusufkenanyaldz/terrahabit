@@ -44,8 +44,15 @@ HabitStore.kt, widget_bar_2 / widget_onay_bos_2 / widget_onay_dolu_2 / widget_ar
 beyindeki küreye ve widget'a bakarken "Tekrar" mı "Yerleşiyor" mu belli olmuyor. Çözüm: 3. aşamayı
 mora değil maviye/turkuaza doğru kaydırmak (0. turuncu → 3. camgöbeği geçişi zaten o yönde).
 
-### 4. Şeffaf arka planlı ikon
+### 4. Şeffaf arka planlı ikon — ZEMİNLİ ÇÖZÜMDE KARAR KILINDI (3 Kasım 2026)
 _2 Kasım 2026 — kullanıcı_
+
+**Sonuç:** Şeffaf sürüm derlendi ama S25'te telefon ikonun arkasına kendi siyah karesini koydu.
+Kullanıcı Ayarlar'da "simge" araması yaptı: 16 sonucun hiçbiri simge zemini/çerçevesiyle ilgili
+değil, yani One UI 8'de bu ayar yok. Bu yüzden zemini biz çizdik: `drawable/ikon_arka_plan.xml`
+(koyu uzay #080B16 + sağda turuncu, solda camgöbeği ışık; ışık merkezleri 108 dp tuvalde 0,70 ve
+0,33 — görünen 72 dp alanda beynin iki düğümüne denk gelir). Şeffaf hâle dönüş tek satır:
+`ic_launcher.xml` içinde background → `@android:color/transparent`.
 
 Yeni beyin görseli ikon olarak, arka plan zemini olmadan kullanılsın: ana ekranda boşlukta
 duran bir beyin gibi görünsün. Kaynak resim depoda: `tasarim/ikon-kaynak-2026-11-02.png`

@@ -1,8 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!-- Uyarlanabilir simge (Android 8+): telefon şekli (daire/damla/kare) kendisi kırpar.
-     Arka plan şeffaf: beyin ana ekranda zeminsiz, boşlukta durur. Zeminli hâline dönmek
-     için background satırını @color/ikon_arka_plan yap (renk values/colors.xml'de duruyor). -->
+     Zemin uygulamanın kendi koyu uzayı; telefonun simge çerçevesi devreye girse de
+     girmese de bilerek tasarlanmış görünür. Zeminsiz (şeffaf) hâli için background
+     satırını @android:color/transparent yap. -->
 <adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">
-    <background android:drawable="@android:color/transparent" />
+    <background android:drawable="@drawable/ikon_arka_plan" />
     <foreground android:drawable="@mipmap/ic_launcher_foreground" />
 </adaptive-icon>
