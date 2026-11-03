@@ -179,8 +179,16 @@ Hiçbiri engelleyici değil; (a) ve (b) en çok rahatsız edenler.
    olan madde; "veri asla kaybolmamalı" kuralını karşılar.
 2. **Akşam hatırlatması** — gün bitmeden yapılmamış olanlar için tek bildirim; dün kaçırıldıysa
    iki gün kuralını hatırlatan metin. Küçük iş.
-3. **İpucu alanı** — her alışkanlığa "ne zaman / nerede" satırı, bildirimde de görünür.
+3. **İpucu alanı** — her alışkanlığa **"neyin ardından"** satırı, bildirimde de görünür.
    Küçük iş, uygulamanın kimliğine yakışıyor.
+
+   _Düzeltme (3 Kasım 2026):_ Alan önce "ne zaman / nerede" diye tasarlanmıştı; kullanıcı
+   düzeltti. Yoğun ve gezgin bir günde sabit mekan yok: dün 10 sayfa yürürken, tramvay
+   durağında ve tramvayda, üç ayrı yerde okundu. Değişmeyen şey mekan değil **sıra**
+   ("evden çıkınca"). Alan bu yüzden mekan değil, **önceki olay** sorar. Yan not: değişken
+   bağlamda kurulan alışkanlık daha yavaş otomatikleşir ama tek bir bağlama kilitlenmediği
+   için o bağlam kaybolunca çökmez — kullanıcının eski bir yıllık okuma alışkanlığının
+   kaybolma sebebi muhtemelen tek bağlama bağlı olmasıydı.
 
 ## Vazgeçildi
 
