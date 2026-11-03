@@ -116,12 +116,7 @@ class AliskanlikWidget : AppWidgetProvider() {
                 satir.setTextViewText(R.id.satir_yuzde, s.bilgi)
                 satir.setTextColor(R.id.satir_yuzde, s.renk)
                 satir.setOnClickPendingIntent(R.id.satir_ikon, uygulamayiAc)
-                // Aşama renginde güç çubuğu (4 renkten biri görünür; API 26 uyumlu yol)
-                val barlar = intArrayOf(R.id.satir_bar0, R.id.satir_bar1, R.id.satir_bar2, R.id.satir_bar3)
-                barlar.forEachIndexed { i, bar ->
-                    satir.setViewVisibility(bar, if (i == s.asama) View.VISIBLE else View.GONE)
-                }
-                satir.setProgressBar(barlar[s.asama], 100, s.guc.coerceAtLeast(2), false)
+                satir.setOnClickPendingIntent(R.id.satir_yuzde, uygulamayiAc)
 
                 val pasif = s.durum == "duraklatildi" || s.durum == "plansiz"
                 satir.setFloat(R.id.satir_kok, "setAlpha", if (pasif) 0.55f else 1f)
@@ -139,7 +134,7 @@ class AliskanlikWidget : AppWidgetProvider() {
                 )
                 // "+" yalnızca miktarlı alışkanlıkta
                 satir.setImageViewResource(R.id.satir_arti, ARTI[s.asama])
-                // Miktarsız alışkanlıkta "+" yer kaplamasın (GONE): güç çubuğu uzar
+                // Miktarsız alışkanlıkta "+" yer kaplamasın (GONE)
                 satir.setViewVisibility(
                     R.id.satir_arti_alan,
                     when {

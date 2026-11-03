@@ -1,7 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Widget'ta bir alışkanlık, tek satır: simge, güç çubuğu, yüzde ve düğmeler.
-     Ad yazmıyor (kullanıcı isteği); alışkanlık simgesinden tanınıyor ve beyinden
-     gelen yol doğrudan simgenin yanında bitiyor.
+<!-- Widget'ta bir alışkanlık, tek satır: simge, sayılar, "+" ve onay.
+     Ad yazmıyor (kullanıcı isteği); alışkanlık simgesinden tanınıyor ve beyinden gelen
+     yol doğrudan simgenin yanında biter. Güç çubuğu kaldırıldı: sağ sütun dar olduğu için
+     zaten 20 dp'lik bir çubuğa sıkışıp yolun devamı gibi görünüyordu; aşama rengini
+     simge ve yüzde zaten taşıyor.
      Yükseklik eşit paylaşılır (weight=1): yollar her satırın ortasına bağlanır. -->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:id="@+id/satir_kok"
@@ -13,61 +15,45 @@
 
     <ImageView
         android:id="@+id/satir_ikon"
-        android:layout_width="19dp"
-        android:layout_height="19dp"
-        android:layout_marginEnd="7dp"
+        android:layout_width="18dp"
+        android:layout_height="18dp"
+        android:layout_marginEnd="6dp"
         android:contentDescription="@null" />
-
-    <FrameLayout
-        android:layout_width="0dp"
-        android:layout_height="4dp"
-        android:layout_weight="1">
-        <ProgressBar android:id="@+id/satir_bar0" style="@android:style/Widget.ProgressBar.Horizontal"
-            android:layout_width="match_parent" android:layout_height="4dp" android:max="100"
-            android:progressDrawable="@drawable/widget_bar_0" android:visibility="gone" />
-        <ProgressBar android:id="@+id/satir_bar1" style="@android:style/Widget.ProgressBar.Horizontal"
-            android:layout_width="match_parent" android:layout_height="4dp" android:max="100"
-            android:progressDrawable="@drawable/widget_bar_1" android:visibility="gone" />
-        <ProgressBar android:id="@+id/satir_bar2" style="@android:style/Widget.ProgressBar.Horizontal"
-            android:layout_width="match_parent" android:layout_height="4dp" android:max="100"
-            android:progressDrawable="@drawable/widget_bar_2" android:visibility="gone" />
-        <ProgressBar android:id="@+id/satir_bar3" style="@android:style/Widget.ProgressBar.Horizontal"
-            android:layout_width="match_parent" android:layout_height="4dp" android:max="100"
-            android:progressDrawable="@drawable/widget_bar_3" android:visibility="gone" />
-    </FrameLayout>
 
     <TextView
         android:id="@+id/satir_yuzde"
-        android:layout_width="wrap_content"
+        android:layout_width="0dp"
         android:layout_height="wrap_content"
-        android:layout_marginStart="8dp"
-        android:layout_marginEnd="2dp"
+        android:layout_weight="1"
+        android:ellipsize="end"
         android:fontFamily="sans-serif-medium"
-        android:textStyle="bold"
+        android:gravity="start|center_vertical"
+        android:maxLines="1"
         android:shadowColor="#E6000000"
         android:shadowRadius="6"
-        android:textSize="12sp" />
+        android:textSize="12sp"
+        android:textStyle="bold" />
 
     <FrameLayout
         android:id="@+id/satir_arti_alan"
-        android:layout_width="32dp"
+        android:layout_width="31dp"
         android:layout_height="28dp">
         <ImageView
             android:id="@+id/satir_arti"
-            android:layout_width="26dp"
-            android:layout_height="26dp"
+            android:layout_width="25dp"
+            android:layout_height="25dp"
             android:layout_gravity="center"
             android:contentDescription="+1" />
     </FrameLayout>
 
     <FrameLayout
         android:id="@+id/satir_onay_alan"
-        android:layout_width="34dp"
+        android:layout_width="31dp"
         android:layout_height="28dp">
         <ImageView
             android:id="@+id/satir_onay"
-            android:layout_width="26dp"
-            android:layout_height="26dp"
+            android:layout_width="25dp"
+            android:layout_height="25dp"
             android:layout_gravity="center"
             android:contentDescription="Bugün yaptım" />
     </FrameLayout>
