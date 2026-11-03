@@ -54,6 +54,42 @@ Bilinmesi gerekenler:
 
 Şu anki ikon: düz renk zemin `#282725` + beyin ön katmanı.
 
+### 5. Tasarım önerisi: ekleme ekranı ve detay kartı
+_3 Kasım 2026 — kullanıcı (karşılaştırmalı görseller)_
+
+Görseller: `tasarim/tasarim-onerisi-2026-11-03-ekleme.jpg` ve
+`tasarim/tasarim-onerisi-2026-11-03-detay.jpg` (solda öneri, sağda mevcut hâli).
+Not: kodlama yapılmadı, yalnızca değerlendirme.
+
+**Alınmaya değer bulunanlar**
+- **Büyük harf etiketlerin kalkması.** Mevcut formda her alanın üstünde İSİM / HATIRLATMA SAATİ /
+  SIKLIK gibi büyük harf etiket var; form gürültülü görünüyor. Öneride alan içi örnek metin ve
+  yan yana gruplama kullanılmış, çok daha sakin. Dikkat: etiket tamamen kalkarsa alan doldurulduktan
+  sonra neyin ne olduğu kaybolur; küçük/normal harf etiket kalsın.
+- **Alışkanlık simgeleri** (kitap, damla, beyin, ağırlık, kalp, ay). Çizgi simgeler emoji değil;
+  listede, beyindeki etiketlerde ve widget'ta alışkanlığı isimden önce tanıtır. Yeni bir simge seti
+  çizmek gerekir, en pahalı madde bu.
+- **Dairesel yüzde halkası yerine mini nöral yol.** Önerideki 0 → ~66 çizgisi üzerinde kayan küre,
+  ana sahnedeki yolun küçük hâli. Uygulamanın kendi diline mevcut halkadan daha çok yakışıyor.
+- **"Dün / Bugün" ayrımı.** Öneride Dün sönük, Bugün vurgulu; mevcutta ikisi de dolu turkuaz.
+  Hiyerarşi önerideki gibi olmalı.
+- **Beynin ekleme ekranında da görünür kalması.** Ama öneride olduğu gibi ayrı bir 2B çizim
+  eklemeye gerek yok: panel açılırken gerçek 3B beyni küçültmek yeterli, bunun altyapısı zaten var
+  (`setGorunurAlan`). İki ayrı beyin görseli zamanla birbirinden ayrı düşer.
+
+**İtirazlar**
+- **Kaydırarak onay ("küreyi kaydır").** Alışkanlık oluşturmak gibi nadir ve anlamlı bir iş için
+  hoş bir tören; ama öneri bunu günlük tamamlama için de kullanıyor. Her gün, her alışkanlık için
+  kaydırma = birikmiş sürtünme. Üstelik widget'tan tek dokunuşla işaretlenebiliyorken uygulama
+  içinde daha zahmetli olması tutarsız. Önerim: kaydırma yalnız nadir işlerde (ilk oluşturma,
+  silme, 66. gün kutlaması), günlük tamamlama tek dokunuş kalsın.
+- **Her yerde turuncu vurgu.** Öneride tüm arayüz turuncuya çekilmiş. Oysa turuncu bu uygulamada
+  bir anlam taşıyor: 1. aşama (Çaba). Arayüzün tamamı turuncu olursa aşama rengi anlamını yitirir.
+  Arayüz nötr kalmalı, renk yalnız aşamayı anlatmalı.
+
+**Maliyet**: simge seti dışındaki her şey arayüz katmanında (index.html + main.js). Modele,
+kayıt biçimine ve 3B sahneye dokunmaz.
+
 ## Claude'un önerdikleri (kullanıcı henüz seçmedi)
 
 1. **Otomatik yedekleme** — haftada bir sessizce İndirilenler'e yedek. Küçük iş, en çok değeri
