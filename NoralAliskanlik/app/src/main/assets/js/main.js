@@ -300,6 +300,7 @@ function ciz() {
     // Miktarlı alışkanlıkta onay yerine "+1" sayacı (iyide hedefe ulaşınca onay işareti)
     const sayac = d.miktar && !(h.tip !== 'kotu' && d.miktar.bugun >= d.miktar.hedef);
     const row = document.createElement('div');
+    row.dataset.id = h.id;
     row.className = `habit-item ${seciliId === h.id ? 'selected' : ''} ${bugunYapildi ? 'done-today' : ''} ${d.bugunDuraklatildi ? 'durakli' : ''}`;
     row.innerHTML = `
       <div class="habit-item-top">
@@ -318,9 +319,9 @@ function ciz() {
       e.stopPropagation();
       if (onayEl.dataset.uzun === '1') { onayEl.dataset.uzun = '0'; return; } // uzun basma zaten iş yaptı
       if (d.bugunDuraklatildi) bildirimGoster('Duraklatıldı — devam etmek için alışkanlığa dokun');
-      else if (sayac) miktarDegistir(h.id, todayKey(), +1);
+      else if (sayac) miktarDegistir(h.id, todayKey(), +1, row);
       else if (isDoneOn(h, todayKey())) bildirimGoster('Bugün zaten işaretli');
-      else yaptimIsaretle(h.id);
+      else yaptimIsaretle(h.id, row);
     });
     // "+1"e uzun basmak miktarı doğrudan hedefe çeker: 10 sayfalık alışkanlık için
     // listede 10 kez dokunmak gerekmesin (widget'taki ✓ de aynı işi yapıyor).
@@ -490,15 +491,26 @@ function cizDetay() {
 let miktarGun = null; // Miktarlı alışkanlıkta ayarlanan gün (varsayılan bugün)
 
 /** Miktarı değiştir (+1 / −1); son 3 gün + bugün. */
-function miktarDegistir(id, key, fark) {
+function miktarDegistir(id, key, fark, kaynakEl) {
   const h = state.habits.find((x) => x.id === id);
   if (!h) return;
   const simdi = amountOn(h, key) ?? 0;
   const r = setAmount(state, id, key, simdi + fark, todayKey());
   if (!r.changed) return;
+  const hedefeUlasti = h.miktar && key === todayKey()
+    && simdi < h.miktar.hedef && simdi + fark >= h.miktar.hedef;
   state = r.state;
   kaydet();
   ciz();
+  // Ödül yalnız günün hedefi tamamlanınca; ara adımlarda satır parlar ve titreşir
+  const el = kaynakEl ? $('habit-list-el').querySelector(`[data-id="${id}"]`) || kaynakEl : null;
+  if (hedefeUlasti && h.tip !== 'kotu') odulAnimasyonu(id, el);
+  else if (el) {
+    el.style.setProperty('--parla', asamaBilgisi(computeState(state.habits.find((x) => x.id === id), todayKey()).asama, h).hex);
+    el.classList.add('parladi');
+    setTimeout(() => el.classList.remove('parladi'), 700);
+    if (navigator.vibrate) navigator.vibrate(10);
+  }
   if (r.reachedGoal) kutlamaGoster(state.habits.find((x) => x.id === id));
 }
 $('miktar-arti').addEventListener('click', () => { if (seciliId) miktarDegistir(seciliId, miktarGun, +1); });
@@ -597,14 +609,68 @@ function gunDegistir(id, key) {
   if (r.reachedGoal) kutlamaGoster(state.habits.find((x) => x.id === id));
 }
 
+/**
+ * İşaretleme ödülü. Üç parça, hepsi kısa:
+ *  1. Dokunulan satır aşama renginde hafifçe parlar (parmağın altında, anında).
+ *  2. Panelin ARKASINDAN ince bir ışık çıkıp küreye doğru yükselir — havai fişek gibi
+ *     hızlı başlar, tepede yavaşlar. Panel yarı saydam ve bulanık olduğu için ışık
+ *     panelin altındayken sızıntı gibi görünür, üstüne çıkınca netleşir.
+ *  3. Küreye varınca küre parlar ve beyin kısa bir an aydınlanır (brain-scene).
+ * Her gün tekrarlanacağı için ses, konfeti ve puan yok; süre ~0,8 sn.
+ */
+function odulAnimasyonu(id, kaynakEl) {
+  const asama = (() => {
+    const h = state.habits.find((x) => x.id === id);
+    return h ? asamaBilgisi(computeState(h, todayKey()).asama, h).hex : '#00e5ff';
+  })();
+
+  // 1) Satır parlaması
+  if (kaynakEl) {
+    kaynakEl.style.setProperty('--parla', asama);
+    kaynakEl.classList.remove('parladi');
+    void kaynakEl.offsetWidth;            // animasyonu yeniden başlat
+    kaynakEl.classList.add('parladi');
+    setTimeout(() => kaynakEl.classList.remove('parladi'), 700);
+  }
+  if (navigator.vibrate) navigator.vibrate(15);
+
+  // 2) Işık: satırdan küreye
+  const hedef = sahne.kureEkranKonumu(id);
+  if (!hedef || window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+    if (hedef) sahne.tikParlamasi(id);
+    return;
+  }
+  const kutu = (kaynakEl || $('habit-list-el')).getBoundingClientRect();
+  const bas = { x: kutu.left + kutu.width / 2, y: kutu.top + kutu.height / 2 };
+  const dx = hedef.x - bas.x;
+  const dy = hedef.y - bas.y;
+  const aci = Math.atan2(dy, dx) * 180 / Math.PI + 90; // ışık kendi yönüne baksın
+
+  const isik = document.createElement('div');
+  isik.className = 'odul-isigi';
+  isik.style.setProperty('--renk', asama);
+  document.body.appendChild(isik);
+  const hareket = isik.animate([
+    { transform: `translate3d(${bas.x}px, ${bas.y}px, 0) rotate(${aci}deg) scaleY(0.5)`, opacity: 0.9 },
+    { transform: `translate3d(${bas.x + dx * 0.55}px, ${bas.y + dy * 0.55}px, 0) rotate(${aci}deg) scaleY(1)`, opacity: 1, offset: 0.45 },
+    { transform: `translate3d(${hedef.x}px, ${hedef.y}px, 0) rotate(${aci}deg) scaleY(0.35)`, opacity: 0 },
+  ], { duration: 520, easing: 'cubic-bezier(0.16, 0.7, 0.3, 1)' });
+  hareket.onfinish = () => {
+    isik.remove();
+    sahne.tikParlamasi(id);   // 3) küre parlar, beyin aydınlanır
+  };
+}
+
 // "Bugün yaptım": günde yalnızca bir kez (detay kartı ve listedeki ✓ aynı işi yapar)
-function yaptimIsaretle(id) {
+function yaptimIsaretle(id, kaynakEl) {
   const r = markDone(state, id, todayKey());
   if (!r.changed) return;
   state = r.state;
   kaydet();
   ciz();
   const h = state.habits.find((x) => x.id === id);
+  // Satır yeniden çizildi: parlayacak öğeyi listeden tazele
+  odulAnimasyonu(id, kaynakEl ? $('habit-list-el').querySelector(`[data-id="${id}"]`) || kaynakEl : null);
   if (r.reachedGoal) kutlamaGoster(h);
   else bildirimGoster(h.tip === 'kotu' ? 'Temiz bir gün daha — kontrol güçleniyor' : '+1 tekrar — nöral yol güçleniyor');
 }
@@ -613,10 +679,10 @@ $('btn-do-today').addEventListener('click', () => {
   const h = state.habits.find((x) => x.id === seciliId);
   // Miktarlı alışkanlık: bugünün miktarını hedefe çek
   if (h && h.miktar && h.tip !== 'kotu') {
-    miktarDegistir(h.id, todayKey(), h.miktar.hedef - (amountOn(h, todayKey()) ?? 0));
+    miktarDegistir(h.id, todayKey(), h.miktar.hedef - (amountOn(h, todayKey()) ?? 0), $('detail-card'));
     return;
   }
-  yaptimIsaretle(seciliId);
+  yaptimIsaretle(seciliId, $('detail-card'));
 });
 
 // -------------------------------------------------------------------------

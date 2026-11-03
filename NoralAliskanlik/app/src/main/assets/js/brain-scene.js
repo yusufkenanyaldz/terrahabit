@@ -613,7 +613,7 @@ export function createBrainScene({ container, labelsContainer, leaderSvg, ayarla
       svgBag: olusturSvgBaglantiElemanlari('#ff7b1c'),
       asama: 0, mevcutOran: 0, hedefOran: 0, izOran: 0,
       parlaklik: 1, mevcutParlaklik: 1,
-      kacirildiZamanlayici: 0, kutlamaZamanlayici: 0,
+      kacirildiZamanlayici: 0, kutlamaZamanlayici: 0, tikZamanlayici: 0,
       etiketGenislik: 115,
     };
   }
@@ -709,6 +709,29 @@ export function createBrainScene({ container, labelsContainer, leaderSvg, ayarla
   function celebrate(id) {
     const k = kureler.get(id);
     if (k) k.kutlamaZamanlayici = 1.0;
+  }
+
+  /**
+   * İşaretleme ödülü: alttaki listeden gelen ışık küreye varınca küre parlar ve
+   * beyin kısa bir an aydınlanır. Her gün tekrarlanacağı için kısa ve sessiz tutuldu.
+   */
+  function tikParlamasi(id) {
+    const k = kureler.get(id);
+    if (k) k.tikZamanlayici = 1.0;
+    beyinParlama = 1.0;
+  }
+  let beyinParlama = 0;
+
+  /** Kürenin ekrandaki yeri (piksel) — ödül animasyonunun hedefi. Görünmüyorsa null. */
+  function kureEkranKonumu(id) {
+    const k = kureler.get(id);
+    if (!k) return null;
+    tempProjVec.copy(k.grup.position).project(camera);
+    if (tempProjVec.z > 1) return null;
+    return {
+      x: (tempProjVec.x * 0.5 + 0.5) * window.innerWidth,
+      y: (-tempProjVec.y * 0.5 + 0.5) * window.innerHeight,
+    };
   }
 
   /** Ayar panelinden gelen değerleri uygula: model döndürme + bölge konumları. */
@@ -1042,6 +1065,12 @@ export function createBrainScene({ container, labelsContainer, leaderSvg, ayarla
       // Önce ışık, sonra konum: birkaç gün kaçırılınca küre yerinden oynamadan sönükleşir
       let emissiveYogunluk = 2.8 * (0.3 + 0.7 * k.mevcutParlaklik);
 
+      // İşaretleme parlaması: kısa ve belirgin bir aydınlanma
+      if (k.tikZamanlayici > 0) {
+        k.tikZamanlayici = Math.max(0, k.tikZamanlayici - dt * 2.2);
+        emissiveYogunluk += 5.5 * k.tikZamanlayici;
+      }
+
       // Kaçırılan gün: sönükleş ve titre
       if (k.kacirildiZamanlayici > 0) {
         k.kacirildiZamanlayici = Math.max(0, k.kacirildiZamanlayici - dt * 1.4);
@@ -1081,6 +1110,7 @@ export function createBrainScene({ container, labelsContainer, leaderSvg, ayarla
         olcek *= 1 + dalga * 1.2;
         k.mesh.material.emissiveIntensity = emissiveYogunluk + dalga * 4;
       }
+      if (k.tikZamanlayici > 0) olcek *= 1 + 0.38 * Math.sin(k.tikZamanlayici * Math.PI);
       k.grup.scale.setScalar(olcek);
       idx++;
     });
@@ -1105,6 +1135,12 @@ export function createBrainScene({ container, labelsContainer, leaderSvg, ayarla
       }
     }
     tozParcaciklari.rotation.y = elapsed * 0.015;
+
+    // Beyin parlaması: bloom gücü kısa süre yükselir (uniform; ek çizim maliyeti yok)
+    if (beyinParlama > 0) {
+      beyinParlama = Math.max(0, beyinParlama - dt * 1.6);
+      bloomPass.strength = 0.4 + 0.5 * beyinParlama;
+    }
 
     controls.update(dt); // Otomatik dönüş gerçek süreyle ilerlesin
     guncelleEtiketKonumlari();
@@ -1135,5 +1171,5 @@ export function createBrainScene({ container, labelsContainer, leaderSvg, ayarla
     return { fps: olcum.fps, enUzun: olcum.enUzun, takilma: olcum.takilma, oran: cizimOrani };
   }
 
-  return { etiketleriGoster, getStats, loadBrain, showFallbackBrain, setHabits, select, flashMiss, celebrate, setTransparent, toggleClip, applySettings, setGorunurAlan };
+  return { etiketleriGoster, getStats, loadBrain, showFallbackBrain, setHabits, select, flashMiss, celebrate, tikParlamasi, kureEkranKonumu, setTransparent, toggleClip, applySettings, setGorunurAlan };
 }

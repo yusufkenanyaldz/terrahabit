@@ -1320,3 +1320,38 @@ body.sahne-hazir #labels-container.soluk { opacity: 0; }
 .simge-secim button.kullanilan.on { opacity: 1; }
 /* Etikette yalnız simge + yüzde var: dar pill */
 .label-habit { padding-left: 7px; padding-right: 9px; gap: 5px; }
+
+/* =====================================================================
+   İşaretleme ödülü: satır parlaması + panelin arkasından küreye giden ışık
+   ===================================================================== */
+/* Panellerin (z-index 10 ve 12) ALTINDA kalır: ışık panelin arkasındayken
+   bulanık bir sızıntı gibi görünür, üstüne çıkınca netleşir. */
+.odul-isigi {
+  position: fixed;
+  left: 0;
+  top: 0;
+  width: 5px;
+  height: 74px;
+  margin-left: -2.5px;
+  margin-top: -37px;
+  border-radius: 3px;
+  background: linear-gradient(to top, transparent, var(--renk, #00e5ff) 45%, #ffffff 92%);
+  box-shadow: 0 0 18px var(--renk, #00e5ff), 0 0 6px #ffffff;
+  pointer-events: none;
+  z-index: 9;
+  will-change: transform, opacity;
+}
+
+/* Dokunulan satır (ya da detay kartı) aşama renginde hafifçe parlar */
+@keyframes odul-parla {
+  0%   { box-shadow: 0 0 0 0 transparent; }
+  25%  { box-shadow: 0 0 18px 1px var(--parla, #00e5ff), inset 0 0 22px -8px var(--parla, #00e5ff); }
+  100% { box-shadow: 0 0 0 0 transparent; }
+}
+.parladi {
+  animation: odul-parla 0.65s ease-out;
+  border-color: var(--parla, #00e5ff) !important;
+}
+@media (prefers-reduced-motion: reduce) {
+  .parladi { animation: none; }
+}
