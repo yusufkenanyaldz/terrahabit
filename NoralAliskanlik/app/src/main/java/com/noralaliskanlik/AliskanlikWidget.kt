@@ -13,6 +13,7 @@ import android.graphics.Color
 import android.graphics.Paint
 import android.graphics.Path
 import android.os.Bundle
+import android.util.TypedValue
 import android.view.View
 import android.widget.RemoteViews
 import android.widget.Toast
@@ -115,6 +116,16 @@ class AliskanlikWidget : AppWidgetProvider() {
                 satir.setInt(R.id.satir_ikon, "setColorFilter", s.renk)
                 satir.setTextViewText(R.id.satir_yuzde, s.bilgi)
                 satir.setTextColor(R.id.satir_yuzde, s.renk)
+                // Yazıya ayrılan yer ~76 dp. "0/10 · %7" 58 dp; her fazladan rakam ~8 dp.
+                // Uzun metinde ("10/10 · %100", "Duraklatıldı") punto düşsün, kırpılmasın.
+                satir.setTextViewTextSize(
+                    R.id.satir_yuzde, TypedValue.COMPLEX_UNIT_SP,
+                    when {
+                        s.bilgi.length >= 12 -> 9f
+                        s.bilgi.length >= 10 -> 10f
+                        else -> 11f
+                    }
+                )
                 satir.setOnClickPendingIntent(R.id.satir_ikon, uygulamayiAc)
                 satir.setOnClickPendingIntent(R.id.satir_yuzde, uygulamayiAc)
 
