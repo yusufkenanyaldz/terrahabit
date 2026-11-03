@@ -33,7 +33,7 @@ export function hesaplaAsamaRengi(oran, hedefRenk = new THREE.Color()) {
 const ASAMALAR = [
   { ad: '1. Aşama: Çaba (Prefrontal)', kisa: 'Çaba', hex: '#ff7b1c' },
   { ad: '2. Aşama: Tekrar', kisa: 'Tekrar', hex: '#a855f7' },
-  { ad: '3. Aşama: Yerleşiyor', kisa: 'Yerleşiyor', hex: '#6366f1' },
+  { ad: '3. Aşama: Yerleşiyor', kisa: 'Yerleşiyor', hex: '#0ea5e9' },
   { ad: '4. Aşama: Otomatik (Bazal Gangliyon)', kisa: 'Otomatik', hex: '#00e5ff' },
 ];
 export function asamaBilgisiGetir(asama) {
@@ -727,7 +727,19 @@ export function createBrainScene({ container, labelsContainer, leaderSvg, ayarla
     ustSinir = ust + 14;
     altSinir = alt - 16;
     hedefKayma = window.innerHeight / 2 - (ust + alt) / 2;
+    // Alan daralınca (ör. liste genişleyince) beyin sığsın diye kamera oransal olarak
+    // uzaklaşır. Mutlak mesafe verilmez; kullanıcının kendi yakınlaştırması korunur.
+    const oran = Math.max(0.1, (alt - ust) / window.innerHeight);
+    const yeni = Math.min(1.6, Math.max(1, 0.62 / oran));
+    if (Math.abs(yeni - uyumCarpani) > 0.004) {
+      const simdi = camera.position.distanceTo(controls.target);
+      hedefMesafe = Math.min(controls.maxDistance,
+        Math.max(controls.minDistance, simdi * (yeni / uyumCarpani)));
+      uyumCarpani = yeni;
+    }
   }
+  let uyumCarpani = 1;
+  let hedefMesafe = null;
 
   function uygulaKayma() {
     const w = window.innerWidth, h = window.innerHeight;
@@ -1084,6 +1096,16 @@ export function createBrainScene({ container, labelsContainer, leaderSvg, ayarla
 
     if (!userInteracting) {
       controls.target.lerp(odakHedefi || merkez, yumusat(odakHedefi ? 4.5 : 2.5, dt));
+    }
+    // Görünür alan değiştiyse mesafeyi yumuşakça yeni hedefe taşı
+    if (hedefMesafe !== null) {
+      const simdi = camera.position.distanceTo(controls.target);
+      if (Math.abs(hedefMesafe - simdi) < 0.01 || userInteracting) {
+        hedefMesafe = null;
+      } else {
+        const yeniMesafe = simdi + (hedefMesafe - simdi) * yumusat(3.2, dt);
+        camera.position.sub(controls.target).multiplyScalar(yeniMesafe / simdi).add(controls.target);
+      }
     }
     tozParcaciklari.rotation.y = elapsed * 0.015;
 

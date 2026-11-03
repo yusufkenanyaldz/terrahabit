@@ -32,10 +32,14 @@ araya giren 18 gün, zor alışkanlık). Tasarım: arkada dört aşama bandı, e
 altta günlük işaret şeridi. Uygulamaya girerse yeri: detay kartında 30 günlük noktaların altı.
 Veri zaten kayıtta, yeni alan gerekmez.
 
-### 3. Aşama renklerinden ikisi birbirine çok yakın
+### 3. Aşama renklerinden ikisi birbirine çok yakın — YAPILDI (3 Kasım 2026)
 _2 Kasım 2026 — Claude (grafik çalışırken fark edildi)_
 
-2. ✔ aşama moru `#a855f7` ile 3. aşama çivit mavisi `#6366f1`: normal görüşte bile ayırt etmesi zor
+**Sonuç:** 3. aşama (Yerleşiyor) `#6366f1` → `#0ea5e9` (gök mavisi). Ölçüm: mor ile farkı
+renk körlüğünde 0,9 → 8,8; normal görüşte 11,3 → 18,3. Değişen yerler: brain-scene.js,
+HabitStore.kt, widget_bar_2 / widget_onay_bos_2 / widget_onay_dolu_2 / widget_arti_2.
+
+2. aşama moru `#a855f7` ile 3. aşama çivit mavisi `#6366f1`: normal görüşte bile ayırt etmesi zor
 (ölçüm: OKLab ΔE 11,3; renk körlüğünde 0,9). Grafikte sorun değil çünkü bant adları yazıyor, ama
 beyindeki küreye ve widget'a bakarken "Tekrar" mı "Yerleşiyor" mu belli olmuyor. Çözüm: 3. aşamayı
 mora değil maviye/turkuaza doğru kaydırmak (0. turuncu → 3. camgöbeği geçişi zaten o yönde).

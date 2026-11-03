@@ -316,8 +316,31 @@ function ciz() {
     listEl.appendChild(row);
   });
 
+  // Tutamak yalnız liste sığmıyorsa anlamlı
+  const genis = document.body.classList.contains('liste-genis');
+  $('btn-liste-genis').hidden = !genis && listEl.scrollHeight <= listEl.clientHeight + 4;
+
   cizDetay();
 }
+
+/**
+ * Listeyi genişlet/daralt. Beyin ekranda kalır: görünür alan daraldıkça kamera
+ * oransal olarak uzaklaşır (brain-scene → setGorunurAlan).
+ */
+$('btn-liste-genis').addEventListener('click', () => {
+  const genis = !document.body.classList.contains('liste-genis');
+  document.body.classList.toggle('liste-genis', genis);
+  const t = $('btn-liste-genis');
+  t.setAttribute('aria-expanded', String(genis));
+  t.setAttribute('aria-label', genis ? 'Listeyi daralt' : 'Listeyi genişlet');
+  // Yükseklik animasyonu sürerken beyin de her karede yeniden yerleşsin
+  const bitis = performance.now() + 340;
+  const takip = () => {
+    gorunurAlanGuncelle();
+    if (performance.now() < bitis) requestAnimationFrame(takip);
+  };
+  takip();
+});
 
 
 function cizDetay() {

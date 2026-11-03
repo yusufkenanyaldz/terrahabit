@@ -176,7 +176,7 @@ object HabitStore {
     // -----------------------------------------------------------------------
 
     /** Aşama adları ve renkleri (JS brain-scene.js ile aynı). */
-    private val ASAMA_RENK = arrayOf("#FF7B1C", "#A855F7", "#6366F1", "#00E5FF")
+    private val ASAMA_RENK = arrayOf("#FF7B1C", "#A855F7", "#0EA5E9", "#00E5FF")
 
     /**
      * Widget'ın bir satırı.
