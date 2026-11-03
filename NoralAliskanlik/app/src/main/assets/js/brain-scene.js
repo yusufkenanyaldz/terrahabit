@@ -13,6 +13,7 @@ import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js'
 import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 import { yolKonumu } from './guc.js';
+import { simgeSvg } from './simgeler.js';
 
 const MAX_PIXEL_RATIO = 2;
 const BLOOM_SCALE = 0.5; // Bloom, ekran çözünürlüğünün yarısında hesaplanır
@@ -660,6 +661,13 @@ export function createBrainScene({ container, labelsContainer, leaderSvg, ayarla
       const dotEl = k.labelEl.querySelector('.dot');
       dotEl.style.background = asama.hex;
       dotEl.style.color = asama.hex;
+      // Nokta yerine alışkanlığın simgesi (aşama renginde). Yalnız değiştiğinde yeniden yazılır.
+      const ikon = h.ikon || 'genel';
+      if (k.ikon !== ikon) {
+        k.ikon = ikon;
+        dotEl.innerHTML = simgeSvg(ikon, 14);
+        dotEl.classList.add('simgeli');
+      }
       k.labelEl.querySelector('.lbl-text').textContent = `${h.name} · %${Math.round(h.H * 100)}`;
       k.svgBag.polyline.setAttribute('stroke', asama.hex);
       k.svgBag.dot.setAttribute('fill', asama.hex);

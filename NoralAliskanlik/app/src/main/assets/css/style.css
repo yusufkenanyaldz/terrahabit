@@ -144,6 +144,17 @@ html, body {
   flex-shrink: 0;
   box-shadow: 0 0 8px currentColor;
 }
+/* Etiketteki nokta yerine alışkanlığın simgesi (aşama renginde) */
+.label-habit .dot.simgeli {
+  width: auto;
+  height: 14px;
+  background: transparent !important;
+  border-radius: 0;
+  box-shadow: none;
+  display: flex;
+  align-items: center;
+  filter: drop-shadow(0 0 5px currentColor);
+}
 
 /* Üst Bar ve Kontroller */
 .top-bar {
@@ -1279,3 +1290,27 @@ body.sahne-hazir #labels-container.soluk { opacity: 0; }
   background: linear-gradient(180deg, rgba(2, 4, 10, 0) 0%, rgba(2, 4, 10, 0.45) 38%, rgba(2, 4, 10, 0.72) 100%);
 }
 #modal-add .modal { max-height: calc(100vh - 150px); }
+
+/* =====================================================================
+   Alışkanlık simgeleri (çizgi simge; emoji yok)
+   ===================================================================== */
+.simge-secim { display: flex; flex-wrap: wrap; gap: 6px; }
+.simge-secim button {
+  width: 42px;
+  height: 38px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--text-muted);
+  cursor: pointer;
+}
+.simge-secim button.on {
+  border-color: rgba(0, 229, 255, 0.55);
+  background: rgba(0, 229, 255, 0.16);
+  color: #7df4ff;
+}
+.habit-item .satir-ikon { flex: none; display: flex; align-items: center; }
+.detail-title .det-ikon { display: inline-flex; vertical-align: -3px; margin-right: 7px; }

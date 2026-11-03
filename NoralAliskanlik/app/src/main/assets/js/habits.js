@@ -5,9 +5,10 @@ import {
   GERIYE_DONUK_GUN, ZORLUK_T, DURAKLATMA_EN_UZUN, SRBAI_ARALIK, SRBAI_BAKIM_ARALIK,
   GEC_KAYIT_EN_ESKI, COP_GUN, KISMI_ESIK,
 } from './parametreler.js';
+import { SIMGE_IDLER, emojidenSimge } from './simgeler.js';
 
 /** Kayıt biçimi sürümü. Alan eklerken artır ve migrate() içine taşıma adımı yaz. */
-export const SCHEMA_VERSION = 3;
+export const SCHEMA_VERSION = 4;
 
 /** Boş durum. */
 export function emptyState() {
@@ -82,6 +83,8 @@ function temizSrbai(liste) {
  *           (bugünkü davranışla birebir aynı — hesap değişmez).
  *  v2 → v3: miktar (null), gunMiktar ({}), gecKayit ([]) alanları ve üst düzeyde
  *           çöp kutusu (cop: []) eklendi. Varsayılanlarla hesap değişmez.
+ *  v3 → v4: ikon (çizgi simge kimliği) eklendi. Eski kayıtlardaki emoji simgesi
+ *           karşılığına çevrilir (📚 → kitap), karşılığı yoksa 'genel' olur. Hesap değişmez.
  */
 export function migrate(raw) {
   if (raw == null || raw === '') return emptyState();
@@ -107,7 +110,7 @@ function habitTemizle(h) {
     // v1 alanları
     id: h.id,
     name: h.name,
-    icon: typeof h.icon === 'string' ? h.icon : '', // Artık gösterilmiyor; eski kayıtlarla uyum için duruyor
+    icon: typeof h.icon === 'string' ? h.icon : '', // Eski emoji alanı; yedek uyumu için duruyor
     time: /^\d{2}:\d{2}$/.test(h.time) ? h.time : '09:00',
     createdAt: isKey(h.createdAt) ? h.createdAt : (Array.isArray(h.done) && h.done.filter(isKey).sort()[0]) || '2000-01-01',
     done: [...new Set((Array.isArray(h.done) ? h.done : []).filter(isKey))].sort(),
@@ -128,6 +131,8 @@ function habitTemizle(h) {
     miktar: temizMiktar(h.miktar, tip),
     gunMiktar: temizGunMiktar(h.gunMiktar),
     gecKayit: [...new Set((Array.isArray(h.gecKayit) ? h.gecKayit : []).filter(isKey))].sort(),
+    // v4 alanı: çizgi simge. Eski kayıtta yoksa emojisinden türetilir.
+    ikon: SIMGE_IDLER.includes(h.ikon) ? h.ikon : emojidenSimge(h.icon),
   };
 }
 
@@ -147,13 +152,14 @@ function ayarlariTemizle({ zorluk, tip, zamanlama, miktar }, eski = {}) {
 }
 
 /** Yeni alışkanlık ekler. Yeni durumu döndürür. */
-export function addHabit(state, { name, icon, time, zorluk, tip, zamanlama, miktar }, today, id) {
+export function addHabit(state, { name, icon, ikon, time, zorluk, tip, zamanlama, miktar }, today, id) {
   const clean = String(name || '').trim();
   if (!clean) throw new Error('İsim boş olamaz');
   const habit = {
     id: id || `h_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 6)}`,
     name: clean.slice(0, 40),
-    icon: (icon || '').trim(), // Arayüzde ikon yok (emoji kullanılmıyor)
+    icon: (icon || '').trim(), // Eski emoji alanı (artık kullanılmıyor)
+    ikon: SIMGE_IDLER.includes(ikon) ? ikon : 'genel',
     time: /^\d{2}:\d{2}$/.test(time) ? time : '09:00',
     createdAt: today,
     done: [],
@@ -177,7 +183,7 @@ export function addHabit(state, { name, icon, time, zorluk, tip, zamanlama, mikt
  * Alışkanlığın ismini, saatini, zorluğunu, türünü veya sıklığını değiştirir.
  * Tamamlanan günler korunur; güç yeni ayarlarla geçmişten yeniden hesaplanır.
  */
-export function updateHabit(state, id, { name, icon, time, zorluk, tip, zamanlama, miktar }) {
+export function updateHabit(state, id, { name, icon, ikon, time, zorluk, tip, zamanlama, miktar }) {
   const clean = String(name || '').trim();
   if (!clean) throw new Error('İsim boş olamaz');
   return {
@@ -186,6 +192,7 @@ export function updateHabit(state, id, { name, icon, time, zorluk, tip, zamanlam
       ...h,
       name: clean.slice(0, 40),
       icon: (icon || '').trim() || h.icon,
+      ikon: SIMGE_IDLER.includes(ikon) ? ikon : (h.ikon || 'genel'),
       time: /^\d{2}:\d{2}$/.test(time) ? time : h.time,
       ...ayarlariTemizle({ zorluk, tip, zamanlama, miktar }, h),
     })),

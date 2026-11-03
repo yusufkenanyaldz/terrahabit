@@ -11,6 +11,7 @@ import {
   setAmount, amountOn, isLateEditable, restoreHabit, deleteForever, purgeTrash,
 } from './habits.js';
 import { todayKey, setNow, addDays } from './clock.js';
+import { SIMGELER, simgeSvg } from './simgeler.js';
 import { computeState, geriDonusTahmini, planliMi, yolKonumu } from './guc.js';
 import {
   CABA_UYARI_SAYISI, DURAKLATMA_EN_UZUN, MAZERET_HAKKI, MAZERET_PENCERE,
@@ -276,7 +277,7 @@ function ciz() {
   const durumlar = new Map(liste.map((h) => [h.id, computeState(h, bugun)]));
   sahne.setHabits(liste.map((h) => {
     const d = durumlar.get(h.id);
-    return { id: h.id, name: h.name, H: d.H, P: d.P, asama: d.asama, son7Oran: d.son7Oran };
+    return { id: h.id, name: h.name, ikon: h.ikon, H: d.H, P: d.P, asama: d.asama, son7Oran: d.son7Oran };
   }));
 
   const listEl = $('habit-list-el');
@@ -297,6 +298,7 @@ function ciz() {
     row.className = `habit-item ${seciliId === h.id ? 'selected' : ''} ${bugunYapildi ? 'done-today' : ''} ${d.bugunDuraklatildi ? 'durakli' : ''}`;
     row.innerHTML = `
       <div class="habit-item-top">
+        <span class="satir-ikon" style="color:${asama.hex}">${simgeSvg(h.ikon, 17)}</span>
         <span class="habit-name">${esc(h.name)}</span>
         <span class="habit-day-badge">${rozet}</span>
         ${sayac ? '<button class="row-check sayac" aria-label="Bir tane ekle">+1</button>'
@@ -357,6 +359,8 @@ function cizDetay() {
   const kotu = h.tip === 'kotu';
 
   $('det-name').textContent = h.name;
+  $('det-ikon').innerHTML = simgeSvg(h.ikon, 17);
+  $('det-ikon').style.color = asamaBilgisi(d.asama, h).hex;
   const stageEl = $('det-stage');
   stageEl.textContent = asama.kisa;
   stageEl.style.background = `${asama.hex}22`;
@@ -738,7 +742,14 @@ async function onayIste(baslik, metin, evetYazi = 'Evet', kaydir = false) {
 let duzenlenenId = null; // null: yeni alışkanlık, değilse düzenleme
 
 // Form seçim grupları (tek seçim; "Belirli günler" çoklu)
-const form = { tip: 'iyi', siklik: 'gunluk', gunler: new Set([1, 3, 5]), hedef: 3, zorluk: 'normal' };
+const form = { tip: 'iyi', siklik: 'gunluk', gunler: new Set([1, 3, 5]), hedef: 3, zorluk: 'normal', ikon: 'genel' };
+
+// Simge seçici düğmeleri bir kez kurulur
+$('sec-simge').innerHTML = SIMGELER.map((sg) =>
+  `<button type="button" data-v="${sg.id}" title="${sg.ad}" aria-label="${sg.ad}">${simgeSvg(sg.id, 20)}</button>`).join('');
+$('sec-simge').querySelectorAll('button').forEach((b) => {
+  b.addEventListener('click', () => { form.ikon = b.dataset.v; formuCiz(); });
+});
 
 function secimGrubu(id, deger, coklu = false) {
   $(id).querySelectorAll('button').forEach((b) => {
@@ -752,6 +763,7 @@ function formuCiz() {
   secimGrubu('sec-gunler', form.gunler, true);
   secimGrubu('sec-hedef', form.hedef);
   secimGrubu('sec-zorluk', form.zorluk);
+  secimGrubu('sec-simge', form.ikon);
   $('sec-gunler').hidden = form.siklik !== 'gunler';
   $('sec-hedef').hidden = form.siklik !== 'haftalik';
   // Miktar yalnızca her gün / belirli günlerde (haftalık hedefle birlikte kullanılmaz)
@@ -786,6 +798,7 @@ function formAc(h) {
   form.gunler = new Set(z.tur === 'gunler' ? z.gunler : [1, 3, 5]);
   form.hedef = z.tur === 'haftalik' ? z.hedef : 3;
   form.zorluk = h ? h.zorluk || 'normal' : 'normal';
+  form.ikon = (h && h.ikon) || 'genel';
   $('add-miktar').value = h && h.miktar ? h.miktar.hedef : '';
   $('add-birim').value = h && h.miktar ? h.miktar.birim : '';
   formuCiz();
@@ -822,6 +835,7 @@ $('add-form').addEventListener('submit', async (e) => {
   e.preventDefault();
   const veri = {
     name: $('add-name').value,
+    ikon: form.ikon,
     time: $('add-time').value,
     tip: form.tip,
     zamanlama: formZamanlama(),

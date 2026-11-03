@@ -187,6 +187,7 @@ object HabitStore {
     data class WidgetSatiri(
         val id: String,
         val ad: String,
+        val ikon: String,
         val bilgi: String,
         val asama: Int,
         val guc: Int,
@@ -239,6 +240,7 @@ object HabitStore {
                 WidgetSatiri(
                     id = h.optString("id"),
                     ad = h.optString("name"),
+                    ikon = h.optString("ikon", "genel"),
                     bilgi = bilgi,
                     asama = asama,
                     guc = guc,

@@ -111,9 +111,13 @@ class AliskanlikWidget : AppWidgetProvider() {
             satirlar.forEach { s ->
                 val satir = RemoteViews(pkg, R.layout.widget_satir)
                 satir.setTextViewText(R.id.satir_ad, s.ad)
+                // Alışkanlığın simgesi, aşama renginde (beyaz çizim boyanır)
+                satir.setImageViewResource(R.id.satir_ikon, ikonKaynagi(s.ikon))
+                satir.setInt(R.id.satir_ikon, "setColorFilter", s.renk)
                 satir.setTextViewText(R.id.satir_yuzde, s.bilgi)
                 satir.setTextColor(R.id.satir_yuzde, s.renk)
                 satir.setOnClickPendingIntent(R.id.satir_ad, uygulamayiAc)
+                satir.setOnClickPendingIntent(R.id.satir_ikon, uygulamayiAc)
                 // Aşama renginde güç çubuğu (4 renkten biri görünür; API 26 uyumlu yol)
                 val barlar = intArrayOf(R.id.satir_bar0, R.id.satir_bar1, R.id.satir_bar2, R.id.satir_bar3)
                 barlar.forEachIndexed { i, bar ->
@@ -274,5 +278,23 @@ class AliskanlikWidget : AppWidgetProvider() {
             R.drawable.widget_arti_0, R.drawable.widget_arti_1,
             R.drawable.widget_arti_2, R.drawable.widget_arti_3
         )
+
+        /** Simge kimliği → drawable. Dosyalar scripts/simge-drawable.mjs ile üretilir. */
+        private val IKONLAR = mapOf(
+            "genel" to R.drawable.ikon_genel,
+            "kitap" to R.drawable.ikon_kitap,
+            "kulaklik" to R.drawable.ikon_kulaklik,
+            "kalem" to R.drawable.ikon_kalem,
+            "konusma" to R.drawable.ikon_konusma,
+            "damla" to R.drawable.ikon_damla,
+            "agirlik" to R.drawable.ikon_agirlik,
+            "doga" to R.drawable.ikon_doga,
+            "kalp" to R.drawable.ikon_kalp,
+            "ay" to R.drawable.ikon_ay,
+            "saat" to R.drawable.ikon_saat,
+            "yasak" to R.drawable.ikon_yasak
+        )
+
+        private fun ikonKaynagi(id: String): Int = IKONLAR[id] ?: R.drawable.ikon_genel
     }
 }

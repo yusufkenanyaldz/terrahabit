@@ -103,7 +103,16 @@ test('kayıt/yedek doğrulama ve taşıma', () => {
   const m = migrate({ habits: [{ id: 'a', name: 'X', done: ['2026-01-02', '2026-01-02', 'x'] }] });
   assert.deepEqual(m.habits[0].done, ['2026-01-02']);
   assert.equal(m.habits[0].createdAt, '2026-01-02');
-  assert.equal(m.version, 3);
+  assert.equal(m.version, 4);
+  // v4: simge alanı. Eski emoji karşılığına çevrilir, tanınmayan değer 'genel' olur.
+  assert.equal(m.habits[0].ikon, 'genel');
+  const e = migrate({ version: 3, habits: [
+    { id: 'a', name: 'Kitap', icon: '📚', done: [] },
+    { id: 'b', name: 'Sigara', icon: '🚭', done: [] },
+    { id: 'c', name: 'Yeni', ikon: 'damla', done: [] },
+    { id: 'd', name: 'Bilinmeyen', ikon: 'uyduruk', done: [] },
+  ] });
+  assert.deepEqual(e.habits.map((h) => h.ikon), ['kitap', 'yasak', 'damla', 'genel']);
 });
 
 test('tarih yardımcıları ay/yıl geçişinde doğru', () => {
