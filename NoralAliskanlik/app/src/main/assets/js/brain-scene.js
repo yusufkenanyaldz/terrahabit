@@ -602,6 +602,15 @@ export function createBrainScene({ container, labelsContainer, leaderSvg, ayarla
     iz.visible = false;
     scene.add(iz);
 
+    // Aşama atlama dalgası: küreden yayılıp sönen halka (yılda birkaç kez görünür)
+    const dalga = new THREE.Mesh(izGeo, new THREE.MeshBasicMaterial({
+      color: 0xffffff, transparent: true, opacity: 0, side: THREE.DoubleSide,
+      depthWrite: false, depthTest: !seffafModAcik, blending: THREE.AdditiveBlending,
+    }));
+    dalga.renderOrder = 27;
+    dalga.visible = false;
+    scene.add(dalga);
+
     const labelEl = document.createElement('div');
     labelEl.className = 'scene-label label-habit';
     labelEl.innerHTML = '<span class="dot"></span><span class="lbl-text"></span>';
@@ -609,11 +618,11 @@ export function createBrainScene({ container, labelsContainer, leaderSvg, ayarla
     labelsContainer.appendChild(labelEl);
 
     return {
-      id, grup, mesh, halo, iz, labelEl,
+      id, grup, mesh, halo, iz, dalga, labelEl,
       svgBag: olusturSvgBaglantiElemanlari('#ff7b1c'),
       asama: 0, mevcutOran: 0, hedefOran: 0, izOran: 0,
       parlaklik: 1, mevcutParlaklik: 1,
-      kacirildiZamanlayici: 0, kutlamaZamanlayici: 0, tikZamanlayici: 0,
+      kacirildiZamanlayici: 0, kutlamaZamanlayici: 0, tikZamanlayici: 0, dalgaZamanlayici: 0,
       etiketGenislik: 115,
     };
   }
@@ -621,9 +630,11 @@ export function createBrainScene({ container, labelsContainer, leaderSvg, ayarla
   function kureSil(k) {
     scene.remove(k.grup);
     scene.remove(k.iz);
+    scene.remove(k.dalga);
     k.mesh.material.dispose();
     k.halo.material.dispose();
     k.iz.material.dispose();
+    k.dalga.material.dispose();
     k.labelEl.remove();
     k.svgBag.polyline.remove();
     k.svgBag.dot.remove();
@@ -715,6 +726,16 @@ export function createBrainScene({ container, labelsContainer, leaderSvg, ayarla
    * İşaretleme ödülü: alttaki listeden gelen ışık küreye varınca küre parlar ve
    * beyin kısa bir an aydınlanır. Her gün tekrarlanacağı için kısa ve sessiz tutuldu.
    */
+  /**
+   * Aşama atlama anı: küreden bir halka yayılıp söner ve beyin aydınlanır.
+   * Günlük ödülden belirgin biçimde büyük; yılda birkaç kez görülür.
+   */
+  function asamaDalgasi(id) {
+    const k = kureler.get(id);
+    if (k) { k.dalgaZamanlayici = 1.0; k.tikZamanlayici = 1.0; }
+    beyinParlama = 1.0;
+  }
+
   function tikParlamasi(id) {
     const k = kureler.get(id);
     if (k) k.tikZamanlayici = 1.0;
@@ -1081,6 +1102,20 @@ export function createBrainScene({ container, labelsContainer, leaderSvg, ayarla
 
       demetKonumu(egriOrani, idx, k.grup.position);
 
+      // Aşama dalgası: halka büyüyerek söner
+      if (k.dalgaZamanlayici > 0) {
+        k.dalgaZamanlayici = Math.max(0, k.dalgaZamanlayici - dt * 0.6);
+        const ilerleme = 1 - k.dalgaZamanlayici;          // 0 → 1
+        k.dalga.visible = true;
+        k.dalga.position.copy(k.grup.position);
+        k.dalga.lookAt(camera.position);
+        k.dalga.scale.setScalar(0.8 + ilerleme * ilerleme * 4.6); // başta hızlı, sonra yayılıp durur
+        k.dalga.material.color.copy(geciciRenk);
+        k.dalga.material.opacity = Math.pow(k.dalgaZamanlayici, 1.1);
+      } else if (k.dalga.visible) {
+        k.dalga.visible = false;
+      }
+
       // İz halkası: güç, ulaşılan en yüksek seviyenin belirgin altındaysa görünür
       const izGorunur = k.izOran - k.mevcutOran > 0.02;
       k.iz.visible = izGorunur;
@@ -1171,5 +1206,5 @@ export function createBrainScene({ container, labelsContainer, leaderSvg, ayarla
     return { fps: olcum.fps, enUzun: olcum.enUzun, takilma: olcum.takilma, oran: cizimOrani };
   }
 
-  return { etiketleriGoster, getStats, loadBrain, showFallbackBrain, setHabits, select, flashMiss, celebrate, tikParlamasi, kureEkranKonumu, setTransparent, toggleClip, applySettings, setGorunurAlan };
+  return { etiketleriGoster, getStats, loadBrain, showFallbackBrain, setHabits, select, flashMiss, celebrate, tikParlamasi, asamaDalgasi, kureEkranKonumu, setTransparent, toggleClip, applySettings, setGorunurAlan };
 }

@@ -499,6 +499,7 @@ function miktarDegistir(id, key, fark, kaynakEl) {
   if (!r.changed) return;
   const hedefeUlasti = h.miktar && key === todayKey()
     && simdi < h.miktar.hedef && simdi + fark >= h.miktar.hedef;
+  const oncekiAsama = asamaOnce(id);
   state = r.state;
   kaydet();
   ciz();
@@ -512,6 +513,7 @@ function miktarDegistir(id, key, fark, kaynakEl) {
     if (navigator.vibrate) navigator.vibrate(10);
   }
   if (r.reachedGoal) kutlamaGoster(state.habits.find((x) => x.id === id));
+  else asamaSonra(id, oncekiAsama);
 }
 $('miktar-arti').addEventListener('click', () => { if (seciliId) miktarDegistir(seciliId, miktarGun, +1); });
 $('miktar-eksi').addEventListener('click', () => { if (seciliId) miktarDegistir(seciliId, miktarGun, -1); });
@@ -610,6 +612,33 @@ function gunDegistir(id, key) {
 }
 
 /**
+ * Aşama atlama anı: günlük ödülün bir üstü, 66. gün kutlamasının bir altı.
+ * Yılda birkaç kez olur, o yüzden günlükten belirgin biçimde büyük ama hâlâ kısa.
+ * 4. aşamanın (Otomatik / Özgür) kendi kutlama ekranı var, buraya girmez.
+ */
+const ASAMA_MESAJI = {
+  iyi: { 1: 'Tekrar aşaması — yol belirginleşiyor', 2: 'Yerleşiyor — çaba azalmaya başladı' },
+  kotu: { 1: 'Direnç aşaması — dürtü zayıflıyor', 2: 'Güçleniyor — artık daha az uğraşıyorsun' },
+};
+/** İşaretlemeden önceki aşama (sonra karşılaştırmak için). */
+function asamaOnce(id) {
+  const h = state.habits.find((x) => x.id === id);
+  return h ? computeState(h, todayKey()).asama : 0;
+}
+/** Aşama atladıysa dalgayı ve mesajı göster. Atladıysa true döner. */
+function asamaSonra(id, onceki) {
+  const h = state.habits.find((x) => x.id === id);
+  if (!h) return false;
+  const yeni = computeState(h, todayKey()).asama;
+  const mesaj = (ASAMA_MESAJI[h.tip === 'kotu' ? 'kotu' : 'iyi'] || {})[yeni];
+  if (yeni <= onceki || !mesaj) return false;
+  sahne.asamaDalgasi(id);
+  bildirimGoster(mesaj);
+  if (navigator.vibrate) navigator.vibrate([12, 60, 22]);
+  return true;
+}
+
+/**
  * İşaretleme ödülü. Üç parça, hepsi kısa:
  *  1. Dokunulan satır aşama renginde hafifçe parlar (parmağın altında, anında).
  *  2. Panelin ARKASINDAN ince bir ışık çıkıp küreye doğru yükselir — havai fişek gibi
@@ -663,6 +692,7 @@ function odulAnimasyonu(id, kaynakEl) {
 
 // "Bugün yaptım": günde yalnızca bir kez (detay kartı ve listedeki ✓ aynı işi yapar)
 function yaptimIsaretle(id, kaynakEl) {
+  const onceki = asamaOnce(id);
   const r = markDone(state, id, todayKey());
   if (!r.changed) return;
   state = r.state;
@@ -672,7 +702,9 @@ function yaptimIsaretle(id, kaynakEl) {
   // Satır yeniden çizildi: parlayacak öğeyi listeden tazele
   odulAnimasyonu(id, kaynakEl ? $('habit-list-el').querySelector(`[data-id="${id}"]`) || kaynakEl : null);
   if (r.reachedGoal) kutlamaGoster(h);
-  else bildirimGoster(h.tip === 'kotu' ? 'Temiz bir gün daha — kontrol güçleniyor' : '+1 tekrar — nöral yol güçleniyor');
+  else if (!asamaSonra(id, onceki)) {
+    bildirimGoster(h.tip === 'kotu' ? 'Temiz bir gün daha — kontrol güçleniyor' : '+1 tekrar — nöral yol güçleniyor');
+  }
 }
 $('btn-do-today').addEventListener('click', () => {
   if (!seciliId) return;
@@ -1313,8 +1345,15 @@ async function acilisKontrolleri() {
     // 30 günü dolan silinenler kalıcı olarak silinir
     const temiz = purgeTrash(state, bugun);
     if (temiz !== state) { state = temiz; kaydet(); }
+    // Widget ya da bildirimden işaretlendiyse aşama atlaması uygulamada görülmemiş olur.
+    // Kayıtta duran aşama (Kotlin tarafı güncellemez) taze hesapla karşılaştırılır —
+    // syncDerived üzerine yazmadan önce.
+    const atlayanlar = aktifler()
+      .filter((h) => Number.isInteger(h.asama) && computeState(h, bugun).asama > h.asama)
+      .map((h) => [h.id, h.asama]);
     // Widget önbelleği (güç, aşama, bugünkü kazanç) yeni güne göre tazelensin
     if (syncDerived(state, bugun) !== state) kaydet();
+    for (const [id, onceki] of atlayanlar) asamaSonra(id, onceki);
     // Uzun yokluktan dönüş (14+ gün): kayıp grafiği yerine sıcak karşılama
     const son = ayarlar.sonAcilis;
     ayarlar.sonAcilis = bugun;
