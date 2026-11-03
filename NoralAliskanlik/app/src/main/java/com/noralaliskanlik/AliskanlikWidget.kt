@@ -62,9 +62,9 @@ class AliskanlikWidget : AppWidgetProvider() {
         private const val SATIR_DP = 38f         // Bir satırın içeriği: tek 28 dp'lik sıra + boşluk
 
         // Düzendeki oranlar (widget_aliskanlik.xml ağırlıklarıyla AYNI olmalı)
-        private const val BEYIN_PAY = 0.55f      // Beyin sütunu genişliği
+        private const val BEYIN_PAY = 0.52f      // Beyin sütunu genişliği
         private const val YOL_BAS = 0.20f        // Yollar katmanının başladığı x
-        private const val YOL_GENISLIK = 0.35f   // Yollar katmanının genişliği (0,20 → 0,55)
+        private const val YOL_GENISLIK = 0.32f   // Yollar katmanının genişliği (0,20 → 0,52)
 
         // Beyin görselinde (widget_beyin.png, 640x562) bölgelerin konumu (0..1)
         private const val BEYIN_EN = 640f

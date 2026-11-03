@@ -17,7 +17,7 @@
         android:id="@+id/satir_ikon"
         android:layout_width="18dp"
         android:layout_height="18dp"
-        android:layout_marginEnd="6dp"
+        android:layout_marginEnd="5dp"
         android:contentDescription="@null" />
 
     <TextView
@@ -31,12 +31,12 @@
         android:maxLines="1"
         android:shadowColor="#E6000000"
         android:shadowRadius="6"
-        android:textSize="12sp"
+        android:textSize="11sp"
         android:textStyle="bold" />
 
     <FrameLayout
         android:id="@+id/satir_arti_alan"
-        android:layout_width="31dp"
+        android:layout_width="30dp"
         android:layout_height="28dp">
         <ImageView
             android:id="@+id/satir_arti"
@@ -48,7 +48,7 @@
 
     <FrameLayout
         android:id="@+id/satir_onay_alan"
-        android:layout_width="31dp"
+        android:layout_width="30dp"
         android:layout_height="28dp">
         <ImageView
             android:id="@+id/satir_onay"

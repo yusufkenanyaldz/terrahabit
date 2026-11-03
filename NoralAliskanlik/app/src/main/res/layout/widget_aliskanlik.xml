@@ -6,7 +6,7 @@
     android:layout_width="match_parent"
     android:layout_height="match_parent">
 
-    <!-- 1) Beyin: sol %55 -->
+    <!-- 1) Beyin: sol %52 -->
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="match_parent"
@@ -15,17 +15,17 @@
             android:id="@+id/widget_beyin_img"
             android:layout_width="0dp"
             android:layout_height="match_parent"
-            android:layout_weight="55"
+            android:layout_weight="52"
             android:contentDescription="@string/app_name"
             android:scaleType="fitCenter"
             android:src="@drawable/widget_beyin" />
         <FrameLayout
             android:layout_width="0dp"
             android:layout_height="match_parent"
-            android:layout_weight="45" />
+            android:layout_weight="48" />
     </LinearLayout>
 
-    <!-- 2) Beyinden alışkanlıklara ışıklı yollar: %20–%55 arası -->
+    <!-- 2) Beyinden alışkanlıklara ışıklı yollar: %20–%52 arası -->
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="match_parent"
@@ -38,13 +38,13 @@
             android:id="@+id/widget_yollar"
             android:layout_width="0dp"
             android:layout_height="match_parent"
-            android:layout_weight="35"
+            android:layout_weight="32"
             android:importantForAccessibility="no"
             android:scaleType="fitXY" />
         <FrameLayout
             android:layout_width="0dp"
             android:layout_height="match_parent"
-            android:layout_weight="45" />
+            android:layout_weight="48" />
     </LinearLayout>
 
     <!-- 3) İçerik: sol taraf uygulamayı açar, sağda alışkanlık satırları -->
@@ -56,11 +56,11 @@
             android:id="@+id/widget_ac"
             android:layout_width="0dp"
             android:layout_height="match_parent"
-            android:layout_weight="55" />
+            android:layout_weight="52" />
         <LinearLayout
             android:layout_width="0dp"
             android:layout_height="match_parent"
-            android:layout_weight="45"
+            android:layout_weight="48"
             android:orientation="vertical">
             <LinearLayout
                 android:id="@+id/widget_satirlar"
