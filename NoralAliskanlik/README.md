@@ -2,6 +2,10 @@
 
 Three.js beyin haritası + alışkanlık takibi. WebView içinde, internetsiz çalışır.
 
+> **Her şeyin ayrıntılı anlatımı: [UYGULAMA.md](UYGULAMA.md)** — model, kurallar, veri
+> biçimi, arayüz, widget, bildirimler, derleme ve geliştirici notları.
+> Biriken fikirler ve kararlar: [FIKIRLER.md](FIKIRLER.md).
+
 ## Klasörler
 - `app/src/main/assets/` — HTML/CSS/JS (WebViewAssetLoader ile `https://appassets.androidplatform.net/assets/index.html`)
   - `js/habits.js` — alışkanlık mantığı (saf, testli)
