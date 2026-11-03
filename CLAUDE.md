@@ -15,3 +15,6 @@ Teknoloji: Vite + düz JavaScript, Three.js (npm), GLSL shader'lar, Capacitor (A
 ## Çalışma biçimi
 - Kullanıcı programcı değil; her adımdan sonra nasıl test edeceğini Türkçe ve kısa anlat.
 - İsteneni yap, fazlasını ekleme. Her adım sonunda testleri ve build'i çalıştır.
+- Fikirler ve kararlar NoralAliskanlik/FIKIRLER.md'de birikir. Yeni bir istek "şimdilik not al"
+  diye geldiğinde oraya yazılır; "yap" denince oradaki karar maddeleri yeniden tartışılmadan
+  uygulanır.

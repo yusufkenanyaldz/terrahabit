@@ -1,8 +1,11 @@
 # Fikir defteri
 
-Biriktirilen fikirler. Hiçbiri "yapılacak" değil; birikince önemli olanları seçilip yapılır.
+Biriktirilen fikirler. Çoğu "yapılacak" değil; birikince önemli olanları seçilip yapılır.
 Önemsiz olduğu anlaşılanlar "Vazgeçildi" başlığına taşınır, silinmez (neden vazgeçildiği de
 bir bilgi).
+
+Bir maddenin nasıl yapılacağı konuşulup karara bağlandıysa, kararlar maddenin içine yazılır.
+Kullanıcı "yap" dediğinde o maddeler yeniden tartışılmaz, yazıldığı gibi uygulanır.
 
 ## Beklemede
 
@@ -54,8 +57,31 @@ Bilinmesi gerekenler:
 
 Şu anki ikon: düz renk zemin `#282725` + beyin ön katmanı.
 
-### 5. Tasarım önerisi: ekleme ekranı ve detay kartı
-_3 Kasım 2026 — kullanıcı (karşılaştırmalı görseller)_
+### 5. Tasarım önerisi: ekleme ekranı ve detay kartı — KARARA BAĞLANDI
+_3 Kasım 2026 — kullanıcı (karşılaştırmalı görseller); değerlendirme kullanıcı tarafından onaylandı_
+
+**Yapılacaklar (sırasıyla, "yap" denince bu liste uygulanır):**
+1. Form etiketleri büyük harften çıkar: küçük harf, sönük, ama **kaldırılmaz** (alan dolduktan
+   sonra neyin ne olduğu kaybolmasın).
+2. Detay kartındaki dairesel yüzde halkası kalkar, yerine mini nöral yol gelir: 0 → ~66 çizgisi
+   üzerinde kayan küre (ana sahnedeki yolun küçük hâli).
+3. "Dün / Bugün" hiyerarşisi: Dün sönük, Bugün vurgulu.
+4. Panel açılırken gerçek 3B beyin küçülür (`setGorunurAlan` zaten var). **Ayrı bir 2B beyin
+   çizimi eklenmez**; iki görsel zamanla birbirinden ayrı düşer.
+5. Kaydırarak onay yalnız nadir işlerde: ilk oluşturma, silme, 66. gün kutlaması.
+   **Günlük tamamlama tek dokunuş kalır** (widget'ta tek dokunuşken uygulamada zahmetli olmasın).
+6. Arayüz nötr kalır; turuncu yalnızca 1. aşama (Çaba) rengi olarak kullanılır. Arayüzün tamamı
+   turuncuya çekilmez, yoksa aşama rengi anlamını yitirir.
+7. Alışkanlık simgeleri (kitap, damla, beyin, ağırlık, kalp, ay): çizgi simge, emoji değil.
+   Listede, beyin etiketlerinde ve widget'ta kullanılır. **En pahalı madde bu**; diğerleri
+   bittikten sonra ayrıca ele alınır.
+
+Maliyet: 7. madde dışındaki her şey arayüz katmanında (index.html + main.js). Modele, kayıt
+biçimine ve 3B sahneye dokunmaz.
+
+---
+
+Aşağısı kararın dayanağı olan ilk değerlendirme (3 Kasım 2026):
 
 Görseller: `tasarim/tasarim-onerisi-2026-11-03-ekleme.jpg` ve
 `tasarim/tasarim-onerisi-2026-11-03-detay.jpg` (solda öneri, sağda mevcut hâli).
