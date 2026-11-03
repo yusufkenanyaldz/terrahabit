@@ -52,11 +52,16 @@ function kaydet() {
   saveState(state);
 }
 
-/** Kötü alışkanlıkta Otomatik yerine "Özgür" (Spesifikasyon kural 5). */
+/**
+ * Kötü alışkanlıkta aşamaların kendi adları olur: "Yerleşiyor" okununca sanki alışkanlık
+ * yerleşiyormuş gibi duruyordu, oysa yerleşen şey bırakma (Spesifikasyon kural 5).
+ */
+const KOTU_ASAMA_ADI = ['Çaba', 'Direnç', 'Güçleniyor', 'Özgür'];
 function asamaBilgisi(asama, h) {
   const a = asamaBilgisiGetir(asama);
-  if (h.tip === 'kotu' && asama === 3) return { ...a, ad: '4. Aşama: Özgür', kisa: 'Özgür' };
-  return a;
+  if (h.tip !== 'kotu') return a;
+  const kisa = KOTU_ASAMA_ADI[asama] || a.kisa;
+  return { ...a, kisa, ad: `${asama + 1}. Aşama: ${kisa}` };
 }
 const gucAdi = (h) => (h.tip === 'kotu' ? 'Kontrol' : 'Güç');
 const aktifler = () => state.habits.filter((h) => !h.arsiv);
@@ -308,13 +313,31 @@ function ciz() {
         <div class="progress-fill" style="width:${yuzde}%; background:${asama.hex};"></div>
       </div>`;
     uzunBasmaBagla(row, () => aliskanlikSec(h.id), () => silmeOnayi(h));
-    row.querySelector('.row-check').addEventListener('click', (e) => {
+    const onayEl = row.querySelector('.row-check');
+    onayEl.addEventListener('click', (e) => {
       e.stopPropagation();
+      if (onayEl.dataset.uzun === '1') { onayEl.dataset.uzun = '0'; return; } // uzun basma zaten iş yaptı
       if (d.bugunDuraklatildi) bildirimGoster('Duraklatıldı — devam etmek için alışkanlığa dokun');
       else if (sayac) miktarDegistir(h.id, todayKey(), +1);
       else if (isDoneOn(h, todayKey())) bildirimGoster('Bugün zaten işaretli');
       else yaptimIsaretle(h.id);
     });
+    // "+1"e uzun basmak miktarı doğrudan hedefe çeker: 10 sayfalık alışkanlık için
+    // listede 10 kez dokunmak gerekmesin (widget'taki ✓ de aynı işi yapıyor).
+    if (sayac && d.miktar && !d.bugunDuraklatildi && h.tip !== 'kotu') {
+      let zamanlayici = null;
+      const iptal = () => { clearTimeout(zamanlayici); zamanlayici = null; };
+      onayEl.addEventListener('pointerdown', () => {
+        zamanlayici = setTimeout(() => {
+          onayEl.dataset.uzun = '1';
+          if (navigator.vibrate) navigator.vibrate(30);
+          const eksik = d.miktar.hedef - (amountOn(h, todayKey()) ?? 0);
+          if (eksik > 0) miktarDegistir(h.id, todayKey(), eksik);
+          bildirimGoster(`Hedefe çekildi — ${d.miktar.hedef} ${d.miktar.birim}`.trim());
+        }, 500);
+      });
+      ['pointerup', 'pointerleave', 'pointercancel'].forEach((o) => onayEl.addEventListener(o, iptal));
+    }
     listEl.appendChild(row);
   });
 
@@ -802,6 +825,13 @@ function formAc(h) {
   $('add-miktar').value = h && h.miktar ? h.miktar.hedef : '';
   $('add-birim').value = h && h.miktar ? h.miktar.birim : '';
   formuCiz();
+  // Aynı anda çok yeni alışkanlık: uyarı formun içinde, en baştan görünür (kural 13).
+  // Eskiden kaydırdıktan sonra ayrı bir pencere çıkıyordu; üst üste iki onay fazlaydı.
+  const caba = h ? 0 : aktifler().filter((x) => computeState(x, todayKey()).asama === 0).length;
+  const uyari = $('form-uyari');
+  uyari.hidden = caba < CABA_UYARI_SAYISI;
+  uyari.textContent = uyari.hidden ? ''
+    : `${caba} alışkanlık zaten Çaba aşamasında. Biri Tekrar'a geçince yenisini eklemen daha iyi olur; aynı anda çok başlangıç tutarlılığı zorlaştırır. Yine de ekleyebilirsin.`;
   // Yeni alışkanlık: kaydırarak onay. Düzenleme: sıradan Kaydet düğmesi.
   $('add-kaydir').hidden = !!h;
   $('add-save').hidden = !h;
@@ -844,17 +874,6 @@ $('add-form').addEventListener('submit', async (e) => {
     miktar: form.siklik !== 'haftalik' && $('add-miktar').value !== ''
       ? { hedef: Number($('add-miktar').value), birim: $('add-birim').value } : null,
   };
-  // Aynı anda çok yeni alışkanlık: yumuşak uyarı, engel değil (kural 13)
-  if (!duzenlenenId) {
-    const bugun = todayKey();
-    const caba = aktifler().filter((h) => computeState(h, bugun).asama === 0).length;
-    if (caba >= CABA_UYARI_SAYISI) {
-      const devam = await secimIste('Yine de eklensin mi?',
-        `${caba} alışkanlık zaten Çaba aşamasında. Biri Tekrar'a geçince yenisini eklemeni öneririz; aynı anda çok başlangıç tutarlılığı zorlaştırır.`,
-        [{ id: 'hayir', yazi: 'Bekleyeyim' }, { id: 'evet', yazi: 'Yine de ekle', sinif: 'btn-small primary' }]);
-      if (devam !== 'evet') return;
-    }
-  }
   try {
     state = duzenlenenId ? updateHabit(state, duzenlenenId, veri) : addHabit(state, veri, todayKey());
   } catch (err) {

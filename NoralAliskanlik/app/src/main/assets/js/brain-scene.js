@@ -818,7 +818,10 @@ export function createBrainScene({ container, labelsContainer, leaderSvg, ayarla
     const kameraMesafesi = camera.position.distanceTo(controls.target);
     const icYapilarGorunur = seffafModAcik || renderer.localClippingEnabled;
     // Bir alışkanlık seçiliyken bölge etiketleri ve diğer alışkanlıkların etiketleri gizlenir.
-    const bolgeEtiketleriGorunur = !seciliId && kameraMesafesi < 4.25 * MESAFE_CARPANI && icYapilarGorunur;
+    // Üçten çok alışkanlıkta bölge etiketleri gizlenir: dar alanda alışkanlık
+    // etiketleriyle çakışıyorlardı.
+    const bolgeEtiketleriGorunur = !seciliId && kureler.size <= 3
+      && kameraMesafesi < 4.25 * MESAFE_CARPANI && icYapilarGorunur;
     aktifEtiketler.length = 0;
     let noktaSayisi = 0;
 
@@ -954,7 +957,7 @@ export function createBrainScene({ container, labelsContainer, leaderSvg, ayarla
   const geciciYan = new THREE.Vector3();
   const geciciUst = new THREE.Vector3();
   const YUKARI = new THREE.Vector3(0, 1, 0);
-  const DEMET_ARALIGI = 0.13; // kürelerin yoldan uzaklık adımı
+  const DEMET_ARALIGI = 0.24; // kürelerin yoldan uzaklık adımı (küre çapı 0,21: altında üst üste binerler)
 
   /**
    * Yol üzerindeki t (0..1) noktası; idx > 0 ise küre yolun etrafında kendi açısında

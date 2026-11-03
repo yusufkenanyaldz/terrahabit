@@ -1314,3 +1314,15 @@ body.sahne-hazir #labels-container.soluk { opacity: 0; }
 }
 .habit-item .satir-ikon { flex: none; display: flex; align-items: center; }
 .detail-title .det-ikon { display: inline-flex; vertical-align: -3px; margin-right: 7px; }
+
+/* Formun içindeki yumuşak uyarı (ör. aynı anda çok yeni alışkanlık) */
+.form-uyari {
+  margin-top: 10px;
+  padding: 9px 11px;
+  border-radius: 11px;
+  border: 1px solid rgba(255, 123, 28, 0.35);
+  background: rgba(255, 123, 28, 0.08);
+  color: #f3d3b6;
+  font-size: 12px;
+  line-height: 1.5;
+}
