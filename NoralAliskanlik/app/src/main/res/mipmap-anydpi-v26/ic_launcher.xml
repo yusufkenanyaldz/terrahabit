@@ -1,9 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Uyarlanabilir simge (Android 8+): telefon şekli (daire/damla/kare) kendisi kırpar.
-     Zemin uygulamanın kendi koyu uzayı; telefonun simge çerçevesi devreye girse de
-     girmese de bilerek tasarlanmış görünür. Zeminsiz (şeffaf) hâli için background
-     satırını @android:color/transparent yap. -->
+<!-- Uyarlanabilir simge (Android 8+). Görsel kenardan kenara dolu olduğu için arka plan
+     katmanına konur; ön katman boş. Telefonun şekli (daire/damla/kare) dış halkaları
+     kenarda keser, bu bilerek böyle. Zemin dolu olduğundan telefon kendi çerçevesini
+     eklemez. Görsel: tasarim/ikon-kaynak-2026-11-03.jpg, hazırlama: tasarim/ikon-yeni.py -->
 <adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">
-    <background android:drawable="@drawable/ikon_arka_plan" />
-    <foreground android:drawable="@mipmap/ic_launcher_foreground" />
+    <background android:drawable="@mipmap/ic_launcher_arka" />
+    <foreground android:drawable="@android:color/transparent" />
 </adaptive-icon>

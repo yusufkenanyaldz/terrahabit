@@ -1,4 +1,5 @@
 <resources>
-    <!-- Simge arka planı: görselin kendi koyu gri tonu -->
+    <!-- Simge artık kendi görselini (mipmap/ic_launcher_arka) kullanıyor; renk kaydı
+         eski zeminli sürüme dönmek istenirse diye duruyor. -->
     <color name="ikon_arka_plan">#282725</color>
 </resources>

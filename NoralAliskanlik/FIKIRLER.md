@@ -47,7 +47,14 @@ mora değil maviye/turkuaza doğru kaydırmak (0. turuncu → 3. camgöbeği ge�
 ### 4. Şeffaf arka planlı ikon — ZEMİNLİ ÇÖZÜMDE KARAR KILINDI (3 Kasım 2026)
 _2 Kasım 2026 — kullanıcı_
 
-**Sonuç:** Şeffaf sürüm derlendi ama S25'te telefon ikonun arkasına kendi siyah karesini koydu.
+**Son durum (3 Kasım 2026, akşam):** Kullanıcı simgeyi tümden değiştirdi. Yeni görsel sarmal
+çizgi beyin (`tasarim/ikon-kaynak-2026-11-03.jpg`); kenardan kenara dolu olduğu için uyarlanabilir
+simgenin ARKA PLAN katmanına kondu, ön katman boş. Zemin dolu olduğundan telefon kendi çerçevesini
+eklemiyor. Görsel %50 yakınlaştırılarak kırpıldı: 48 pikselde okunurluk denendi; tam kare
+gürültülüydü, %70 yakınlaştırma dış halkaları yiyordu. Hazırlama: `tasarim/ikon-yeni.py`.
+Beyin görselli eski simge dosyaları kaldırıldı (`ikon-beyin-seffaf.png` tasarım klasöründe duruyor).
+
+**Önceki tur:** Şeffaf sürüm derlendi ama S25'te telefon ikonun arkasına kendi siyah karesini koydu.
 Kullanıcı Ayarlar'da "simge" araması yaptı: 16 sonucun hiçbiri simge zemini/çerçevesiyle ilgili
 değil, yani One UI 8'de bu ayar yok. Bu yüzden zemini biz çizdik: `drawable/ikon_arka_plan.xml`
 (koyu uzay #080B16 + sağda turuncu, solda camgöbeği ışık; ışık merkezleri 108 dp tuvalde 0,70 ve
