@@ -122,6 +122,43 @@ Not: kodlama yapılmadı, yalnızca değerlendirme.
 **Maliyet**: simge seti dışındaki her şey arayüz katmanında (index.html + main.js). Modele,
 kayıt biçimine ve 3B sahneye dokunmaz.
 
+### 6. İki aylık kullanım denemesinden çıkanlar
+_3 Kasım 2026 — Claude, uygulamayı 60 gün boyunca kullanarak gözden geçirdi_
+
+Yöntem: 1. gün dört alışkanlık (Kitap oku 10 sayfa / Spor "zor" / Erken yat / Sigara-bırakma)
+uygulamadan eklendi; araya %85 tutturma, 6 unutulan gün ve 7 günlük bir seyahat (duraklatma)
+yazıldı; 2., 15., 30., 45. ve 60. günlerde uygulama gerçekten kullanıldı. Çökme ya da konsol
+hatası çıkmadı; kayıt, taşıma ve güç hesabı doğru çalıştı (60. gün: Kitap %87 Yerleşiyor,
+Spor %57 Tekrar, Erken yat %87, Sigara %87).
+
+**a) Kötü alışkanlıkta aşama adları yanlış anlam veriyor.** Sigara satırı 60. günde
+"Kontrol %87 · **Yerleşiyor**" yazıyor. Okuyunca sigara yerleşiyormuş gibi duruyor; oysa
+yerleşen şey bırakma. Aynı sorun 2. aşamada: "Tekrar". Yalnız 4. aşama kötüde "Özgür" diye
+değiştiriliyor (`asamaBilgisi`), diğerleri değişmiyor. Öneri: kötü alışkanlıkta
+Çaba → **Direnç** → **Kontrol** → Özgür gibi kendi adları olsun.
+
+**b) Miktarlı alışkanlık listeden tek dokunuşla tamamlanamıyor.** "Kitap oku 10 sayfa" satırında
+yalnız "+1" var; 10 sayfa için listede 10 kez dokunmak gerekiyor. Oysa **widget'ta tek ✓ miktarı
+hedefe çekiyor** ve detay kartında "Hedefi tamamla" düğmesi var. Yani en çok kullanılan yer olan
+liste, en zahmetli yol. Öneri: "+1" düğmesine uzun basınca hedefe çeksin (uzun basma o düğmede
+şu an boşta; satırın uzun basması silme, ama `.row-check` hariç tutuluyor).
+
+**c) Dört alışkanlıkta beyin etiketleri çakışıyor.** 45. günde "Kitap oku · %76" etiketi yukarı
+itilip "ÇABA / Prefrontal Korteks" bölge etiketinin üstüne biniyor; alttaki üç etiket de
+birbirine değiyor. Dört alışkanlık + iki bölge etiketi aynı dar alanda. Öneri: alışkanlık sayısı
+üçü geçince bölge etiketleri gizlensin, ya da etiketler arası en az boşluk artsın.
+
+**d) Güçleri birbirine yakın küreler üst üste biniyor.** Üç alışkanlık %76-87 arasındayken
+küreler yol üzerinde aynı noktada toplanıp tek bir leke gibi görünüyor. Widget'ta başlangıç
+noktaları için yapılan "yayılma" düzeltmesinin benzeri 3B sahnede de gerekebilir.
+
+**e) Dördüncü alışkanlığı eklerken iki onay üst üste geliyor.** Küreyi kaydır → ardından
+"3 alışkanlık zaten Çaba aşamasında, yine de eklensin mi?" penceresi. İkisi de doğru ama arka
+arkaya gelince fazla geliyor. Öneri: bu uyarı, kaydırmadan **önce** (forma girer girmez, satır
+olarak) gösterilsin.
+
+Hiçbiri engelleyici değil; (a) ve (b) en çok rahatsız edenler.
+
 ## Claude'un önerdikleri (kullanıcı henüz seçmedi)
 
 1. **Otomatik yedekleme** — haftada bir sessizce İndirilenler'e yedek. Küçük iş, en çok değeri
