@@ -11,7 +11,7 @@ import {
   setAmount, amountOn, isLateEditable, restoreHabit, deleteForever, purgeTrash,
 } from './habits.js';
 import { todayKey, setNow, addDays } from './clock.js';
-import { computeState, geriDonusTahmini, planliMi } from './guc.js';
+import { computeState, geriDonusTahmini, planliMi, yolKonumu } from './guc.js';
 import {
   CABA_UYARI_SAYISI, DURAKLATMA_EN_UZUN, MAZERET_HAKKI, MAZERET_PENCERE,
   GERIYE_DONUK_GUN, GEC_KAYIT_EN_ESKI, COP_GUN,
@@ -246,6 +246,11 @@ ayarPaneliniDoldur();
 function gorunurAlanGuncelle() {
   const ust = document.querySelector('.top-bar').getBoundingClientRect().bottom;
   document.documentElement.style.setProperty('--ust-bar-h', `${Math.round(ust)}px`);
+  // Ekleme penceresi alttan açılıyor: beyin üstte kalan boşluğa sığsın
+  if (document.body.classList.contains('ekle-acik')) {
+    sahne.setGorunurAlan(ust, $('add-form').getBoundingClientRect().top);
+    return;
+  }
   const altPanel = document.body.classList.contains('ayar-acik') ? $('settings-panel')
     : document.body.classList.contains('detay-acik') ? $('detail-card')
     : document.querySelector('.bottom-sheet');
@@ -314,7 +319,6 @@ function ciz() {
   cizDetay();
 }
 
-const HALKA_CEVRE = 2 * Math.PI * 27; // index.html'deki halka (r=27)
 
 function cizDetay() {
   const h = state.habits.find((x) => x.id === seciliId && !x.arsiv);
@@ -337,12 +341,18 @@ function cizDetay() {
   stageEl.style.border = `1px solid ${asama.hex}66`;
   $('det-time').textContent = `${siklikYazisi(h)} · ${h.time}`;
 
-  // Güç halkası: alışkanlık gücü H (0–100)
-  $('det-days').textContent = Math.round(d.H * 100);
-  const halka = $('det-ring');
-  halka.style.stroke = asama.hex;
-  halka.style.color = asama.hex;
-  halka.style.strokeDashoffset = String(HALKA_CEVRE * (1 - d.H));
+  // Güç: başlıkta sayı, altındaki mini yolda kürenin konumu (ana sahneyle aynı eşleme)
+  $('det-guc').textContent = `%${Math.round(d.H * 100)}`;
+  $('det-guc').style.color = asama.hex;
+  const konum = Math.round(yolKonumu(d.H) * 1000) / 10;
+  const kure = $('det-yol-kure');
+  kure.style.left = `${konum}%`;
+  kure.style.background = `radial-gradient(circle at 34% 32%, #fff, ${asama.hex} 62%)`;
+  kure.style.boxShadow = `0 0 10px ${asama.hex}`;
+  const dolu = $('det-yol-dolu');
+  dolu.style.width = `${konum}%`;
+  dolu.style.background = `linear-gradient(90deg, ${asamaBilgisi(0, h).hex}, ${asama.hex})`;
+  $('det-yol-hedef').textContent = `~${Math.round(d.T)} gün`;
   // Asla düşmeyen sayılar: toplam tekrar ve ulaşılan en yüksek güç (iz)
   const iz = d.P - d.H > 0.02 ? ` · en yüksek %${Math.round(d.P * 100)}` : '';
   $('det-meta').textContent = `${d.toplamTekrar} ${kotu ? 'temiz gün' : 'tekrar'}${iz}`;
@@ -393,11 +403,11 @@ function cizDetay() {
     const ad = i === 0 ? 'Bugün' : i === -1 ? 'Dün' : gunAdi(key);
     if (d.miktar) {
       const m = amountOn(h, key);
-      b.className = `gun-btn ${durum}${key === miktarGun ? ' secili' : ''}`;
+      b.className = `gun-btn ${durum}${i === 0 ? ' bugun' : ''}${key === miktarGun ? ' secili' : ''}`;
       b.textContent = durum === 'mazeret' ? `${ad} · M` : `${ad} ${m ?? 0}`;
       b.addEventListener('click', () => { miktarGun = key; cizDetay(); });
     } else {
-      b.className = `gun-btn ${durum}`;
+      b.className = `gun-btn ${durum}${i === 0 ? ' bugun' : ''}`;
       b.textContent = durum === 'mazeret' ? `${ad} · M` : ad;
       b.addEventListener('click', () => gunDegistir(h.id, key));
     }
@@ -601,7 +611,8 @@ function uzunBasmaBagla(el, kisaDokunma, uzunBasma) {
 async function silmeOnayi(h) {
   const secim = await secimIste(`"${h.name}"`,
     `Arşivlersen geçmişin ve izin korunur, istediğinde geri açabilirsin. Silersen ${COP_GUN} gün çöp kutusunda durur, sonra ${doneCount(h)} tekrarlık kayıt kalıcı olarak silinir.`,
-    [{ id: 'vazgec', yazi: 'Vazgeç' }, { id: 'sil', yazi: 'Sil', sinif: 'btn-danger' }, { id: 'arsiv', yazi: 'Arşivle', sinif: 'btn-small primary' }]);
+    [{ id: 'vazgec', yazi: 'Vazgeç' }, { id: 'arsiv', yazi: 'Arşivle', sinif: 'btn-small primary' },
+     { id: 'sil', yazi: 'Silmek için küreyi kaydır', kaydir: true }]);
   if (secim === 'arsiv') {
     state = setArchived(state, h.id, true);
     bildirimGoster('Arşivlendi — ⚙ → Arşiv ve silinenler\'den geri açabilirsin');
@@ -617,6 +628,43 @@ async function silmeOnayi(h) {
 // -------------------------------------------------------------------------
 // Açılır pencereler
 // -------------------------------------------------------------------------
+/**
+ * Kaydırarak onay: küre sağ uca sürüklenince onay verilir, bırakılırsa başa döner.
+ * Yalnız nadir ve bilerek yapılan işlerde kullanılır (ilk oluşturma, kalıcı silme);
+ * günlük tamamlama tek dokunuş olarak kalır.
+ */
+function kaydirBagla(iz, onay) {
+  const kure = iz.querySelector('.kaydir-kure');
+  let suruyor = false, baslangic = 0, x = 0;
+  const enCok = () => Math.max(1, iz.clientWidth - kure.offsetWidth - 8);
+  const koy = (v) => {
+    x = Math.max(0, Math.min(enCok(), v));
+    kure.style.left = `${4 + x}px`;
+    iz.classList.toggle('tamam', x > enCok() * 0.55);
+  };
+  const geri = () => {
+    iz.classList.add('yumusak');
+    koy(0);
+    setTimeout(() => iz.classList.remove('yumusak'), 260);
+  };
+  kure.addEventListener('pointerdown', (e) => {
+    suruyor = true; baslangic = e.clientX - x;
+    iz.classList.remove('yumusak');
+    kure.setPointerCapture(e.pointerId);
+  });
+  kure.addEventListener('pointermove', (e) => { if (suruyor) koy(e.clientX - baslangic); });
+  const birak = () => {
+    if (!suruyor) return;
+    suruyor = false;
+    const yeterli = x >= enCok() * 0.9;
+    geri();
+    if (yeterli) onay();
+  };
+  kure.addEventListener('pointerup', birak);
+  kure.addEventListener('pointercancel', birak);
+  return { sifirla: geri };
+}
+
 let secimCoz = null;
 /**
  * Genel seçim penceresi. secenekler: [{ id, yazi, sinif? }]. Seçilen id döner;
@@ -629,6 +677,18 @@ function secimIste(baslik, metin, secenekler) {
   const kutu = $('confirm-actions');
   kutu.innerHTML = '';
   for (const o of secenekler) {
+    if (o.kaydir) {
+      const sar = document.createElement('div');
+      sar.className = 'kaydir';
+      const iz = document.createElement('div');
+      iz.className = 'kaydir-iz tehlike';
+      iz.innerHTML = '<span class="kaydir-metin"></span><div class="kaydir-kure"></div>';
+      iz.querySelector('.kaydir-metin').textContent = o.yazi;
+      sar.appendChild(iz);
+      kutu.appendChild(sar);
+      kaydirBagla(iz, () => secimKapat(o.id));
+      continue;
+    }
     const b = document.createElement('button');
     b.className = o.sinif || 'btn-small';
     b.textContent = o.yazi;
@@ -644,9 +704,10 @@ function secimKapat(sonuc) {
   $('modal-confirm').classList.remove('open');
   if (secimCoz) { const c = secimCoz; secimCoz = null; c(sonuc ?? secimIlk); }
 }
-async function onayIste(baslik, metin, evetYazi = 'Evet') {
+async function onayIste(baslik, metin, evetYazi = 'Evet', kaydir = false) {
   return (await secimIste(baslik, metin, [
-    { id: 'hayir', yazi: 'Vazgeç' }, { id: 'evet', yazi: evetYazi, sinif: 'btn-danger' },
+    { id: 'hayir', yazi: 'Vazgeç' },
+    kaydir ? { id: 'evet', yazi: evetYazi, kaydir: true } : { id: 'evet', yazi: evetYazi, sinif: 'btn-danger' },
   ])) === 'evet';
 }
 
@@ -705,9 +766,22 @@ function formAc(h) {
   $('add-miktar').value = h && h.miktar ? h.miktar.hedef : '';
   $('add-birim').value = h && h.miktar ? h.miktar.birim : '';
   formuCiz();
-  $('modal-add').classList.add('open');
+  // Yeni alışkanlık: kaydırarak onay. Düzenleme: sıradan Kaydet düğmesi.
+  $('add-kaydir').hidden = !!h;
+  $('add-save').hidden = !h;
+  kaydirEkle.sifirla();
+  ekleModali(true);
   if (!h) setTimeout(() => $('add-name').focus(), 50);
 }
+
+/** Ekleme penceresini aç/kapat: beyin de kalan boşluğa göre yeniden yerleşir. */
+function ekleModali(acik) {
+  $('modal-add').classList.toggle('open', acik);
+  document.body.classList.toggle('ekle-acik', acik);
+  gorunurAlanGuncelle();
+}
+const kaydirEkle = kaydirBagla($('add-kaydir').querySelector('.kaydir-iz'),
+  () => $('add-form').requestSubmit());
 
 function formZamanlama() {
   if (form.siklik === 'gunler') return { tur: 'gunler', gunler: [...form.gunler] };
@@ -720,7 +794,7 @@ $('btn-edit-habit').addEventListener('click', () => {
   const h = state.habits.find((x) => x.id === seciliId);
   if (h) formAc(h);
 });
-$('add-cancel').addEventListener('click', () => $('modal-add').classList.remove('open'));
+$('add-cancel').addEventListener('click', () => ekleModali(false));
 $('add-form').addEventListener('submit', async (e) => {
   e.preventDefault();
   const veri = {
@@ -750,7 +824,7 @@ $('add-form').addEventListener('submit', async (e) => {
     bildirimGoster(err.message);
     return;
   }
-  $('modal-add').classList.remove('open');
+  ekleModali(false);
   $('add-name').blur();
   kaydet(); // Android tarafı alarmları yeni saate göre yeniden kurar
   if (duzenlenenId) {
@@ -863,7 +937,10 @@ window.NoralApp = {
     if ($('modal-confirm').classList.contains('open')) { secimKapat(null); return true; }
     if ($('modal-srbai').classList.contains('open')) { srbaiKapat(); return true; }
     for (const id of ['modal-add', 'modal-backup', 'modal-arsiv']) {
-      if ($(id).classList.contains('open')) { $(id).classList.remove('open'); return true; }
+      if ($(id).classList.contains('open')) {
+        if (id === 'modal-add') ekleModali(false); else $(id).classList.remove('open');
+        return true;
+      }
     }
     if ($('settings-panel').classList.contains('open')) { ayarPaneliAc(false); return true; }
     if (seciliId) { detayKapat(); return true; }
@@ -1013,7 +1090,8 @@ function copCiz() {
     sil.className = 'btn-danger';
     sil.textContent = 'Kalıcı sil';
     sil.addEventListener('click', async () => {
-      if (!(await onayIste('Kalıcı olarak silinsin mi?', `"${c.habit.name}" geri alınamaz şekilde silinecek.`, 'Sil'))) return;
+      if (!(await onayIste('Kalıcı olarak silinsin mi?', `"${c.habit.name}" geri alınamaz şekilde silinecek.`,
+        'Silmek için küreyi kaydır', true))) return;
       state = deleteForever(state, c.habit.id);
       kaydet();
       arsivCiz();

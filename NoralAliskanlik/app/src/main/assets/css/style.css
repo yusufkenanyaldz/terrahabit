@@ -422,17 +422,16 @@ html, body {
 
 .btn-Check {
   flex: 1;
-  background: linear-gradient(135deg, #ff7b1c, #a855f7, #00e5ff);
-  background-size: 200% 200%;
+  background: linear-gradient(135deg, #00c2d8, #00e5ff);
   border: none;
-  color: #ffffff;
+  color: #04202a;
   font-family: inherit;
   font-weight: 800;
   font-size: 13px;
   padding: 11px 14px;
   border-radius: 12px;
   cursor: pointer;
-  box-shadow: 0 6px 20px rgba(168, 85, 247, 0.35);
+  box-shadow: 0 6px 18px rgba(0, 229, 255, 0.28);
   transition: transform 0.15s ease;
 }
 
@@ -616,12 +615,10 @@ html, body {
 .modal p { font-size: 13px; color: #cbd5e1; line-height: 1.5; margin-bottom: 14px; }
 .field-label {
   display: block;
-  font-size: 11px;
-  font-weight: 700;
+  font-size: 12px;
+  font-weight: 600;
   color: var(--text-muted);
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  margin: 10px 0 6px;
+  margin: 12px 0 6px;
 }
 .text-input {
   width: 100%;
@@ -821,28 +818,53 @@ body.detay-acik .bottom-sheet {
 .bottom-sheet { transition: opacity 0.25s ease, transform 0.25s ease; }
 
 .det-top { display: flex; align-items: center; gap: 12px; }
-.det-ring { position: relative; width: 58px; height: 58px; flex-shrink: 0; }
-.det-ring svg { width: 100%; height: 100%; transform: rotate(-90deg); }
-.ring-bg { fill: none; stroke: rgba(255, 255, 255, 0.08); stroke-width: 5; }
-.ring-fg {
-  fill: none;
-  stroke-width: 5;
-  stroke-linecap: round;
-  stroke-dasharray: 169.65;
-  transition: stroke-dashoffset 0.6s ease, stroke 0.3s ease;
-  filter: drop-shadow(0 0 4px currentColor);
-}
-.ring-text {
-  position: absolute;
-  inset: 0;
+/* Güç: başlık satırında sayı, altında ana sahnedeki yolun küçük hâli */
+.det-guc { font-size: 15px; font-weight: 800; letter-spacing: -0.01em; }
+.yol-satir { margin: 14px 0 2px; }
+.yol {
+  position: relative;
+  height: 14px;
   display: flex;
-  align-items: baseline;
-  justify-content: center;
-  padding-top: 18px;
-  line-height: 1;
+  align-items: center;
 }
-.ring-text b { font-size: 18px; font-weight: 800; }
-.ring-text span { font-size: 10px; color: var(--text-muted); margin-left: 1px; }
+.yol::before {
+  content: '';
+  position: absolute;
+  inset-inline: 0;
+  height: 2px;
+  border-radius: 2px;
+  background: rgba(255, 255, 255, 0.10);
+}
+.yol-dolu {
+  position: absolute;
+  left: 0;
+  height: 2px;
+  border-radius: 2px;
+  transition: width 0.5s ease, background 0.3s ease;
+}
+.yol-esik {
+  position: absolute;
+  width: 1px;
+  height: 7px;
+  background: rgba(255, 255, 255, 0.18);
+  transform: translateX(-0.5px);
+}
+.yol-kure {
+  position: absolute;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  transform: translateX(-6px);
+  transition: left 0.5s ease, background 0.3s ease, box-shadow 0.3s ease;
+}
+.yol-uclar {
+  display: flex;
+  justify-content: space-between;
+  font-size: 10.5px;
+  font-weight: 600;
+  color: var(--text-muted);
+  margin-top: 5px;
+}
 .det-info { flex: 1; min-width: 0; }
 #detail-card .detail-title {
   font-size: 16px;
@@ -1022,12 +1044,18 @@ body.sahne-hazir #canvas-container, body.sahne-hazir #labels-container { opacity
   font-size: 12px;
   font-weight: 700;
 }
+/* Geçmiş günler sönük kalır; asıl iş bugün olduğu için vurgu onda */
 .gun-btn.done {
-  border-color: rgba(0, 229, 255, 0.55);
-  background: rgba(0, 229, 255, 0.16);
+  border-color: rgba(0, 229, 255, 0.22);
+  background: rgba(0, 229, 255, 0.07);
+  color: rgba(125, 244, 255, 0.72);
+}
+.gun-btn.bugun { color: var(--text-main); border-color: rgba(255, 255, 255, 0.26); }
+.gun-btn.done.bugun {
+  border-color: rgba(0, 229, 255, 0.6);
+  background: rgba(0, 229, 255, 0.18);
   color: #7df4ff;
 }
-.ring-text span { margin-left: 0; }
 
 /* =====================================================================
    v2: sıklık / zorluk / tür seçimleri, mazeret, duraklatma, arşiv, SRBAI
@@ -1173,3 +1201,58 @@ body.sahne-hazir #labels-container.soluk { opacity: 0; }
 .cal-dot.gec { opacity: 0.55; }
 .row-check.sayac { color: #7df4ff; font-size: 12px; font-weight: 800; border-color: rgba(0, 229, 255, 0.45); }
 #cop-baslik { margin-top: 16px; }
+
+/* =====================================================================
+   Kaydırarak onay — yalnız nadir ve geri dönüşü olmayan işler için.
+   Günlük tamamlama tek dokunuş olarak kalır (widget'ta da öyle).
+   ===================================================================== */
+.kaydir { margin-top: 14px; }
+/* Onay penceresinde kaydırma tam satır kaplar, düğmeler üst satırda kalır */
+.modal-actions { flex-wrap: wrap; }
+.modal-actions .kaydir { flex: 1 0 100%; margin-top: 10px; }
+.kaydir-iz {
+  position: relative;
+  height: 48px;
+  border-radius: 24px;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  background: rgba(255, 255, 255, 0.04);
+  overflow: hidden;
+  touch-action: none;
+}
+.kaydir-metin {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding-left: 22px;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text-muted);
+  transition: opacity 0.2s ease;
+}
+.kaydir-kure {
+  position: absolute;
+  top: 4px;
+  left: 4px;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 34% 32%, #fff, #7df4ff 58%, #00a9c4);
+  box-shadow: 0 0 14px rgba(0, 229, 255, 0.5);
+  cursor: grab;
+}
+.kaydir-iz.tamam .kaydir-metin { opacity: 0; }
+.kaydir-iz.yumusak .kaydir-kure { transition: left 0.25s ease; }
+.kaydir-iz.tehlike .kaydir-kure {
+  background: radial-gradient(circle at 34% 32%, #fff, #ff8f8f 58%, #c53030);
+  box-shadow: 0 0 14px rgba(255, 90, 90, 0.5);
+}
+
+/* Ekleme penceresi alttan açılır: beyin üstte görünür kalır (ayrı 2B çizim yok) */
+#modal-add {
+  align-items: flex-end;
+  padding-top: calc(70px + env(safe-area-inset-top, 0px));
+  background: linear-gradient(180deg, rgba(2, 4, 10, 0) 0%, rgba(2, 4, 10, 0.45) 38%, rgba(2, 4, 10, 0.72) 100%);
+}
+#modal-add .modal { max-height: calc(100vh - 150px); }

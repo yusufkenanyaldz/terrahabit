@@ -126,17 +126,10 @@
   <!-- SEÇİLİ ALIŞKANLIK DETAY KARTI (açılınca alttaki listenin yerini alır) -->
   <section id="detail-card">
     <div class="det-top">
-      <!-- Güç halkası: alışkanlık gücü (0–100) -->
-      <div class="det-ring">
-        <svg viewBox="0 0 64 64">
-          <circle class="ring-bg" cx="32" cy="32" r="27" />
-          <circle class="ring-fg" id="det-ring" cx="32" cy="32" r="27" />
-        </svg>
-        <div class="ring-text"><b id="det-days">0</b><span>%</span></div>
-      </div>
       <div class="det-info">
         <div class="detail-title"><span id="det-name"></span></div>
         <div class="det-sub">
+          <b class="det-guc" id="det-guc">%0</b>
           <span class="detail-stage" id="det-stage"></span>
           <span class="det-time" id="det-time"></span>
         </div>
@@ -158,6 +151,18 @@
     </div>
     <!-- Nazik mesaj: geri dönüş vaadi / kötü alışkanlıkta kayma -->
     <div class="det-not" id="det-not" hidden></div>
+    <!-- Mini nöral yol: ana sahnedeki yolun küçük hâli. Küre, gücün yol üzerindeki
+         konumunu gösterir (guc.js → yolKonumu); çentikler aşama sınırları. -->
+    <div class="yol-satir">
+      <div class="yol">
+        <div class="yol-dolu" id="det-yol-dolu"></div>
+        <i class="yol-esik" style="left: 25%"></i>
+        <i class="yol-esik" style="left: 50%"></i>
+        <i class="yol-esik" style="left: 75%"></i>
+        <div class="yol-kure" id="det-yol-kure"></div>
+      </div>
+      <div class="yol-uclar"><span>0</span><span id="det-yol-hedef"></span></div>
+    </div>
     <div class="cal-head"><span>Son 30 gün</span><span id="det-percent"></span></div>
     <div class="cal-strip" id="det-calendar"></div>
     <!-- Unutulan günü işaretle / yanlış işareti geri al (son 3 gün + bugün) -->
@@ -234,9 +239,17 @@
         <button type="button" data-v="zor">Zor</button>
       </div>
       <div class="form-not" id="form-not"></div>
+      <!-- Yeni alışkanlık bilerek yapılan nadir bir iş: onay kaydırarak verilir.
+           Düzenlemede sıradan Kaydet düğmesi görünür. -->
+      <div class="kaydir" id="add-kaydir">
+        <div class="kaydir-iz">
+          <span class="kaydir-metin">Başlatmak için küreyi kaydır</span>
+          <div class="kaydir-kure"></div>
+        </div>
+      </div>
       <div class="modal-actions">
         <button type="button" class="btn-small" id="add-cancel">Vazgeç</button>
-        <button type="submit" class="btn-small primary">Kaydet</button>
+        <button type="submit" class="btn-small primary" id="add-save" hidden>Kaydet</button>
       </div>
     </form>
   </div>

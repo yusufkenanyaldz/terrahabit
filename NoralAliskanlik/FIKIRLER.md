@@ -35,7 +35,7 @@ Veri zaten kayıtta, yeni alan gerekmez.
 ### 3. Aşama renklerinden ikisi birbirine çok yakın
 _2 Kasım 2026 — Claude (grafik çalışırken fark edildi)_
 
-2. aşama moru `#a855f7` ile 3. aşama çivit mavisi `#6366f1`: normal görüşte bile ayırt etmesi zor
+2. ✔ aşama moru `#a855f7` ile 3. aşama çivit mavisi `#6366f1`: normal görüşte bile ayırt etmesi zor
 (ölçüm: OKLab ΔE 11,3; renk körlüğünde 0,9). Grafikte sorun değil çünkü bant adları yazıyor, ama
 beyindeki küreye ve widget'a bakarken "Tekrar" mı "Yerleşiyor" mu belli olmuyor. Çözüm: 3. aşamayı
 mora değil maviye/turkuaza doğru kaydırmak (0. turuncu → 3. camgöbeği geçişi zaten o yönde).
@@ -60,19 +60,21 @@ Bilinmesi gerekenler:
 ### 5. Tasarım önerisi: ekleme ekranı ve detay kartı — KARARA BAĞLANDI
 _3 Kasım 2026 — kullanıcı (karşılaştırmalı görseller); değerlendirme kullanıcı tarafından onaylandı_
 
+**Durum (3 Kasım 2026): 1–6 yapıldı, 7 bekliyor.**
+
 **Yapılacaklar (sırasıyla, "yap" denince bu liste uygulanır):**
-1. Form etiketleri büyük harften çıkar: küçük harf, sönük, ama **kaldırılmaz** (alan dolduktan
+1. ✔ Form etiketleri büyük harften çıkar: küçük harf, sönük, ama **kaldırılmaz** (alan dolduktan
    sonra neyin ne olduğu kaybolmasın).
 2. Detay kartındaki dairesel yüzde halkası kalkar, yerine mini nöral yol gelir: 0 → ~66 çizgisi
    üzerinde kayan küre (ana sahnedeki yolun küçük hâli).
-3. "Dün / Bugün" hiyerarşisi: Dün sönük, Bugün vurgulu.
-4. Panel açılırken gerçek 3B beyin küçülür (`setGorunurAlan` zaten var). **Ayrı bir 2B beyin
+3. ✔ "Dün / Bugün" hiyerarşisi: Dün sönük, Bugün vurgulu.
+4. ✔ Panel açılırken gerçek 3B beyin küçülür (`setGorunurAlan` zaten var). **Ayrı bir 2B beyin
    çizimi eklenmez**; iki görsel zamanla birbirinden ayrı düşer.
-5. Kaydırarak onay yalnız nadir işlerde: ilk oluşturma, silme, 66. gün kutlaması.
+5. ✔ Kaydırarak onay yalnız nadir işlerde: ilk oluşturma, silme, 66. gün kutlaması.
    **Günlük tamamlama tek dokunuş kalır** (widget'ta tek dokunuşken uygulamada zahmetli olmasın).
-6. Arayüz nötr kalır; turuncu yalnızca 1. aşama (Çaba) rengi olarak kullanılır. Arayüzün tamamı
+6. ✔ Arayüz nötr kalır; turuncu yalnızca 1. aşama (Çaba) rengi olarak kullanılır. Arayüzün tamamı
    turuncuya çekilmez, yoksa aşama rengi anlamını yitirir.
-7. Alışkanlık simgeleri (kitap, damla, beyin, ağırlık, kalp, ay): çizgi simge, emoji değil.
+7. ⏳ Alışkanlık simgeleri (kitap, damla, beyin, ağırlık, kalp, ay): çizgi simge, emoji değil.
    Listede, beyin etiketlerinde ve widget'ta kullanılır. **En pahalı madde bu**; diğerleri
    bittikten sonra ayrıca ele alınır.
 
