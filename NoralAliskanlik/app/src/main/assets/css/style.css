@@ -1326,3 +1326,9 @@ body.sahne-hazir #labels-container.soluk { opacity: 0; }
   font-size: 12px;
   line-height: 1.5;
 }
+
+/* Başka bir alışkanlığın kullandığı simge: seçilebilir ama soluk */
+.simge-secim button.kullanilan { opacity: 0.32; }
+.simge-secim button.kullanilan.on { opacity: 1; }
+/* Etikette yalnız simge + yüzde var: dar pill */
+.label-habit { padding-left: 7px; padding-right: 9px; gap: 5px; }

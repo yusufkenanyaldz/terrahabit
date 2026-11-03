@@ -665,10 +665,14 @@ export function createBrainScene({ container, labelsContainer, leaderSvg, ayarla
       const ikon = h.ikon || 'genel';
       if (k.ikon !== ikon) {
         k.ikon = ikon;
-        dotEl.innerHTML = simgeSvg(ikon, 14);
+        dotEl.innerHTML = simgeSvg(ikon, 16); // Simge artık kimliği tek başına taşıyor
         dotEl.classList.add('simgeli');
       }
-      k.labelEl.querySelector('.lbl-text').textContent = `${h.name} · %${Math.round(h.H * 100)}`;
+      // Etikette ad yazmaz: simge + yüzde. Adlar beynin yarısını kapatıyordu; alışkanlığı
+      // simgesinden tanıyoruz (adı alttaki listede ve detay kartında yazılı).
+      k.labelEl.querySelector('.lbl-text').textContent = `%${Math.round(h.H * 100)}`;
+      k.labelEl.setAttribute('aria-label', `${h.name}, %${Math.round(h.H * 100)}`);
+      k.labelEl.title = h.name;
       k.svgBag.polyline.setAttribute('stroke', asama.hex);
       k.svgBag.dot.setAttribute('fill', asama.hex);
       // Etiket genişliği yalnızca metin değişince ölçülür (her karede ölçmek yavaştır).

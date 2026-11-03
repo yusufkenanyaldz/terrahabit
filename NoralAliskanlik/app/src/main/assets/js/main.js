@@ -787,6 +787,15 @@ function formuCiz() {
   secimGrubu('sec-hedef', form.hedef);
   secimGrubu('sec-zorluk', form.zorluk);
   secimGrubu('sec-simge', form.ikon);
+  // Beyindeki etikette artık yalnız simge görünüyor: aynı simgeden iki alışkanlık olursa
+  // hangisi hangisi belli olmaz. Başkasının kullandığı simgeler soluk gösterilir (engel değil).
+  const kullanilan = new Set(aktifler().filter((x) => x.id !== duzenlenenId).map((x) => x.ikon));
+  $('sec-simge').querySelectorAll('button').forEach((b) => {
+    const dolu = kullanilan.has(b.dataset.v) && b.dataset.v !== form.ikon;
+    b.classList.toggle('kullanilan', dolu);
+    b.title = dolu ? `${b.getAttribute('aria-label')} — başka bir alışkanlıkta kullanılıyor`
+      : b.getAttribute('aria-label');
+  });
   $('sec-gunler').hidden = form.siklik !== 'gunler';
   $('sec-hedef').hidden = form.siklik !== 'haftalik';
   // Miktar yalnızca her gün / belirli günlerde (haftalık hedefle birlikte kullanılmaz)
