@@ -211,3 +211,18 @@ Ortalama 0–1 arası otomatiklik puanına (S) çevrilir.
 hedef süre T %10 kaydırılır (30–150 gün arası). Tek ölçüm yetmez: bir günlük ruh hali modeli
 savurmasın diye. ⚙ menüsünden kapatılabilir; kapalıyken model herkes için geçerli ortalama süreyi
 kullanır. Kod: `habits.js` (srbaiPuani, srbaiDue, addSrbai), `guc.js` (olcumleriUygula).
+
+### 27 Şubat 2027 civarı: "%100 sığdı mı?"
+_3 Kasım 2026_
+
+Kullanıcı o gün gelip soracak. Arka planı: widget satırında sayılara ~76 dp yer var,
+"0/10 · %7" 58 dp tutuyor, her fazladan rakam ~8 dp ekliyor; "10/10 · %100" 82 dp
+olacağı için kırpılacaktı. Çözüm `AliskanlikWidget.kt` içinde: metin 10 karakteri
+geçince 10 sp, 12'yi geçince 9 sp. Yani sığması gerekiyor.
+
+Modelin tahmini (3 Kasım 2026'da başlayan, her gün yapılan, normal zorlukta bir
+alışkanlık): %95 → 63. gün (5 Ocak 2027), %99 → 92. gün, %100 → 116. gün
+(27 Şubat 2027). Kaçırılan günler bu tarihleri öteler.
+
+Sığmadıysa: `widget_satir.xml` içindeki `satir_yuzde` payını büyütmek ya da punto
+eşiklerini düşürmek yeter. Sığdıysa: kullanıcıyı tebrik et, 66 günü geçmiş demektir.
