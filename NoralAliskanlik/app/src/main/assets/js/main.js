@@ -683,7 +683,7 @@ function odulAnimasyonu(id, kaynakEl) {
     { transform: `translate3d(${bas.x}px, ${bas.y}px, 0) rotate(${aci}deg) scaleY(0.5)`, opacity: 0.9 },
     { transform: `translate3d(${bas.x + dx * 0.55}px, ${bas.y + dy * 0.55}px, 0) rotate(${aci}deg) scaleY(1)`, opacity: 1, offset: 0.45 },
     { transform: `translate3d(${hedef.x}px, ${hedef.y}px, 0) rotate(${aci}deg) scaleY(0.35)`, opacity: 0 },
-  ], { duration: 520, easing: 'cubic-bezier(0.16, 0.7, 0.3, 1)' });
+  ], { duration: 700, easing: 'cubic-bezier(0.22, 0.62, 0.3, 1)' });
   hareket.onfinish = () => {
     isik.remove();
     sahne.tikParlamasi(id);   // 3) küre parlar, beyin aydınlanır
