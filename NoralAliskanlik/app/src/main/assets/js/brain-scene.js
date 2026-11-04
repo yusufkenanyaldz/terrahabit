@@ -743,15 +743,6 @@ export function createBrainScene({ container, labelsContainer, leaderSvg, ayarla
   }
   let beyinParlama = 0;
 
-  /** Otomatiklik ucunun (bazal gangliyon) ekrandaki yeri — dalın büyüme yönü. */
-  function otomatikUcuEkranKonumu() {
-    tempProjVec.copy(basalMarker.position).project(camera);
-    return {
-      x: (tempProjVec.x * 0.5 + 0.5) * window.innerWidth,
-      y: (-tempProjVec.y * 0.5 + 0.5) * window.innerHeight,
-    };
-  }
-
   /** Kürenin ekrandaki yeri (piksel) — ödül animasyonunun hedefi. Görünmüyorsa null. */
   function kureEkranKonumu(id) {
     const k = kureler.get(id);
@@ -1215,5 +1206,5 @@ export function createBrainScene({ container, labelsContainer, leaderSvg, ayarla
     return { fps: olcum.fps, enUzun: olcum.enUzun, takilma: olcum.takilma, oran: cizimOrani };
   }
 
-  return { etiketleriGoster, getStats, loadBrain, showFallbackBrain, setHabits, select, flashMiss, celebrate, tikParlamasi, asamaDalgasi, kureEkranKonumu, otomatikUcuEkranKonumu, setTransparent, toggleClip, applySettings, setGorunurAlan };
+  return { etiketleriGoster, getStats, loadBrain, showFallbackBrain, setHabits, select, flashMiss, celebrate, tikParlamasi, asamaDalgasi, kureEkranKonumu, setTransparent, toggleClip, applySettings, setGorunurAlan };
 }

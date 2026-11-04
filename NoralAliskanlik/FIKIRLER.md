@@ -200,6 +200,15 @@ Three.js canlı duvar kağıdında çalışmaz, sahnenin tamamı Kotlin + OpenGL
 yazılmalı; ayrıca duvar kağıdı sayfa kaydırınca widget'tan ayrılıyor, telefonun fotoğraf
 duvar kağıdı kaybediliyor ve sürekli dönen sahne pil yakıyor.
 
+### Dallanan sinir lifi efekti (işaretleme ödülü)
+_4 Kasım 2026 — kullanıcı çizimi, denendi ve vazgeçildi_
+
+Tike basınca düz ışık yerine dallanan ince bir lif büyüsün fikri. İki sürüm denendi:
+önce alttaki panelden küreye uzanan kalın bir dal, sonra küreden çıkan 1,1 piksellik
+ince bir lif (yoldan 30-55 derece ayrılan, iki yan dallı). Kullanıcı GIF önizlemelerine
+bakıp "hayal ettiğim gibi olmadı" dedi; düz ışıkta karar kılındı. Kod geri alındı
+(commit 10b6150 ve 94541eb'nin revert'i); denemek isteyen o iki işleme bakabilir.
+
 ## Bilgi notları
 
 Soruldu, cevaplandı; bir daha sorulmasın diye burada.
