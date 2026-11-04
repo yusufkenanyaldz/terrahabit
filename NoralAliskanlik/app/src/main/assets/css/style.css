@@ -1333,9 +1333,9 @@ body.sahne-hazir #labels-container.soluk { opacity: 0; }
   height: 100%;
   pointer-events: none;
   z-index: 9;
-  filter: drop-shadow(0 0 5px var(--renk, #00e5ff)) drop-shadow(0 0 2px #ffffff);
+  filter: drop-shadow(0 0 3px var(--renk, #00e5ff));
 }
-.odul-dal .dal-ucu { filter: drop-shadow(0 0 7px #ffffff); }
+.odul-dal .dal-ucu { filter: drop-shadow(0 0 4px #ffffff); }
 
 /* Dokunulan satır (ya da detay kartı) aşama renginde hafifçe parlar */
 @keyframes odul-parla {

@@ -639,25 +639,24 @@ function asamaSonra(id, onceki) {
 }
 
 /**
- * Satırdan küreye büyüyen dal. Düz bir çizgi yerine uca doğru ikiye ayrılan ince bir
- * lif: akson ucunun dallanması gibi. Çizgi bir anda belirmez, uçtan uca "büyür"
- * (stroke-dashoffset), önünde parlak bir uç gider. Küreye varınca kökten başlayarak
- * silinir — küre onu içine çekiyormuş gibi.
- * Her seferinde ufak bir rastgelelik var ama sınırlı: yön hep küreye, sapma az.
+ * Küreden çıkıp otomatiklik ucuna doğru büyüyen ince bir sinir lifi.
+ * Alttaki panelden uzanmıyor: etki beynin üstünde, kürenin kendi çevresinde kalıyor.
+ * Lif uçtan uca büyür (stroke-dashoffset), ucunda küçük bir ışık taşır, yolda bir iki
+ * dala ayrılır ve kökten silinerek kaybolur. İnce ve kısa: her gün görülecek.
  */
-function dalCiz(bas, hedef, renk, bitince) {
+function dalCiz(kure, yon, renk, bitince) {
   const NS = 'http://www.w3.org/2000/svg';
-  const dx = hedef.x - bas.x;
-  const dy = hedef.y - bas.y;
-  const boy = Math.hypot(dx, dy) || 1;
-  const nx = -dy / boy, ny = dx / boy;            // yола dik yön (sapma için)
   const rastgele = (a, b) => a + Math.random() * (b - a);
+  const boy = rastgele(44, 60);                      // piksel; beynin yanında kalsın
+  // Yön: otomatiklik ucuna doğru, ama yoldan 30–55 derece ayrılmış. Tam yol boyunca
+  // büyürse ana yolun ikizi gibi duruyor; ayrılınca dokuya uzanan bir dal gibi okunuyor.
+  const aci0 = Math.atan2(yon.y, yon.x) + rastgele(0.52, 0.96) * (Math.random() < 0.5 ? -1 : 1);
+  const nx = -Math.sin(aci0), ny = Math.cos(aci0);   // yola dik yön
 
-  // Ana lif: hafif yay. Kontrol noktaları yolun 1/3 ve 2/3'ünde yana kaydırılır.
-  const sapma = rastgele(14, 30) * (Math.random() < 0.5 ? -1 : 1);
-  const k1 = { x: bas.x + dx * 0.34 + nx * sapma, y: bas.y + dy * 0.34 + ny * sapma };
-  const k2 = { x: bas.x + dx * 0.70 - nx * sapma * 0.55, y: bas.y + dy * 0.70 - ny * sapma * 0.55 };
-  const anaD = `M ${bas.x} ${bas.y} C ${k1.x} ${k1.y}, ${k2.x} ${k2.y}, ${hedef.x} ${hedef.y}`;
+  const uc1 = { x: kure.x + Math.cos(aci0) * boy, y: kure.y + Math.sin(aci0) * boy };
+  const egri = rastgele(7, 15) * (Math.random() < 0.5 ? -1 : 1);
+  const orta = { x: (kure.x + uc1.x) / 2 + nx * egri, y: (kure.y + uc1.y) / 2 + ny * egri };
+  const anaD = `M ${kure.x} ${kure.y} Q ${orta.x} ${orta.y}, ${uc1.x} ${uc1.y}`;
 
   const svg = document.createElementNS(NS, 'svg');
   svg.setAttribute('class', 'odul-dal');
@@ -675,29 +674,25 @@ function dalCiz(bas, hedef, renk, bitince) {
     svg.appendChild(e);
     return e;
   };
-  const ana = yol(anaD, 2.2, 1);
+  const ana = yol(anaD, 1.1, 0.95);
 
-  // Dallar: ana lifin üst yarısından çıkıp küreye doğru yelpazelenir
+  // İki ince dal: lifin üst yarısından çıkıp hafifçe ayrılır
   const dallar = [];
-  for (const [t, yon] of [[0.52, 1], [0.74, -1], [0.88, 1]]) {
+  for (const [t, taraf] of [[0.55, 1], [0.8, -1]]) {
     const p = ana.getPointAtLength(ana.getTotalLength() * t);
-    const uzunluk = boy * rastgele(0.12, 0.2);
-    const aci = Math.atan2(dy, dx) + yon * rastgele(0.45, 0.85);
-    const uc = { x: p.x + Math.cos(aci) * uzunluk, y: p.y + Math.sin(aci) * uzunluk };
-    const orta = { x: (p.x + uc.x) / 2 + nx * yon * 6, y: (p.y + uc.y) / 2 + ny * yon * 6 };
-    dallar.push(yol(`M ${p.x} ${p.y} Q ${orta.x} ${orta.y}, ${uc.x} ${uc.y}`, 1.3, 0.75));
+    const u = boy * rastgele(0.3, 0.45);
+    const a = aci0 + taraf * rastgele(0.5, 0.95);
+    dallar.push(yol(`M ${p.x} ${p.y} L ${p.x + Math.cos(a) * u} ${p.y + Math.sin(a) * u}`, 0.8, 0.7));
   }
 
-  // Parlak uç: ana lif boyunca ilerler
-  const uc = document.createElementNS(NS, 'circle');
-  uc.setAttribute('r', 3.4);
-  uc.setAttribute('fill', '#ffffff');
-  uc.setAttribute('class', 'dal-ucu');
-  uc.style.offsetPath = `path("${anaD}")`;
-  svg.appendChild(uc);
+  const ucIsigi = document.createElementNS(NS, 'circle');
+  ucIsigi.setAttribute('r', 1.9);
+  ucIsigi.setAttribute('fill', '#ffffff');
+  ucIsigi.setAttribute('class', 'dal-ucu');
+  ucIsigi.style.offsetPath = `path("${anaD}")`;
+  svg.appendChild(ucIsigi);
 
-  // Büyüme: her lif kendi uzunluğu kadar "çizilir"
-  const BUYUME = 330;
+  const BUYUME = 300;
   const cizdir = (e, sure, gecikme) => {
     const L = e.getTotalLength();
     e.style.strokeDasharray = `${L}`;
@@ -706,20 +701,18 @@ function dalCiz(bas, hedef, renk, bitince) {
       { duration: sure, delay: gecikme, easing: 'cubic-bezier(0.2, 0.7, 0.3, 1)', fill: 'forwards' });
   };
   const anaAnim = cizdir(ana, BUYUME, 0);
-  dallar.forEach((d, i) => cizdir(d, 200, 90 + i * 55));
-  uc.animate([{ offsetDistance: '0%' }, { offsetDistance: '100%' }],
+  dallar.forEach((d, i) => cizdir(d, 170, 110 + i * 60));
+  ucIsigi.animate([{ offsetDistance: '0%' }, { offsetDistance: '100%' }],
     { duration: BUYUME, easing: 'cubic-bezier(0.2, 0.7, 0.3, 1)', fill: 'forwards' });
 
   anaAnim.onfinish = () => {
     bitince();
-    uc.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 160, fill: 'forwards' });
-    // Kökten başlayarak silinir: küre lifi içine çekiyormuş gibi
     const sil = [ana, ...dallar].map((e) => {
       const L = e.getTotalLength();
       return e.animate([{ strokeDashoffset: 0 }, { strokeDashoffset: -L }],
-        { duration: 260, easing: 'ease-in', fill: 'forwards' });
+        { duration: 300, easing: 'ease-in', fill: 'forwards' });
     });
-    svg.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 300, fill: 'forwards' });
+    svg.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 340, fill: 'forwards' });
     sil[0].onfinish = () => svg.remove();
   };
 }
@@ -749,15 +742,17 @@ function odulAnimasyonu(id, kaynakEl) {
   }
   if (navigator.vibrate) navigator.vibrate(15);
 
-  // 2) Dal: satırdan küreye doğru büyüyen, uçlara ayrılan ince bir sinir lifi
-  const hedef = sahne.kureEkranKonumu(id);
-  if (!hedef || window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
-    if (hedef) sahne.tikParlamasi(id);
+  // 2) Dal: kürenin kendisinden otomatiklik ucuna doğru büyüyen ince lif
+  const kure = sahne.kureEkranKonumu(id);
+  if (!kure || window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+    if (kure) sahne.tikParlamasi(id);
     return;
   }
-  const kutu = (kaynakEl || $('habit-list-el')).getBoundingClientRect();
-  dalCiz({ x: kutu.left + kutu.width / 2, y: kutu.top + kutu.height / 2 }, hedef, asama,
-    () => sahne.tikParlamasi(id));   // 3) küre parlar, beyin aydınlanır
+  const uc = sahne.otomatikUcuEkranKonumu();
+  let yon = { x: uc.x - kure.x, y: uc.y - kure.y };
+  const u = Math.hypot(yon.x, yon.y);
+  yon = u > 12 ? { x: yon.x / u, y: yon.y / u } : { x: 1, y: -0.2 }; // küre uçtaysa sağa yukarı
+  dalCiz(kure, yon, asama, () => sahne.tikParlamasi(id));   // 3) küre parlar, beyin aydınlanır
 }
 
 // "Bugün yaptım": günde yalnızca bir kez (detay kartı ve listedeki ✓ aynı işi yapar)
