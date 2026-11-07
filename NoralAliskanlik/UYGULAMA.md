@@ -297,6 +297,14 @@ Zaman, Bırakma. Tek kaynak `js/simgeler.js`; widget için Android vektör çizi
   ile taşınır (sayfa yerleşimi yeniden hesaplanmaz); her karede yeni nesne üretilmez.
   Telefon zorlanırsa (2 sn boyunca < 45 fps) çizim çözünürlüğü kademeli düşer, yalnız
   aşağı iner.
+- **Ağ görünümü (⚙ menüsü):** yüklü modelin köşelerinden açılışta bir kez üretilen düğüm
+  ağı, gerçekçi beynin üstüne biner. Renk ön-arka eksenine göre: önü turuncu (çaba), arkası
+  mavi (otomatiklik), arası mor. Düğümler shader'da yanıp söner.
+  **"Yarısı gerçek, yarısı ağ" görüntüsü hata değil, bırakılmalı.** Sebebi ışık: güçlü ana
+  ışık (3,5; 4,5; 3) bir yandan vuruyor, karşı taraf yalnız zayıf mavi kenar ışığı alıyor.
+  Aydınlık yarıda soluk-parlak beyin yüzeyi ağı örtüyor, karanlık yarıda ağ öne çıkıyor.
+  Gezegendeki gece-gündüz çizgisi gibi; beyin döndükçe çizgi de yumuşakça kayar, titremez.
+  Kullanıcı ilk gördüğünde "tahmin etmediğimiz, çok güzel bir hata" dedi.
 - **Şeffaf mod:** beyin yarı saydam çizilir, küreler içeriden görünür. Fresnel
   shader'ında negatif tabanın kuvveti alınınca NaN oluşup görüntü anlık kopuyordu;
   taban kıskaçlandı ve NaN koruması eklendi.
