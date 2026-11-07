@@ -428,6 +428,7 @@ export function createBrainScene({ container, labelsContainer, leaderSvg, ayarla
   // =======================================================================
   let agGrubu = null;
   let agGorunumuAcik = false;
+  let agDugumMalzemesi = null; // yanıp sönme zamanı her karede buradan verilir
   const AG_HUCRE = 0.072;      // düğümler arası yaklaşık uzaklık (beyin 2,45 birim)
   const AG_BAG_YARICAP = 0.125; // bu uzaklıktaki komşulara çizgi çekilir
   const AG_EN_COK_BAG = 3;
@@ -437,6 +438,7 @@ export function createBrainScene({ container, labelsContainer, leaderSvg, ayarla
     brainPivotGroup.remove(agGrubu);
     agGrubu.traverse((c) => { if (c.geometry) c.geometry.dispose(); if (c.material) c.material.dispose(); });
     agGrubu = null;
+    agDugumMalzemesi = null;
   }
 
   function yuvarlakNoktaDokusu() {
@@ -508,31 +510,91 @@ export function createBrainScene({ container, labelsContainer, leaderSvg, ayarla
       }
     }
 
-    // 3) Düğümler: çoğu soluk camgöbeği, azı beyazımsı (turuncu yok: alışkanlık küreleriyle karışmasın)
+    // 3) Renk: beynin önü (prefrontal, çaba) turuncu → ortası mor → arkası mavi.
+    // Uygulamanın aşama renkleriyle aynı geçiş. Eksen: bazal gangliyondan prefrontale.
+    const on = prefrontalMarker.position.clone().applyMatrix4(ters);
+    const arka = basalMarker.position.clone().applyMatrix4(ters);
+    const eksen = on.sub(arka).normalize();
+    const izdusum = noktalar.map((p) => p[0] * eksen.x + p[1] * eksen.y + p[2] * eksen.z);
+    // Uçtaki birkaç taşkın nokta aralığı germesin: %4–%96 dilimi esas al
+    const sirali = [...izdusum].sort((a, b) => a - b);
+    const enAz = sirali[Math.floor(sirali.length * 0.04)];
+    const enCok = sirali[Math.floor(sirali.length * 0.96)];
+    const aralik = (enCok - enAz) || 1;
+    // Kısım kısım: önün ~%35'i tam turuncu, arkanın ~%35'i tam mavi, arası mor geçiş
+    const bolge = (onluk) => {
+      const t = Math.max(0, Math.min(1, (1 - onluk - 0.32) / 0.36));
+      return t * t * (3 - 2 * t);
+    };
+
     const konum = new Float32Array(n * 3);
     const renk = new Float32Array(n * 3);
-    const c1 = new THREE.Color(0x5fd8e0), c2 = new THREE.Color(0xe8fbff);
+    const faz = new Float32Array(n);
+    const c = new THREE.Color();
     let tohum = 7;
     const rnd = () => { tohum = (tohum * 16807) % 2147483647; return tohum / 2147483647; };
     noktalar.forEach((p, i) => {
       konum.set(p, i * 3);
-      const c = rnd() < 0.18 ? c2 : c1;
-      const parlaklik = 0.55 + rnd() * 0.45;
+      const onluk = (izdusum[i] - enAz) / aralik;              // 1 = en ön
+      hesaplaAsamaRengi(bolge(onluk), c);                       // ön turuncu, arka mavi
+      const parlaklik = 0.85 + rnd() * 0.55;
       renk[i * 3] = c.r * parlaklik; renk[i * 3 + 1] = c.g * parlaklik; renk[i * 3 + 2] = c.b * parlaklik;
+      faz[i] = rnd() * Math.PI * 2;
     });
     const noktaGeo = new THREE.BufferGeometry();
     noktaGeo.setAttribute('position', new THREE.BufferAttribute(konum, 3));
     noktaGeo.setAttribute('color', new THREE.BufferAttribute(renk, 3));
-    const dugumler = new THREE.Points(noktaGeo, new THREE.PointsMaterial({
-      size: 0.03, map: yuvarlakNoktaDokusu(), vertexColors: true, transparent: true,
-      opacity: 0.9, depthWrite: false, blending: THREE.AdditiveBlending, sizeAttenuation: true,
+    noktaGeo.setAttribute('faz', new THREE.BufferAttribute(faz, 1));
+    // Yanıp sönen düğümler: her düğümün kendi fazı var, hesap ekran kartında (ek maliyet yok)
+    const dugumler = new THREE.Points(noktaGeo, new THREE.ShaderMaterial({
+      uniforms: {
+        uZaman: { value: 0 },
+        uBoyut: { value: 0.046 },
+        uOlcek: { value: window.innerHeight * 0.5 },
+        uDoku: { value: yuvarlakNoktaDokusu() },
+      },
+      vertexShader: `
+        attribute float faz;
+        attribute vec3 color;
+        uniform float uZaman, uBoyut, uOlcek;
+        varying vec3 vRenk;
+        varying float vIsik;
+        void main() {
+          vRenk = color;
+          // Çoğu düğüm hafifçe nefes alır, bir kısmı belirgin yanıp söner
+          float dalga = 0.5 + 0.5 * sin(uZaman * (0.9 + fract(faz * 3.7) * 1.6) + faz);
+          float sivri = step(0.82, fract(faz * 5.3));               // ~%18 düğüm parlar
+          vIsik = mix(0.55 + 0.35 * dalga, 0.35 + 1.25 * pow(dalga, 3.0), sivri);
+          vec4 mv = modelViewMatrix * vec4(position, 1.0);
+          gl_PointSize = uBoyut * uOlcek / -mv.z * (0.85 + 0.35 * sivri * dalga);
+          gl_Position = projectionMatrix * mv;
+        }`,
+      fragmentShader: `
+        uniform sampler2D uDoku;
+        varying vec3 vRenk;
+        varying float vIsik;
+        void main() {
+          float a = texture2D(uDoku, gl_PointCoord).a;
+          if (a < 0.02) discard;
+          gl_FragColor = vec4(vRenk * vIsik, a);
+        }`,
+      transparent: true, depthWrite: false, blending: THREE.AdditiveBlending,
     }));
     dugumler.renderOrder = 2;
+    agDugumMalzemesi = dugumler.material;
 
+    // Bağlar da düğümlerinin rengini taşır
+    const cizgiRenk = new Float32Array(cizgi.length);
+    for (let k = 0; k < cizgi.length; k += 3) {
+      const o = ((cizgi[k] * eksen.x + cizgi[k + 1] * eksen.y + cizgi[k + 2] * eksen.z) - enAz) / aralik;
+      hesaplaAsamaRengi(bolge(o), c);
+      cizgiRenk[k] = c.r; cizgiRenk[k + 1] = c.g; cizgiRenk[k + 2] = c.b;
+    }
     const cizgiGeo = new THREE.BufferGeometry();
     cizgiGeo.setAttribute('position', new THREE.Float32BufferAttribute(cizgi, 3));
+    cizgiGeo.setAttribute('color', new THREE.BufferAttribute(cizgiRenk, 3));
     const baglar = new THREE.LineSegments(cizgiGeo, new THREE.LineBasicMaterial({
-      color: 0x2bb7c4, transparent: true, opacity: 0.2, depthWrite: false,
+      vertexColors: true, transparent: true, opacity: 0.5, depthWrite: false,
       blending: THREE.AdditiveBlending,
     }));
     baglar.renderOrder = 1;
@@ -901,6 +963,7 @@ export function createBrainScene({ container, labelsContainer, leaderSvg, ayarla
       THREE.MathUtils.degToRad(ayar.modelRot.y),
       THREE.MathUtils.degToRad(ayar.modelRot.z));
     olusturNoralYol();
+    if (agGrubu) { agiAt(); if (agGorunumuAcik) agGorunumu(true); }
   }
 
   /**
@@ -1308,6 +1371,12 @@ export function createBrainScene({ container, labelsContainer, leaderSvg, ayarla
       }
     }
     tozParcaciklari.rotation.y = elapsed * 0.015;
+
+    if (agDugumMalzemesi && agGorunumuAcik) {
+      agDugumMalzemesi.uniforms.uZaman.value = elapsed;
+      // Three.js'in kendi nokta ölçeğiyle aynı: çizim tamponu yüksekliğinin yarısı
+      agDugumMalzemesi.uniforms.uOlcek.value = renderer.domElement.height * 0.5;
+    }
 
     // Beyin parlaması: bloom gücü kısa süre yükselir (uniform; ek çizim maliyeti yok)
     if (beyinParlama > 0) {
