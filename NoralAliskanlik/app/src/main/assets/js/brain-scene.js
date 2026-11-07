@@ -543,7 +543,7 @@ export function createBrainScene({ container, labelsContainer, leaderSvg, ayarla
     return grup;
   }
 
-  /** Ağ görünümünü aç/kapa: gerçekçi beyin gizlenir, yerine düğüm ağı çıkar. */
+  /** Ağ görünümünü aç/kapa: düğüm ağı gerçekçi beynin üstüne biner. */
   function agGorunumu(acik) {
     agGorunumuAcik = !!acik;
     const beyin = loadedGlbModel || proceduralBrainGroup;
@@ -552,7 +552,8 @@ export function createBrainScene({ container, labelsContainer, leaderSvg, ayarla
       if (agGrubu) brainPivotGroup.add(agGrubu);
     }
     if (agGrubu) agGrubu.visible = agGorunumuAcik;
-    if (beyin) beyin.visible = !agGorunumuAcik;
+    // Ağ, gerçekçi beynin ÜSTÜNE biner; beyin gizlenmez (kullanıcı isteği)
+    if (beyin) beyin.visible = true;
     return agGrubu ? agGrubu.userData : null;
   }
 
