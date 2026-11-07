@@ -355,7 +355,8 @@ export function createBrainScene({ container, labelsContainer, leaderSvg, ayarla
           mat.clipShadows = true;
           if (seffafModAcik) {
             mat.transparent = true;
-            mat.opacity = 0.20;
+            // Ağ görünümünde beyin, ağın altında kalıp sönükleşiyordu: biraz daha belirgin
+            mat.opacity = agGorunumuAcik ? 0.42 : 0.20;
             mat.depthWrite = false;
             if (mat.userData.uFresnelActive) mat.userData.uFresnelActive.value = 1.0;
           } else {
@@ -614,6 +615,7 @@ export function createBrainScene({ container, labelsContainer, leaderSvg, ayarla
       if (agGrubu) brainPivotGroup.add(agGrubu);
     }
     if (agGrubu) agGrubu.visible = agGorunumuAcik;
+    guncelleBeyinMateryalleri();   // beynin opaklığı ağ açıkken değişir
     // Ağ, gerçekçi beynin ÜSTÜNE biner; beyin gizlenmez (kullanıcı isteği)
     if (beyin) beyin.visible = true;
     return agGrubu ? agGrubu.userData : null;
