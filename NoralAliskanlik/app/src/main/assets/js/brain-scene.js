@@ -417,6 +417,143 @@ export function createBrainScene({ container, labelsContainer, leaderSvg, ayarla
     loadedGlbModel = wrapper;
     brainPivotGroup.add(loadedGlbModel);
     guncelleBeyinMateryalleri();
+    // Model değişti: ağ görünümü varsa yeniden üretilsin
+    if (agGrubu) { agiAt(); }
+    if (agGorunumuAcik) agGorunumu(true);
+  }
+
+  // =======================================================================
+  // AĞ GÖRÜNÜMÜ: beynin kendi yüzeyinden üretilen düğüm + bağlantı ağı
+  // Yeni model dosyası yok: yüklü modelin köşelerinden örneklenir (bir kez, açılışta).
+  // =======================================================================
+  let agGrubu = null;
+  let agGorunumuAcik = false;
+  const AG_HUCRE = 0.072;      // düğümler arası yaklaşık uzaklık (beyin 2,45 birim)
+  const AG_BAG_YARICAP = 0.125; // bu uzaklıktaki komşulara çizgi çekilir
+  const AG_EN_COK_BAG = 3;
+
+  function agiAt() {
+    if (!agGrubu) return;
+    brainPivotGroup.remove(agGrubu);
+    agGrubu.traverse((c) => { if (c.geometry) c.geometry.dispose(); if (c.material) c.material.dispose(); });
+    agGrubu = null;
+  }
+
+  function yuvarlakNoktaDokusu() {
+    const c = document.createElement('canvas');
+    c.width = 32; c.height = 32;
+    const ctx = c.getContext('2d');
+    const g = ctx.createRadialGradient(16, 16, 0, 16, 16, 16);
+    g.addColorStop(0, 'rgba(255,255,255,1)');
+    g.addColorStop(0.45, 'rgba(255,255,255,0.85)');
+    g.addColorStop(1, 'rgba(255,255,255,0)');
+    ctx.fillStyle = g;
+    ctx.fillRect(0, 0, 32, 32);
+    return new THREE.CanvasTexture(c);
+  }
+
+  function olusturAg() {
+    const kaynak = loadedGlbModel || proceduralBrainGroup;
+    if (!kaynak) return null;
+    brainPivotGroup.updateMatrixWorld(true);
+    const ters = new THREE.Matrix4().copy(brainPivotGroup.matrixWorld).invert();
+    const v = new THREE.Vector3();
+
+    // 1) Köşeleri ızgaraya göre seyrelt: her hücreden bir düğüm (eşit dağılım)
+    const hucreler = new Map();
+    kaynak.traverse((m) => {
+      if (!m.isMesh || !m.geometry || !m.geometry.attributes.position) return;
+      const pos = m.geometry.attributes.position;
+      const adim = Math.max(1, Math.floor(pos.count / 60000)); // çok yoğun modellerde hızlandır
+      for (let i = 0; i < pos.count; i += adim) {
+        v.fromBufferAttribute(pos, i).applyMatrix4(m.matrixWorld).applyMatrix4(ters);
+        const k = `${Math.floor(v.x / AG_HUCRE)},${Math.floor(v.y / AG_HUCRE)},${Math.floor(v.z / AG_HUCRE)}`;
+        if (!hucreler.has(k)) hucreler.set(k, [v.x, v.y, v.z]);
+      }
+    });
+    const noktalar = [...hucreler.values()];
+    const n = noktalar.length;
+
+    // 2) Komşulara bağlan (ızgara ile hızlı arama)
+    const H = AG_BAG_YARICAP;
+    const izgara = new Map();
+    noktalar.forEach((p, i) => {
+      const k = `${Math.floor(p[0] / H)},${Math.floor(p[1] / H)},${Math.floor(p[2] / H)}`;
+      if (!izgara.has(k)) izgara.set(k, []);
+      izgara.get(k).push(i);
+    });
+    const cizgi = [];
+    const bagSayisi = new Uint8Array(n);
+    for (let i = 0; i < n; i++) {
+      if (bagSayisi[i] >= AG_EN_COK_BAG) continue;
+      const [x, y, z] = noktalar[i];
+      const cx = Math.floor(x / H), cy = Math.floor(y / H), cz = Math.floor(z / H);
+      const adaylar = [];
+      for (let a = -1; a <= 1; a++) for (let b = -1; b <= 1; b++) for (let c = -1; c <= 1; c++) {
+        const liste = izgara.get(`${cx + a},${cy + b},${cz + c}`);
+        if (!liste) continue;
+        for (const j of liste) {
+          if (j <= i) continue;
+          const q = noktalar[j];
+          const d2 = (q[0] - x) ** 2 + (q[1] - y) ** 2 + (q[2] - z) ** 2;
+          if (d2 < H * H) adaylar.push([d2, j]);
+        }
+      }
+      adaylar.sort((p, q) => p[0] - q[0]);
+      for (const [, j] of adaylar) {
+        if (bagSayisi[i] >= AG_EN_COK_BAG) break;
+        if (bagSayisi[j] >= AG_EN_COK_BAG + 1) continue;
+        cizgi.push(x, y, z, noktalar[j][0], noktalar[j][1], noktalar[j][2]);
+        bagSayisi[i]++; bagSayisi[j]++;
+      }
+    }
+
+    // 3) Düğümler: çoğu soluk camgöbeği, azı beyazımsı (turuncu yok: alışkanlık küreleriyle karışmasın)
+    const konum = new Float32Array(n * 3);
+    const renk = new Float32Array(n * 3);
+    const c1 = new THREE.Color(0x5fd8e0), c2 = new THREE.Color(0xe8fbff);
+    let tohum = 7;
+    const rnd = () => { tohum = (tohum * 16807) % 2147483647; return tohum / 2147483647; };
+    noktalar.forEach((p, i) => {
+      konum.set(p, i * 3);
+      const c = rnd() < 0.18 ? c2 : c1;
+      const parlaklik = 0.55 + rnd() * 0.45;
+      renk[i * 3] = c.r * parlaklik; renk[i * 3 + 1] = c.g * parlaklik; renk[i * 3 + 2] = c.b * parlaklik;
+    });
+    const noktaGeo = new THREE.BufferGeometry();
+    noktaGeo.setAttribute('position', new THREE.BufferAttribute(konum, 3));
+    noktaGeo.setAttribute('color', new THREE.BufferAttribute(renk, 3));
+    const dugumler = new THREE.Points(noktaGeo, new THREE.PointsMaterial({
+      size: 0.03, map: yuvarlakNoktaDokusu(), vertexColors: true, transparent: true,
+      opacity: 0.9, depthWrite: false, blending: THREE.AdditiveBlending, sizeAttenuation: true,
+    }));
+    dugumler.renderOrder = 2;
+
+    const cizgiGeo = new THREE.BufferGeometry();
+    cizgiGeo.setAttribute('position', new THREE.Float32BufferAttribute(cizgi, 3));
+    const baglar = new THREE.LineSegments(cizgiGeo, new THREE.LineBasicMaterial({
+      color: 0x2bb7c4, transparent: true, opacity: 0.2, depthWrite: false,
+      blending: THREE.AdditiveBlending,
+    }));
+    baglar.renderOrder = 1;
+
+    const grup = new THREE.Group();
+    grup.add(baglar, dugumler);
+    grup.userData = { dugum: n, bag: cizgi.length / 6 };
+    return grup;
+  }
+
+  /** Ağ görünümünü aç/kapa: gerçekçi beyin gizlenir, yerine düğüm ağı çıkar. */
+  function agGorunumu(acik) {
+    agGorunumuAcik = !!acik;
+    const beyin = loadedGlbModel || proceduralBrainGroup;
+    if (agGorunumuAcik && !agGrubu) {
+      agGrubu = olusturAg();
+      if (agGrubu) brainPivotGroup.add(agGrubu);
+    }
+    if (agGrubu) agGrubu.visible = agGorunumuAcik;
+    if (beyin) beyin.visible = !agGorunumuAcik;
+    return agGrubu ? agGrubu.userData : null;
   }
 
   /**
@@ -1206,5 +1343,5 @@ export function createBrainScene({ container, labelsContainer, leaderSvg, ayarla
     return { fps: olcum.fps, enUzun: olcum.enUzun, takilma: olcum.takilma, oran: cizimOrani };
   }
 
-  return { etiketleriGoster, getStats, loadBrain, showFallbackBrain, setHabits, select, flashMiss, celebrate, tikParlamasi, asamaDalgasi, kureEkranKonumu, setTransparent, toggleClip, applySettings, setGorunurAlan };
+  return { etiketleriGoster, getStats, loadBrain, showFallbackBrain, setHabits, select, flashMiss, celebrate, tikParlamasi, asamaDalgasi, kureEkranKonumu, agGorunumu, setTransparent, toggleClip, applySettings, setGorunurAlan };
 }

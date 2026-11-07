@@ -1055,6 +1055,17 @@ $('btn-clip').addEventListener('click', (e) => {
   e.currentTarget.classList.toggle('on', sahne.toggleClip());
 });
 
+// Ağ görünümü: beyin düğüm ağı olarak çizilir (seçim kayıtlı kalır)
+const btnAg = $('btn-ag');
+btnAg.classList.toggle('on', !!ayarlar.agGorunumu);
+if (ayarlar.agGorunumu) sahne.agGorunumu(true);
+btnAg.addEventListener('click', () => {
+  ayarlar.agGorunumu = !ayarlar.agGorunumu;
+  btnAg.classList.toggle('on', ayarlar.agGorunumu);
+  sahne.agGorunumu(ayarlar.agGorunumu);
+  saveSettings(ayarlar);
+});
+
 // Bildirim hapı
 let toastZaman = null;
 function bildirimGoster(mesaj) {
