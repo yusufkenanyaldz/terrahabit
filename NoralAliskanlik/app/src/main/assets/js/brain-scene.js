@@ -669,6 +669,7 @@ export function createBrainScene({ container, labelsContainer, leaderSvg, ayarla
   scene.add(prefrontalMarker, basalMarker);
 
   let neuralCurve = null;
+  let neuralFrames = null;   // paralel taşınan çerçeve (kürelerin kesit düzlemi)
   let neuralTubeMesh = null;
   let neuralCoreTubeMesh = null;
 
@@ -712,6 +713,8 @@ export function createBrainScene({ container, labelsContainer, leaderSvg, ayarla
     const mid2 = new THREE.Vector3().lerpVectors(p1, p2, 0.68);
     mid2.y += 0.08; mid2.z -= 0.05;
     neuralCurve = new THREE.CatmullRomCurve3([p1, mid1, mid2, p2]);
+    // Paralel taşınan çerçeve: dik kesit yol boyunca kendi etrafında dönmesin
+    neuralFrames = neuralCurve.computeFrenetFrames(100, false);
 
     // Eski tüpleri at
     for (const m of [neuralTubeMesh, neuralCoreTubeMesh]) {
@@ -772,6 +775,47 @@ export function createBrainScene({ container, labelsContainer, leaderSvg, ayarla
   const haloGeo = new THREE.SphereGeometry(0.168, 24, 24);
   const izGeo = new THREE.RingGeometry(0.12, 0.14, 40);
 
+  /**
+   * Tüm kürelerin paylaştığı kısa S-kavisli "kol": küreyi ana yola bağlar.
+   * Yerel uzayda (0,1,0) küre ucu, (0,0,1) ana yoldaki birleşme noktası. Her karede
+   * yalnız 4×4 matris yazılır (makeBasis): tek geometri, sıfır bellek tahsisi.
+   * Fikir: Gemini önerisi; kesit, yön ve çakışma düzeltmeleri bizim.
+   */
+  const DAL_R_REF = 0.18;
+  function olusturOrtakDalGeometrisi(boyuna = 18, enine = 8) {
+    const geo = new THREE.BufferGeometry();
+    const pos = new Float32Array((boyuna + 1) * (enine + 1) * 3);
+    const col = new Float32Array((boyuna + 1) * (enine + 1) * 3);
+    const idx = [];
+    for (let i = 0; i <= boyuna; i++) {
+      const s = i / boyuna;                              // 0 küre → 1 ana yol
+      const yMerkez = 1 - (3 * s * s - 2 * s * s * s);   // yumuşak S (1 → 0)
+      const rTup = 0.017 + 0.010 * s;                    // yola doğru hafifçe kalınlaşır
+      const parlak = 1.6 - 0.4 * Math.sin(s * Math.PI);  // uçlar biraz daha parlak
+      for (let j = 0; j <= enine; j++) {
+        const a = (j / enine) * Math.PI * 2;
+        const v = (i * (enine + 1) + j) * 3;
+        // X ve Y eşit ölçeklenecek (aşağıda X ekseni de uzaklıkla ölçeklenir): kesit yuvarlak
+        pos[v] = (Math.cos(a) * rTup) / DAL_R_REF;
+        pos[v + 1] = yMerkez + (Math.sin(a) * rTup) / DAL_R_REF;
+        pos[v + 2] = s;
+        col[v] = col[v + 1] = col[v + 2] = parlak;
+      }
+    }
+    for (let i = 0; i < boyuna; i++) {
+      for (let j = 0; j < enine; j++) {
+        const a = i * (enine + 1) + j, b = (i + 1) * (enine + 1) + j;
+        idx.push(a, b, a + 1, b, b + 1, a + 1);
+      }
+    }
+    geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+    geo.setAttribute('color', new THREE.BufferAttribute(col, 3));
+    geo.setIndex(idx);
+    geo.computeBoundingSphere();
+    return geo;
+  }
+  const ortakDalGeo = olusturOrtakDalGeometrisi();
+
   /** Alışkanlık küreleri: id -> nesne. Sıra listeyle aynı tutulur. */
   const kureler = new Map();
 
@@ -793,6 +837,17 @@ export function createBrainScene({ container, labelsContainer, leaderSvg, ayarla
     halo.userData.habitId = id;
     grup.add(halo);
     scene.add(grup);
+
+    // Küreyi ana yola bağlayan kısa kol (yalnız küre yoldan ayrıldığında görünür)
+    const dal = new THREE.Mesh(ortakDalGeo, new THREE.MeshBasicMaterial({
+      color: 0xffffff, vertexColors: true, transparent: true, opacity: 0.7,
+      blending: THREE.AdditiveBlending, depthWrite: false, depthTest: !seffafModAcik,
+    }));
+    dal.matrixAutoUpdate = false;
+    dal.frustumCulled = false;   // matris elle yazılıyor; kırpma hesabı yanılmasın
+    dal.renderOrder = 16;
+    dal.visible = false;
+    scene.add(dal);
 
     // "İz" halkası: ulaşılan en yüksek gücün (P) yerinde soluk bir halka.
     // "Daha önce buraya ulaştın, geri dönüş daha hızlı" mesajı (Spesifikasyon §3.5).
@@ -820,7 +875,7 @@ export function createBrainScene({ container, labelsContainer, leaderSvg, ayarla
     labelsContainer.appendChild(labelEl);
 
     return {
-      id, grup, mesh, halo, iz, dalga, labelEl,
+      id, grup, mesh, halo, iz, dalga, dal, labelEl, aci: 0, yaricap: 0,
       svgBag: olusturSvgBaglantiElemanlari('#ff7b1c'),
       asama: 0, mevcutOran: 0, hedefOran: 0, izOran: 0,
       parlaklik: 1, mevcutParlaklik: 1,
@@ -833,6 +888,8 @@ export function createBrainScene({ container, labelsContainer, leaderSvg, ayarla
     scene.remove(k.grup);
     scene.remove(k.iz);
     scene.remove(k.dalga);
+    scene.remove(k.dal);
+    k.dal.material.dispose();   // geometri ortak: dispose edilmez
     k.mesh.material.dispose();
     k.halo.material.dispose();
     k.iz.material.dispose();
@@ -1186,28 +1243,83 @@ export function createBrainScene({ container, labelsContainer, leaderSvg, ayarla
   const yumusat = (hiz, dt) => 1 - Math.exp(-hiz * dt);
   const geciciRenk = new THREE.Color();
   const geciciNokta = new THREE.Vector3();
-  const geciciTanjant = new THREE.Vector3();
-  const geciciYan = new THREE.Vector3();
-  const geciciUst = new THREE.Vector3();
-  const YUKARI = new THREE.Vector3(0, 1, 0);
-  const DEMET_ARALIGI = 0.24; // kürelerin yoldan uzaklık adımı (küre çapı 0,21: altında üst üste binerler)
+  const geciciN = new THREE.Vector3();
+  const geciciB = new THREE.Vector3();
+  const geciciYol = new THREE.Vector3();
+  const geciciBag = new THREE.Vector3();
+  const geciciOfset = new THREE.Vector3();
+  const geciciIleri = new THREE.Vector3();
+  const geciciX = new THREE.Vector3();
+  const CAKISMA = 0.11;      // t farkı bundan küçükse küreler birbirini iter
+  const KURE_ARALIK = 0.11;  // yan yana iki küre merkezi arasındaki yarı mesafe (çap 0,21)
+  const DAL_GERI = 0.13;     // kolun ana yola katıldığı nokta: kürenin 0,13 gerisi
 
-  /**
-   * Yol üzerindeki t (0..1) noktası; idx > 0 ise küre yolun etrafında kendi açısında
-   * biraz yana kayık durur (aynı güçteki alışkanlıklar üst üste binmesin).
-   */
-  function demetKonumu(tHam, idx, hedef) {
+  function kesitCercevesi(t, n, b) {
+    const son = neuralFrames.normals.length - 1;
+    const f = Math.max(0, Math.min(1, t)) * son;
+    const i0 = Math.floor(f), i1 = Math.min(son, i0 + 1), a = f - i0;
+    n.lerpVectors(neuralFrames.normals[i0], neuralFrames.normals[i1], a).normalize();
+    b.lerpVectors(neuralFrames.binormals[i0], neuralFrames.binormals[i1], a).normalize();
+  }
+
+  /** t noktasında, kesit düzleminde (aci, r) kadar kaydırılmış konum. r=0: yolun üstü. */
+  function demetKonumu(tHam, aci, r, hedef) {
     const t = Math.max(0, Math.min(1, tHam));
     neuralCurve.getPointAt(t, hedef);
-    if (idx === 0) return hedef;
-    neuralCurve.getTangentAt(t, geciciTanjant);
-    geciciYan.crossVectors(geciciTanjant, YUKARI);
-    if (geciciYan.lengthSq() < 1e-6) geciciYan.set(1, 0, 0); // yol dikse
-    geciciYan.normalize();
-    geciciUst.crossVectors(geciciYan, geciciTanjant).normalize();
-    const aci = idx * 2.39996; // altın açı
-    const r = DEMET_ARALIGI * Math.sqrt(idx);
-    return hedef.addScaledVector(geciciYan, Math.cos(aci) * r).addScaledVector(geciciUst, Math.sin(aci) * r);
+    if (r < 1e-4 || !neuralFrames) return hedef;
+    kesitCercevesi(t, geciciN, geciciB);
+    return hedef.addScaledVector(geciciN, Math.cos(aci) * r).addScaledVector(geciciB, Math.sin(aci) * r);
+  }
+
+  /**
+   * Her kürenin hedef açısı ve yarıçapı. Yalnız küre yolun üstünde durur (havada kalmaz).
+   * Güçleri yakın küreler kalabalık oluşturur: m küre varsa açılar 360°/m eşit bölünür,
+   * yarıçap 0,11 / sin(180°/m) — böylece hiçbiri birbirine değmez (altın açıyla sabit
+   * yarıçapta 4. kürede çakışma çıkıyordu). Yaklaştıkça yumuşakça açılırlar.
+   */
+  const kalabalikSira = [];
+  function kalabalikHesapla() {
+    const liste = kalabalikSira;
+    liste.length = 0;
+    for (const k of kureler.values()) liste.push(k);
+    for (let i = 0; i < liste.length; i++) {
+      const k = liste[i];
+      let m = 1, sira = 0, yakinlik = 0;
+      for (let j = 0; j < liste.length; j++) {
+        if (i === j) continue;
+        const fark = Math.abs(k.mevcutOran - liste[j].mevcutOran);
+        if (fark < CAKISMA) {
+          m++;
+          if (j < i) sira++;
+          const u = 1 - fark / CAKISMA;
+          const sm = u * u * (3 - 2 * u);
+          if (sm > yakinlik) yakinlik = sm;
+        }
+      }
+      k.hedefAci = 0.4 + (sira / m) * Math.PI * 2;
+      k.hedefYaricap = m > 1 ? (KURE_ARALIK / Math.sin(Math.PI / m)) * yakinlik : 0;
+      if (m === 2) k.hedefYaricap = KURE_ARALIK * 1.05 * yakinlik; // ikili: karşılıklı, kısa kol
+    }
+  }
+
+  /** Küreden ana yola, kürenin 0,13 gerisine uzanan kısa kol. Hep aynı yöne: sıçrama yok. */
+  function nehirKolu(k, t, renk) {
+    neuralCurve.getPointAt(Math.max(0, Math.min(1, t)), geciciYol);
+    geciciOfset.subVectors(k.grup.position, geciciYol);
+    const r = geciciOfset.length();
+    if (r < 0.02) { k.dal.visible = false; return; }
+    neuralCurve.getPointAt(Math.max(0, t - DAL_GERI), geciciBag);
+    geciciIleri.subVectors(geciciBag, geciciYol);
+    if (geciciIleri.lengthSq() < 1e-6) { k.dal.visible = false; return; } // yolun en başı
+    geciciX.crossVectors(geciciOfset, geciciIleri);
+    if (geciciX.lengthSq() < 1e-10) { k.dal.visible = false; return; }
+    // X ekseni de uzaklıkla ölçeklenir: kesit her uzaklıkta yuvarlak kalır (yassı şerit olmaz)
+    geciciX.normalize().multiplyScalar(r);
+    k.dal.matrix.makeBasis(geciciX, geciciOfset, geciciIleri).setPosition(geciciYol);
+    k.dal.matrixWorldNeedsUpdate = true;
+    k.dal.visible = true;
+    k.dal.material.color.copy(renk);
+    k.dal.material.opacity = (0.3 + 0.5 * k.mevcutParlaklik) * Math.min(1, r / 0.08);
   }
   const merkez = new THREE.Vector3(0, 0.04, 0);
 
@@ -1279,6 +1391,7 @@ export function createBrainScene({ container, labelsContainer, leaderSvg, ayarla
     }
     posAttr.needsUpdate = true;
 
+    kalabalikHesapla();
     let idx = 0;
     kureler.forEach((k) => {
       // Geri hareket ileri hareketten daha yavaş ve sakin (Spesifikasyon §3.5)
@@ -1303,7 +1416,12 @@ export function createBrainScene({ container, labelsContainer, leaderSvg, ayarla
         emissiveYogunluk = 0.45;
       }
 
-      demetKonumu(egriOrani, idx, k.grup.position);
+      // Açı ve yarıçap yumuşakça hedefe gider: kalabalık değişince küre sıçramaz
+      let da = k.hedefAci - k.aci;
+      da = Math.atan2(Math.sin(da), Math.cos(da));      // en kısa yön
+      k.aci += da * yumusat(4, dt);
+      k.yaricap += (k.hedefYaricap - k.yaricap) * yumusat(4, dt);
+      demetKonumu(egriOrani, k.aci, k.yaricap, k.grup.position);
 
       // Aşama dalgası: halka büyüyerek söner
       if (k.dalgaZamanlayici > 0) {
@@ -1323,7 +1441,7 @@ export function createBrainScene({ container, labelsContainer, leaderSvg, ayarla
       const izGorunur = k.izOran - k.mevcutOran > 0.02;
       k.iz.visible = izGorunur;
       if (izGorunur) {
-        demetKonumu(k.izOran, idx, k.iz.position);
+        demetKonumu(k.izOran, k.aci, k.yaricap, k.iz.position);
         k.iz.lookAt(camera.position);
         hesaplaAsamaRengi(k.izOran, geciciRenk);
         k.iz.material.color.copy(geciciRenk);
@@ -1331,6 +1449,7 @@ export function createBrainScene({ container, labelsContainer, leaderSvg, ayarla
       }
 
       hesaplaAsamaRengi(k.mevcutOran, geciciRenk);
+      nehirKolu(k, egriOrani, geciciRenk);
       k.halo.material.color.copy(geciciRenk).multiplyScalar(1.8 * (0.4 + 0.6 * k.mevcutParlaklik));
       k.mesh.material.color.copy(geciciRenk);
       k.mesh.material.emissive.copy(geciciRenk);
