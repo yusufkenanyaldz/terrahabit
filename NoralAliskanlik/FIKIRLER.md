@@ -173,6 +173,43 @@ olarak) gösterilsin.
 
 Hiçbiri engelleyici değil; (a) ve (b) en çok rahatsız edenler.
 
+### 7. Baştan sona denetimde çıkanlar
+_8 Kasım 2026 — Claude, kullanıcı isteğiyle tüm mantığı sınadı_
+
+Model, kayıt mantığı, Kotlin tarafı ve arayüz sınandı (50 test + ayrıca yazılan sonda
+betikleri). Çekirdek doğru çalışıyor. Çıkan beş pürüz, önem sırasıyla:
+
+**a) Kötü alışkanlıkta "sınırlı" ile "sınırsız" bambaşka davranıyor.** Sınır konmuşsa
+(ör. en fazla 5 sigara) kayıt olmayan gün *temiz* sayılıyor: 30 gün uygulamaya hiç
+dokunulmasa H %75'e çıkıyor. Sınır konmamışsa (sadece "bırakmak istediğim") kayıt
+olmayan gün *kayma* sayılıyor: aynı 30 günde H %0'da kalıyor. Aynı niyetin iki kurulumu
+zıt sonuç veriyor. Öneri: kötü alışkanlıkta her iki durumda da "kayıt yok = temiz"
+olsun, kullanıcı yalnız kaymayı işaretlesin. (Model değişikliği, kullanıcı kararı.)
+
+**b) Haftalık hedefte "son 30 gün" fırsat sayısı uydurma.** `son30Firsat` her zaman
+`n·30/7` veriyor; 3 günlük bir alışkanlık "2/13" gösteriyor. Alışkanlığın yaşına göre
+orantılanmalı. (Yalnız gösterim, hesap etkilenmiyor.)
+
+**c) Bildirimdeki "Yaptım" o günün mazeretini silmiyor.** Widget ve uygulama siliyor
+(`toggleDoneToday`, `artir`, JS `setDayStatus`); yalnız `HabitStore.markDoneToday`
+atlıyor. Güce etkisi yok (yapıldı dalı önce geliyor) ama kayıt başka hiçbir yoldan
+oluşmayan bir hâle giriyor: aynı gün hem done hem mazeret.
+
+**d) Bakım modu sayacı duraklatma sırasında ilerliyor.** 20 gün duraklatılmış bir
+alışkanlık, o günleri de sayarak "14 gün ≥%95" eşiğini geçebiliyor; yani tatilde
+hatırlatmalar seyrelebiliyor. `bakimSay()` duraklatma dalında da çağrılıyor.
+
+**e) Alışkanlığın eklendiği gün fırsat sayılıyor.** Akşam 23:00'te eklenip o gün
+yapılmazsa ertesi gün kaçırma animasyonu ve kırmızı nokta çıkıyor. H'ye zarar yok
+(taban 0), ama ilk izlenim sert.
+
+**Doğru çalıştığı sınananlar:** aşama günleri (16/41/66), histerezis, taban ve tasarruf
+etkisi, geç kayıt tam yarım kazanç, mazeret kotası, telafi günü (kaçan planlı günü tam
+telafi ediyor), haftalık hedef (3/3 ile 5/3 aynı, 2/3 düşük), duraklatmanın H'yi
+birebir dondurması, çöp kutusu 30 gün + geri yükleme, arşiv, anket zamanlaması,
+widget önbelleğinin uygulamayla dört hane aynı çıkması, 04:00 gün sınırının iki tarafta
+da aynı olması.
+
 ## Claude'un önerdikleri (kullanıcı henüz seçmedi)
 
 1. **Otomatik yedekleme** — haftada bir sessizce İndirilenler'e yedek. Küçük iş, en çok değeri
