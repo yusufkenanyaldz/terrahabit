@@ -237,3 +237,49 @@ test('geri dönüş vaadi modelden hesaplanır (Senaryo E: ≈37 gün)', async (
   assert.equal(geriDonusTahmini(h, bugun), 37);
   assert.equal(geriDonusTahmini(tam({}, ilkNGun(20)), gun(21)), null, 'hiç Otomatik olmamışsa vaat yok');
 });
+
+// --- v5: kötü alışkanlıkta sınırlı / sınırsız ayrımı kalktı ---
+test('v5: sınırsız kötü alışkanlık da "kayıt yok = temiz" çalışır', () => {
+  const D = '2026-03-01';
+  const g = (i) => addDays(D, i);
+  // Sınır verilmeden eklenen kötü alışkanlık 0 sınırı alır
+  let st = addHabit(emptyState(), { name: 'Sigara', tip: 'kotu', time: '21:00' }, D, 'k');
+  const h = st.habits[0];
+  assert.deepEqual(h.miktar, { hedef: 0, birim: '' });
+
+  // 30 gün hiç dokunulmadı: hepsi temiz, güç yükselmiş olmalı
+  const s30 = computeState(h, g(30));
+  assert.ok(s30.H > 0.7, `temiz günler sayılmalı, H=${s30.H.toFixed(3)}`);
+
+  // Sınırlı kurulumla birebir aynı davranmalı
+  const sinirli = { ...h, miktar: { hedef: 0, birim: 'kez' } };
+  assert.ok(Math.abs(computeState(sinirli, g(30)).H - s30.H) < 1e-9);
+
+  // Bir kayma (+1) o günü kaçırmaya çevirir
+  const kaymali = { ...h, gunMiktar: { [g(10)]: 1 } };
+  assert.ok(computeState(kaymali, g(30)).H < s30.H, 'kayma gücü düşürmeli');
+
+  // Eski kayıt (v4, sınırsız) taşınınca sınır 0 olur
+  const tasinan = migrate({ version: 4, habits: [{ id: 'k', name: 'Sigara', tip: 'kotu', createdAt: D, done: [] }] });
+  assert.deepEqual(tasinan.habits[0].miktar, { hedef: 0, birim: '' });
+});
+
+test('v5: eklendiği gün kaçırma sayılmaz, bakım sayacı duraklatmada durur', () => {
+  const D = '2026-03-01';
+  const g = (i) => addDays(D, i);
+  // Eklendiği gün yapılmadı: ertesi gün hâlâ sıfır kayıp (taban zaten 0) ve kaçırma listesi boş
+  const h = { createdAt: D, done: [], mazeret: [], duraklatmalar: [], srbai: [], gecKayit: [],
+    gunMiktar: {}, zorluk: 'normal', tip: 'iyi', zamanlama: { tur: 'gunluk' }, missAck: addDays(D, -1) };
+  assert.deepEqual(unseenMissedDays(h, g(1)), []);
+  assert.deepEqual(unseenMissedDays(h, g(3)), [g(1), g(2)]);
+
+  // Bakım: duraklatmada geçen günler "14 gün ≥ %95" sayacına eklenmemeli.
+  // 70 gün kusursuz (H %95'i 65. günde geçer, yani sayaç ~5) → 20 gün duraklatma.
+  // Eskiden duraklatma günleri de sayıldığı için bakım açılıyordu.
+  const done70 = Array.from({ length: 70 }, (_, i) => g(i));
+  const duraklamali = { ...h, done: done70, duraklatmalar: [{ bas: g(70), bit: g(89) }] };
+  assert.equal(computeState(duraklamali, g(90)).bakim, false, 'duraklatma günleri bakım saymaz');
+  // 14 gün çalışarak ulaşılırsa açılır
+  const calisarak = { ...h, done: Array.from({ length: 85 }, (_, i) => g(i)) };
+  assert.equal(computeState(calisarak, g(85)).bakim, true, 'çalışılan günlerle bakım açılmalı');
+});

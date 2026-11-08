@@ -86,7 +86,7 @@ Tek bir JSON. SharedPreferences içinde `noral_aliskanlik/data` anahtarında dur
 
 ```jsonc
 {
-  "version": 4,
+  "version": 5,
   "habits": [ /* aşağıdaki alanlar */ ],
   "cop": [ { "silinme": "2026-11-01", "habit": { /* silinen alışkanlık */ } } ]
 }
@@ -125,6 +125,10 @@ Eski kayıt asla bozulmaz.
 - **v2 → v3:** miktar, gunMiktar, gecKayit ve üst düzeyde çöp kutusu eklendi.
 - **v3 → v4:** `ikon` eklendi. Eski emoji simgesi karşılığına çevrildi
   (📚 → kitap, 🚭 → yasak), karşılığı yoksa `genel` oldu.
+- **v4 → v5:** kötü alışkanlıkta sınır her zaman var; belirtilmemişse `{hedef: 0}`.
+  Önceden sınırsız kötü alışkanlıkta her temiz günü elle işaretlemek gerekiyordu,
+  sınırlı olanda ise kayıt olmayan gün temiz sayılıyordu. Artık ikisi de aynı:
+  **kayıt yok = temiz, kayma "+1" ile işaretlenir.** Taşınan kayıtlarda güç yükselir.
 
 ### Türetilmiş alanlar neden var
 
@@ -207,10 +211,14 @@ Modelin kenar durumları. Her biri testlidir (`tests/kurallar.test.mjs`).
    sayılır. Yalnız son 3 gün + bugün için işaretlenebilir.
 3. **Duraklatma** — Tatil/seyahat. H donar, en fazla 30 gün. Süre dolunca uygulama sorar.
 4. **Kötü alışkanlık** — Temiz gün kazanım, kayma kaçırma sayılır. Son 7 günde 3+ kayma
-   "nüks" sayılır ve nazik bir mesaj çıkar. Günlük sınırlı olabilir (ör. en fazla 5).
+   "nüks" sayılır ve nazik bir mesaj çıkar. **Her kötü alışkanlığın bir günlük sınırı
+   vardır; belirtilmezse 0 ("hiç").** Kayıt olmayan kapanmış gün temiz sayılır, kullanıcı
+   yalnız kaymayı "+1" ile işaretler. Sınır 0 iken arayüz "0 kayma" yazar.
 5. **Miktarlı takip** — Günlük hedef (8 bardak, 10 sayfa). Oran `q = yapılan/hedef`.
    `q ≥ 0,5` ise kazanım `α · q`, altındaysa kısmi kaçırma (`λ · (1 − q)`).
 6. **Gün 04:00'te başlar** — Gece 01:00'de yapılan "akşam" alışkanlığı önceki güne yazılır.
+   **Alışkanlığın eklendiği gün fırsat sayılmaz:** akşam eklenip o gün yapılmazsa kaçırma
+   işlenmez (30 günlük şeritte de "plan dışı" görünür).
 7. **Geriye dönük kayıt** — Son 3 gün + bugün serbestçe işaretlenir/kaldırılır.
 8. **Geç kayıt** — 4–14 gün öncesi de işaretlenebilir ama kazanımın yalnızca yarısını verir.
 9. **Çöp kutusu** — Silinen alışkanlık 30 gün durur, sonra kalıcı silinir. Arşivlenen ise
@@ -219,7 +227,7 @@ Modelin kenar durumları. Her biri testlidir (`tests/kurallar.test.mjs`).
     Üst üste iki ölçümde hesaplanan H ile hissedilen otomatiklik arasında %15'ten fazla
     fark olursa kişisel hedef süre T %10 kaydırılır (30–150 gün arası).
 11. **Bakım modu** — H ≥ 0,95 on dört gün sürerse hatırlatmalar seyrelir; yalnız dün
-    kaçırıldıysa hatırlatır.
+    kaçırıldıysa hatırlatır. Duraklatmada geçen günler bu sayaca eklenmez.
 12. **İki gün kuralı** — Seri, tek kaçırmayla bozulmaz; art arda iki kaçırma bozar.
 13. **Çaba uyarısı** — Aynı anda 3 alışkanlık Çaba aşamasındaysa yenisini eklerken
     uyarır. Engel değil, formun içinde bir satır.

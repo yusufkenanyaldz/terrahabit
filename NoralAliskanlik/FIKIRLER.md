@@ -176,6 +176,8 @@ Hiçbiri engelleyici değil; (a) ve (b) en çok rahatsız edenler.
 ### 7. Baştan sona denetimde çıkanlar
 _8 Kasım 2026 — Claude, kullanıcı isteğiyle tüm mantığı sınadı_
 
+**Durum: beşi de düzeltildi (8 Kasım 2026).** Kayıt sürümü v5; testler 52/52.
+
 Model, kayıt mantığı, Kotlin tarafı ve arayüz sınandı (50 test + ayrıca yazılan sonda
 betikleri). Çekirdek doğru çalışıyor. Çıkan beş pürüz, önem sırasıyla:
 

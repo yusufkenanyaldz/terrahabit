@@ -222,7 +222,7 @@ function hesapla(habit, bugun) {
       const hb = haftaBasi(g);
       if (hb !== hafta) { haftayiKapat(); hafta = hb; haftaYapilan = 0; haftaAktifGun = 0; haftaMazeret = 0; }
     }
-    if (duraklatildiMi(habit, g)) { bakimSay(); continue; } // Duraklatma: H donar
+    if (duraklatildiMi(habit, g)) continue; // Duraklatma: H de bakım sayacı da donar
 
     if (haftalik) {
       haftaAktifGun++;
@@ -236,6 +236,8 @@ function hesapla(habit, bugun) {
     } else if (yapilan.has(g)) {
       kazan(d, alfa * sonucBul(g).q);
       sonuclar.push(true);
+    } else if (g === habit.createdAt) {
+      // Eklendiği gün serbest: akşam eklenen alışkanlık ertesi gün "kaçırdın" demesin
     } else if (planliMi(habit, g) && sonucBul(g)) {
       // Kısmi yapıldı (q < 0,5): kaçırma gibi ama çözülme (1 − q) oranında hafif
       kaybet(d, 1, 1 - sonucBul(g).q);
@@ -270,16 +272,18 @@ function hesapla(habit, bugun) {
   const kaymaSayisi = sonNuks.filter((x) => !x).length;
 
   // Son 30 gün: yapılan / fırsat (ikincil metrik, kural 16)
-  let son30Yapilan = 0, son30Firsat = 0;
+  let son30Yapilan = 0, son30Firsat = 0, son30AktifGun = 0;
   for (let i = 29; i >= 0; i--) {
     const g = addDays(bugun, -i);
     if (g < habit.createdAt || duraklatildiMi(habit, g)) continue;
     const y = yapilan.has(g);
     if (y) son30Yapilan++;
+    son30AktifGun++;
     if (i === 0 && !y) continue; // Bugün henüz bitmedi
     if (haftalik ? false : (planliMi(habit, g) || y) && !mazeret.has(g)) son30Firsat++;
   }
-  if (haftalik) son30Firsat = Math.round((n * 30) / 7);
+  // Haftalık hedefte fırsat, geçen aktif gün sayısına orantılı (yeni alışkanlık "2/13" demesin)
+  if (haftalik) son30Firsat = Math.max(son30Yapilan, Math.round((n * son30AktifGun) / 7));
 
   // Toplam başarılı gün (asla düşmez). Sınırlı kötü alışkanlıkta sınırın altında kalınan günler.
   const toplamTekrar = yapilan.size;

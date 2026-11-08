@@ -69,6 +69,8 @@ object HabitStore {
                     val gunMiktar = h.optJSONObject("gunMiktar") ?: JSONObject().also { h.put("gunMiktar", it) }
                     gunMiktar.put(today, miktar.optInt("hedef", 1))
                 }
+                // Mazeret ile yapıldı aynı günde birlikte olmaz (JS setDayStatus ve widget ile aynı)
+                kumeYaz(h, "mazeret", kume(h.optJSONArray("mazeret")) - today)
                 return save(context, root.toString())
             }
             false
@@ -232,7 +234,8 @@ object HabitStore {
                         sayac = true
                         val m = h.optJSONObject("gunMiktar")?.optInt(bugunKey, 0) ?: 0
                         val hedef = miktar.optInt("hedef", 1)
-                        bilgi = "$m/$hedef · %$guc"
+                        // Sınırı 0 olan kötü alışkanlık: "0/0" yerine "0 kayma"
+                        bilgi = if (kotu && hedef == 0) "$m kayma · %$guc" else "$m/$hedef · %$guc"
                         durum = if (!kotu && m >= hedef) "yapildi" else "bekliyor"
                     }
                     !planli(z, bugun) && !yapildi -> { durum = "plansiz"; bilgi = "Plan dışı · %$guc" }

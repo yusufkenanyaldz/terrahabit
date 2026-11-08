@@ -64,6 +64,7 @@ function asamaBilgisi(asama, h) {
   return { ...a, kisa, ad: `${asama + 1}. Aşama: ${kisa}` };
 }
 const gucAdi = (h) => (h.tip === 'kotu' ? 'Kontrol' : 'Güç');
+const kotuMu = (h) => h.tip === 'kotu';
 const aktifler = () => state.habits.filter((h) => !h.arsiv);
 
 // -------------------------------------------------------------------------
@@ -295,7 +296,10 @@ function ciz() {
     const yuzde = Math.round(d.H * 100);
     const asama = asamaBilgisi(d.asama, h);
     const bugunYapildi = isDoneOn(h, bugun);
-    const miktarYazi = d.miktar ? ` · ${d.miktar.bugun}/${d.miktar.hedef}` : '';
+    // Sınırı 0 olan kötü alışkanlık: "0/0" yerine "0 kayma"
+    const miktarYazi = !d.miktar ? ''
+      : (kotuMu(h) && d.miktar.hedef === 0) ? ` · ${d.miktar.bugun} kayma`
+      : ` · ${d.miktar.bugun}/${d.miktar.hedef}`;
     const rozet = d.bugunDuraklatildi ? 'Duraklatıldı' : `${gucAdi(h)} %${yuzde} · ${asama.kisa}${miktarYazi}`;
     // Miktarlı alışkanlıkta onay yerine "+1" sayacı (iyide hedefe ulaşınca onay işareti)
     const sayac = d.miktar && !(h.tip !== 'kotu' && d.miktar.bugun >= d.miktar.hedef);
@@ -469,7 +473,8 @@ function cizDetay() {
   $('det-miktar').hidden = !d.miktar || !!durak;
   if (d.miktar) {
     $('miktar-sayi').textContent = amountOn(h, miktarGun) ?? 0;
-    $('miktar-hedef').textContent = `${kotu ? 'sınır' : '/'} ${d.miktar.hedef} ${d.miktar.birim}`.trim();
+    $('miktar-hedef').textContent = (kotu && d.miktar.hedef === 0) ? 'kayma'
+      : `${kotu ? 'sınır' : '/'} ${d.miktar.hedef} ${d.miktar.birim}`.trim();
   }
   // Geç kayıt: miktarlı alışkanlıkta ve gün yeterince eskiyse anlamlı
   $('btn-gec').hidden = !!d.miktar || addDays(bugun, -GERIYE_DONUK_GUN - 1) < h.createdAt;
@@ -904,7 +909,9 @@ function formuCiz() {
   $('sec-hedef').hidden = form.siklik !== 'haftalik';
   // Miktar yalnızca her gün / belirli günlerde (haftalık hedefle birlikte kullanılmaz)
   $('miktar-alani').hidden = form.siklik === 'haftalik';
-  $('miktar-etiket').textContent = form.tip === 'kotu' ? 'Günlük sınır (isteğe bağlı, ör. en fazla 5)' : 'Günlük miktar (isteğe bağlı, ör. 8 bardak)';
+  $('miktar-etiket').textContent = form.tip === 'kotu'
+    ? 'Günlük sınır (boş bırakırsan hiç; ör. en fazla 5)'
+    : 'Günlük miktar (isteğe bağlı, ör. 8 bardak)';
   const T = { kolay: 60, normal: 66, zor: 90 }[form.zorluk];
   $('form-not').textContent = form.siklik === 'haftalik'
     ? `Daha seyrek davranışlar daha yavaş otomatikleşir (haftada ${form.hedef}: yaklaşık ${Math.round(T * Math.sqrt(form.hedef / 7))} tekrar).`

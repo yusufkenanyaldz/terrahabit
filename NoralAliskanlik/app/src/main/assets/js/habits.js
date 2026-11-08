@@ -8,7 +8,7 @@ import {
 import { SIMGE_IDLER, emojidenSimge } from './simgeler.js';
 
 /** Kayıt biçimi sürümü. Alan eklerken artır ve migrate() içine taşıma adımı yaz. */
-export const SCHEMA_VERSION = 4;
+export const SCHEMA_VERSION = 5;
 
 /** Boş durum. */
 export function emptyState() {
@@ -85,6 +85,12 @@ function temizSrbai(liste) {
  *           çöp kutusu (cop: []) eklendi. Varsayılanlarla hesap değişmez.
  *  v3 → v4: ikon (çizgi simge kimliği) eklendi. Eski kayıtlardaki emoji simgesi
  *           karşılığına çevrilir (📚 → kitap), karşılığı yoksa 'genel' olur. Hesap değişmez.
+ *  v4 → v5: sınırsız kötü alışkanlığa 0 sınırı verilir (miktar = { hedef: 0 }).
+ *           Önceden sınırsız kötü alışkanlıkta kayıt olmayan gün KAYMA sayılıyordu, yani
+ *           her temiz günü elle işaretlemek gerekiyordu; sınırlı olanda ise kayıt olmayan
+ *           gün temiz sayılıyordu. Aynı niyetin iki kurulumu zıt davranıyordu. Artık ikisi
+ *           de aynı: kayıt yok = temiz, kayma "+1" ile işaretlenir. Taşınan kayıtlarda
+ *           işaretli temiz günler zaten temiz sayıldığı için güç yükselir (kayıp yok).
  */
 export function migrate(raw) {
   if (raw == null || raw === '') return emptyState();
@@ -127,8 +133,8 @@ function habitTemizle(h) {
     bakim: !!h.bakim, // Türetilmiş; bildirim tarafı (Kotlin) okur
     guc: Number.isInteger(h.guc) ? h.guc : 0,       // Türetilmiş; widget okur
     asama: Number.isInteger(h.asama) ? h.asama : 0, // Türetilmiş; widget okur
-    // v3 alanları
-    miktar: temizMiktar(h.miktar, tip),
+    // v3 alanları (v5: kötü alışkanlıkta sınır yoksa 0)
+    miktar: kotuSinirDuzelt(temizMiktar(h.miktar, tip), tip, temizZamanlama(h.zamanlama)),
     gunMiktar: temizGunMiktar(h.gunMiktar),
     gecKayit: [...new Set((Array.isArray(h.gecKayit) ? h.gecKayit : []).filter(isKey))].sort(),
     // v4 alanı: çizgi simge. Eski kayıtta yoksa emojisinden türetilir.
@@ -142,13 +148,25 @@ function habitTemizle(h) {
 
 function ayarlariTemizle({ zorluk, tip, zamanlama, miktar }, eski = {}) {
   const t = TIPLER.includes(tip) ? tip : (eski.tip || 'iyi');
+  const z = zamanlama ? temizZamanlama(zamanlama) : (eski.zamanlama || { tur: 'gunluk' });
   return {
     zorluk: ZORLUKLAR.includes(zorluk) ? zorluk : (eski.zorluk || 'normal'),
     tip: t,
-    zamanlama: zamanlama ? temizZamanlama(zamanlama) : (eski.zamanlama || { tur: 'gunluk' }),
+    zamanlama: z,
     // miktar: undefined → eskisi korunur; null → miktarsız
-    miktar: miktar === undefined ? (eski.miktar ?? null) : temizMiktar(miktar, t),
+    miktar: kotuSinirDuzelt(miktar === undefined ? (eski.miktar ?? null) : temizMiktar(miktar, t), t, z),
   };
+}
+
+/**
+ * Kötü alışkanlıkta sınır her zaman vardır: belirtilmemişse 0 ("hiç").
+ * Böylece kayıt olmayan gün temiz sayılır ve kullanıcı yalnız kaymayı işaretler;
+ * sınırlı/sınırsız ayrımı ortadan kalkar (v5).
+ */
+function kotuSinirDuzelt(miktar, tip, zamanlama) {
+  if (tip !== 'kotu' || miktar) return miktar;
+  if (zamanlama && zamanlama.tur === 'haftalik') return miktar; // haftalıkta miktar kullanılmaz
+  return { hedef: 0, birim: '' };
 }
 
 /** Yeni alışkanlık ekler. Yeni durumu döndürür. */
@@ -468,7 +486,9 @@ export function markCelebrated(state, id) {
 export function unseenMissedDays(habit, today) {
   if (habit.arsiv || (habit.zamanlama && habit.zamanlama.tur === 'haftalik')) return [];
   const out = [];
-  const start = habit.missAck && habit.missAck >= habit.createdAt ? addDays(habit.missAck, 1) : habit.createdAt;
+  const ilk = addDays(habit.createdAt, 1); // Eklendiği gün serbest (guc.js ile aynı kural)
+  const kayitli = habit.missAck && habit.missAck >= habit.createdAt ? addDays(habit.missAck, 1) : habit.createdAt;
+  const start = kayitli > ilk ? kayitli : ilk;
   for (let d = start; d < today; d = addDays(d, 1)) {
     if (!isDoneOn(habit, d) && planliMi(habit, d) && !duraklatildiMi(habit, d) && !isExcused(habit, d)) out.push(d);
   }
@@ -555,6 +575,7 @@ export function last30(habit, today) {
     else if (isExcused(habit, key)) status = 'mazeret';
     else if (key === today) status = 'today';
     else if (haftalik || !planliMi(habit, key)) status = 'plansiz';
+    else if (key === habit.createdAt) status = 'plansiz'; // Eklendiği gün serbest
     else status = 'missed';
     days.push({
       key, status, isToday: key === today,
