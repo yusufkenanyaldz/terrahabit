@@ -479,10 +479,16 @@ function cizDetay() {
   // Miktarlı iyi alışkanlıkta "tamamlandı" ancak hedef miktara ulaşınca (yarısı güç verir ama hedef değil)
   const yapildi = d.miktar && !kotu ? (amountOn(h, bugun) ?? 0) >= d.miktar.hedef : isDoneOn(h, bugun);
   btn.disabled = yapildi || !!durak;
+  // "Bugün plan dışı" bilgisi miktarlı alışkanlıkta da görünmeli: eskiden miktar dalı
+  // önce geldiği için plan dışı günlerde kaybolup gidiyordu.
+  const planDisi = !kotu && !durak && !yapildi && !planliMi(h, bugun);
+  const miktarYazi = d.miktar ? `${d.miktar.hedef} ${d.miktar.birim}`.trim() : '';
   if (durak) btn.textContent = 'Duraklatıldı';
-  else if (d.miktar && !kotu) btn.textContent = yapildi ? 'Bugün tamamlandı' : `Hedefi tamamla (${d.miktar.hedef} ${d.miktar.birim})`.replace(' )', ')');
-  else if (yapildi) btn.textContent = kotu ? 'Bugün temiz' : 'Bugün tamamlandı';
-  else if (!kotu && !planliMi(h, bugun)) btn.textContent = 'Bugün plan dışı · yine de yaptım';
+  else if (d.miktar && !kotu) {
+    btn.textContent = yapildi ? 'Bugün tamamlandı'
+      : planDisi ? `Plan dışı · tamamla (${miktarYazi})` : `Hedefi tamamla (${miktarYazi})`;
+  } else if (yapildi) btn.textContent = kotu ? 'Bugün temiz' : 'Bugün tamamlandı';
+  else if (planDisi) btn.textContent = 'Bugün plan dışı · yine de yaptım';
   else btn.textContent = kotu ? 'Bugün temiz geçti' : 'Bugün yaptım';
   $('detail-card').classList.add('visible');
   gorunurAlanGuncelle();
