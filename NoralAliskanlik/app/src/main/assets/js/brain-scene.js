@@ -339,6 +339,7 @@ export function createBrainScene({ container, labelsContainer, leaderSvg, ayarla
       k.mesh.material.depthTest = derinlikTesti;
       k.halo.material.depthTest = derinlikTesti;
       k.iz.material.depthTest = derinlikTesti;
+      k.sap.material.depthTest = derinlikTesti;
     });
   }
 
@@ -814,13 +815,21 @@ export function createBrainScene({ container, labelsContainer, leaderSvg, ayarla
     scene.add(dalga);
 
     const labelEl = document.createElement('div');
+    // Otomatik yelpazesi: küreyi merkeze bağlayan ince sap
+    const sap = new THREE.Line(new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(), new THREE.Vector3()]),
+      new THREE.LineBasicMaterial({ color: new THREE.Color(0x00e5ff).multiplyScalar(1.6), transparent: true,
+        opacity: 0, depthWrite: false, depthTest: !seffafModAcik }));
+    sap.renderOrder = 24;
+    sap.visible = false;
+    scene.add(sap);
+
     labelEl.className = 'scene-label label-habit';
     labelEl.innerHTML = '<span class="dot"></span><span class="lbl-text"></span>';
     labelEl.addEventListener('click', (e) => { e.stopPropagation(); onSelect(id); });
     labelsContainer.appendChild(labelEl);
 
     return {
-      id, grup, mesh, halo, iz, dalga, labelEl,
+      id, grup, mesh, halo, iz, dalga, sap, yelpaze: 0, labelEl,
       svgBag: olusturSvgBaglantiElemanlari('#ff7b1c'),
       asama: 0, mevcutOran: 0, hedefOran: 0, izOran: 0,
       parlaklik: 1, mevcutParlaklik: 1,
@@ -837,6 +846,7 @@ export function createBrainScene({ container, labelsContainer, leaderSvg, ayarla
     k.halo.material.dispose();
     k.iz.material.dispose();
     k.dalga.material.dispose();
+    scene.remove(k.sap); k.sap.geometry.dispose(); k.sap.material.dispose();
     k.labelEl.remove();
     k.svgBag.polyline.remove();
     k.svgBag.dot.remove();
@@ -1190,24 +1200,26 @@ export function createBrainScene({ container, labelsContainer, leaderSvg, ayarla
   const geciciYan = new THREE.Vector3();
   const geciciUst = new THREE.Vector3();
   const YUKARI = new THREE.Vector3(0, 1, 0);
-  const DEMET_ARALIGI = 0.24; // kürelerin yoldan uzaklık adımı (küre çapı 0,21: altında üst üste binerler)
+  // Küreler yola ince saplarla bağlıdır ve kameraya dönük bir yelpaze üzerinde durur.
+  // Yoldayken: sap, yol üzerinde gücün olduğu noktadan çıkar; aynı noktadaki küreler o
+  // noktanın üstünde yelpaze açar. Otomatik'e geçince: sap mavi merkezden çıkar ve küre
+  // merkezin etrafındaki yelpazeye katılır.
+  const YOL_SAP_BOYU = 0.30;
+  const YELPAZE_YARICAP = 0.42;
+  const AYNI_NOKTA = 0.07; // yol üzerinde bundan yakın küreler aynı yelpazeyi paylaşır
+  const kameraSag = new THREE.Vector3();
+  const kameraUst = new THREE.Vector3();
+  const geciciYelpaze = new THREE.Vector3();
+  const geciciCapa = new THREE.Vector3();
+  const geciciMerkez = new THREE.Vector3();
+  const sapRengi = new THREE.Color();
 
-  /**
-   * Yol üzerindeki t (0..1) noktası; idx > 0 ise küre yolun etrafında kendi açısında
-   * biraz yana kayık durur (aynı güçteki alışkanlıklar üst üste binmesin).
-   */
-  function demetKonumu(tHam, idx, hedef) {
-    const t = Math.max(0, Math.min(1, tHam));
-    neuralCurve.getPointAt(t, hedef);
-    if (idx === 0) return hedef;
-    neuralCurve.getTangentAt(t, geciciTanjant);
-    geciciYan.crossVectors(geciciTanjant, YUKARI);
-    if (geciciYan.lengthSq() < 1e-6) geciciYan.set(1, 0, 0); // yol dikse
-    geciciYan.normalize();
-    geciciUst.crossVectors(geciciYan, geciciTanjant).normalize();
-    const aci = idx * 2.39996; // altın açı
-    const r = DEMET_ARALIGI * Math.sqrt(idx);
-    return hedef.addScaledVector(geciciYan, Math.cos(aci) * r).addScaledVector(geciciUst, Math.sin(aci) * r);
+  /** merkez noktasının etrafında, yukarı açılan yelpazede sira. yer (hedef'e yazar). */
+  function yelpazeKonumu(merkezNokta, sira, adet, yaricap, ortaAci, hedef) {
+    const yayilma = Math.min(130, 50 * (adet - 1));          // derece
+    const aci = (ortaAci + yayilma / 2 - (adet > 1 ? sira * yayilma / (adet - 1) : 0)) * Math.PI / 180;
+    return hedef.copy(merkezNokta).addScaledVector(kameraSag, Math.cos(aci) * yaricap)
+      .addScaledVector(kameraUst, Math.sin(aci) * yaricap);
   }
   const merkez = new THREE.Vector3(0, 0.04, 0);
 
@@ -1279,6 +1291,20 @@ export function createBrainScene({ container, labelsContainer, leaderSvg, ayarla
     }
     posAttr.needsUpdate = true;
 
+    kameraSag.setFromMatrixColumn(camera.matrixWorld, 0).normalize();
+    kameraUst.setFromMatrixColumn(camera.matrixWorld, 1).normalize();
+    let yelpazeAdet = 0;
+    kureler.forEach((k) => { if (k.asama === 3) yelpazeAdet++; });
+    let yelpazeSira = 0;
+    // Yoldaki kürelerden birbirine yakın olanları grupla (her biri grubunda sira/adet alır)
+    const yoldakiler = [...kureler.values()].filter((k) => k.asama !== 3)
+      .sort((a, b) => a.mevcutOran - b.mevcutOran);
+    for (let i = 0; i < yoldakiler.length;) {
+      let j = i + 1;
+      while (j < yoldakiler.length && yoldakiler[j].mevcutOran - yoldakiler[j - 1].mevcutOran < AYNI_NOKTA) j++;
+      for (let n = i; n < j; n++) { yoldakiler[n].grupSira = n - i; yoldakiler[n].grupAdet = j - i; }
+      i = j;
+    }
     let idx = 0;
     kureler.forEach((k) => {
       // Geri hareket ileri hareketten daha yavaş ve sakin (Spesifikasyon §3.5)
@@ -1303,7 +1329,27 @@ export function createBrainScene({ container, labelsContainer, leaderSvg, ayarla
         emissiveYogunluk = 0.45;
       }
 
-      demetKonumu(egriOrani, idx, k.grup.position);
+      // Yoldaki yer: gücün olduğu noktadan çıkan sapın ucunda, grubunun yelpazesinde
+      neuralCurve.getPointAt(Math.max(0, Math.min(1, egriOrani)), geciciCapa);
+      yelpazeKonumu(geciciCapa, k.grupSira || 0, k.grupAdet || 1, YOL_SAP_BOYU, 90 + 30 * (1 - egriOrani), k.grup.position); // turuncu uçta beynin içine doğru eğik
+
+      // Otomatik yelpazesi: aşama Otomatik ise küre yavaşça mavi merkezin etrafına geçer
+      k.yelpaze += ((k.asama === 3 ? 1 : 0) - k.yelpaze) * yumusat(1.5, dt);
+      if (k.yelpaze > 0.001) {
+        const sira = k.asama === 3 ? yelpazeSira++ : 0;
+        neuralCurve.getPointAt(1, geciciMerkez);
+        yelpazeKonumu(geciciMerkez, sira, Math.max(1, yelpazeAdet), YELPAZE_YARICAP, 90, geciciYelpaze);
+        k.grup.position.lerp(geciciYelpaze, k.yelpaze);
+        geciciCapa.lerp(geciciMerkez, k.yelpaze);
+      }
+      const sp = k.sap.geometry.attributes.position;
+      sp.setXYZ(0, geciciCapa.x, geciciCapa.y, geciciCapa.z);
+      sp.setXYZ(1, k.grup.position.x, k.grup.position.y, k.grup.position.z);
+      sp.needsUpdate = true;
+      hesaplaAsamaRengi(k.mevcutOran, sapRengi);
+      k.sap.material.color.copy(sapRengi).multiplyScalar(1.6);
+      k.sap.material.opacity = 0.7;
+      k.sap.visible = true;
 
       // Aşama dalgası: halka büyüyerek söner
       if (k.dalgaZamanlayici > 0) {
@@ -1323,7 +1369,7 @@ export function createBrainScene({ container, labelsContainer, leaderSvg, ayarla
       const izGorunur = k.izOran - k.mevcutOran > 0.02;
       k.iz.visible = izGorunur;
       if (izGorunur) {
-        demetKonumu(k.izOran, idx, k.iz.position);
+        neuralCurve.getPointAt(Math.max(0, Math.min(1, k.izOran)), k.iz.position);
         k.iz.lookAt(camera.position);
         hesaplaAsamaRengi(k.izOran, geciciRenk);
         k.iz.material.color.copy(geciciRenk);
@@ -1331,13 +1377,13 @@ export function createBrainScene({ container, labelsContainer, leaderSvg, ayarla
       }
 
       hesaplaAsamaRengi(k.mevcutOran, geciciRenk);
-      k.halo.material.color.copy(geciciRenk).multiplyScalar(1.8 * (0.4 + 0.6 * k.mevcutParlaklik));
+      k.halo.material.color.copy(geciciRenk).multiplyScalar(0.3 * 1.8 * (0.4 + 0.6 * k.mevcutParlaklik));
       k.mesh.material.color.copy(geciciRenk);
       k.mesh.material.emissive.copy(geciciRenk);
-      k.mesh.material.emissiveIntensity = emissiveYogunluk;
+      k.mesh.material.emissiveIntensity = emissiveYogunluk * 0.35;
 
       let olcek;
-      if (k.asama === 3) olcek = 1.0 + Math.sin(elapsed * 2.6 + idx) * 0.16;
+      if (k.asama === 3) olcek = 1.0 + Math.sin(elapsed * 2.6 + idx) * 0.16 * (1 - 0.65 * k.yelpaze); // yelpazede sakin nefes
       else if (k.asama === 0) olcek = 1.0 + Math.sin(elapsed * 8.0 + idx) * 0.06;
       else olcek = 1.0;
 
@@ -1349,7 +1395,7 @@ export function createBrainScene({ container, labelsContainer, leaderSvg, ayarla
         k.mesh.material.emissiveIntensity = emissiveYogunluk + dalga * 4;
       }
       if (k.tikZamanlayici > 0) olcek *= 1 + 0.38 * Math.sin(k.tikZamanlayici * Math.PI);
-      k.grup.scale.setScalar(olcek);
+      k.grup.scale.setScalar(olcek * 0.7); // saplı küreler küçük ve sade
       idx++;
     });
 
