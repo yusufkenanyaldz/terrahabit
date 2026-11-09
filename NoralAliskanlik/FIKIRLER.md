@@ -22,7 +22,7 @@ görüntüyü o alanın ortasına kaydırıyor. Liste yüksekliği değiştikçe
 kendine yukarı kayar. Kamerayı da aynı anda biraz uzaklaştırmak gerekebilir, yoksa dar alanda
 beyin taşar.
 
-### 2. Güç grafiği (prototip çıkarıldı, şimdilik eklenmedi)
+### 2. Güç grafiği — YAPILDI (9 Kasım 2026, detay kartında "Güç grafiği" seçimi)
 _2 Kasım 2026 — kullanıcı: "Gerek yok bence şimdilik"_
 
 Her alışkanlık için gücün zamana göre eğrisi. Prototip:
@@ -162,7 +162,8 @@ itilip "ÇABA / Prefrontal Korteks" bölge etiketinin üstüne biniyor; alttaki 
 birbirine değiyor. Dört alışkanlık + iki bölge etiketi aynı dar alanda. Öneri: alışkanlık sayısı
 üçü geçince bölge etiketleri gizlensin, ya da etiketler arası en az boşluk artsın.
 
-**d) Güçleri birbirine yakın küreler üst üste biniyor.** Üç alışkanlık %76-87 arasındayken
+**d) Güçleri birbirine yakın küreler üst üste biniyor — ÇÖZÜLDÜ (9 Kasım 2026: saplı
+küreler ve otomatik yelpazesi; bkz. UYGULAMA.md §7).** Üç alışkanlık %76-87 arasındayken
 küreler yol üzerinde aynı noktada toplanıp tek bir leke gibi görünüyor. Widget'ta başlangıç
 noktaları için yapılan "yayılma" düzeltmesinin benzeri 3B sahnede de gerekebilir.
 
@@ -212,7 +213,11 @@ birebir dondurması, çöp kutusu 30 gün + geri yükleme, arşiv, anket zamanla
 widget önbelleğinin uygulamayla dört hane aynı çıkması, 04:00 gün sınırının iki tarafta
 da aynı olması.
 
-## Claude'un önerdikleri (kullanıcı henüz seçmedi)
+## Claude'un önerdikleri — ÜÇÜ DE YAPILDI (9 Kasım 2026)
+
+Kullanıcı "uygulamayı olabilecek en iyi sürümüne yükselt" dedi; üç öneri de uygulandı
+(otomatik yedek, 21:30 akşam hatırlatması, "neyin ardından" ipucu — kayıt sürümü v6).
+Aynı turda eklenenler: liste başlığında günün özeti ("Bugün 2/4"), boş durum ekranı.
 
 1. **Otomatik yedekleme** — haftada bir sessizce İndirilenler'e yedek. Küçük iş, en çok değeri
    olan madde; "veri asla kaybolmamalı" kuralını karşılar.

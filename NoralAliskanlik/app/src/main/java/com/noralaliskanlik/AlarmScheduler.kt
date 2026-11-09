@@ -19,6 +19,10 @@ object AlarmScheduler {
     private const val KEY_IDS = "scheduled_ids"
     const val EXTRA_HABIT_ID = "habit_id"
 
+    /** Akşam hatırlatması: gün bitmeden yapılmamışlar için tek bildirim. */
+    const val AKSAM_ID = "__aksam__"
+    const val AKSAM_SAATI = "21:30"
+
     /** Önceki alarmların hepsini iptal edip kayıttaki alışkanlıklara göre yeniden kurar. */
     fun scheduleAll(context: Context) {
         val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
@@ -28,6 +32,10 @@ object AlarmScheduler {
         val reminders = HabitStore.reminders(context).filter { parseTime(it.time) != null }
         reminders.forEach { schedule(context, it.id, it.time) }
         prefs.edit().putStringSet(KEY_IDS, reminders.map { it.id }.toSet()).apply()
+
+        // Akşam hatırlatması: açıksa ve en az bir alışkanlık varsa kur, değilse iptal et
+        cancel(context, AKSAM_ID)
+        if (reminders.isNotEmpty() && HabitStore.aksamHatirlatmaAcik(context)) schedule(context, AKSAM_ID, AKSAM_SAATI)
     }
 
     /** Tek bir alışkanlığın bir sonraki alarmını kurar ("HH:mm"). */

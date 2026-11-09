@@ -18,6 +18,7 @@ class ReminderReceiver : BroadcastReceiver() {
 
     override fun onReceive(context: Context, intent: Intent) {
         val habitId = intent.getStringExtra(AlarmScheduler.EXTRA_HABIT_ID) ?: return
+        if (habitId == AlarmScheduler.AKSAM_ID) { aksamHatirlatmasi(context); return }
         val habit = HabitStore.reminders(context).firstOrNull { it.id == habitId } ?: return
 
         // Bir sonraki günün alarmını hemen kur (alarmlar tek seferliktir).
@@ -29,25 +30,70 @@ class ReminderReceiver : BroadcastReceiver() {
         showNotification(context, habit)
     }
 
-    private fun showNotification(context: Context, habit: HabitStore.Reminder) {
-        // Android 13+: izin verilmemişse bildirim gönderilemez.
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
-            ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS)
-            != PackageManager.PERMISSION_GRANTED
-        ) return
+    /**
+     * Akşam hatırlatması (21:30): kendi saati geçtiği hâlde bugün yapılmamış alışkanlıklar
+     * için TEK bildirim. Hepsi tamamsa hiç gelmez. Dün de kaçan varsa iki gün kuralını hatırlatır.
+     */
+    private fun aksamHatirlatmasi(context: Context) {
+        // Yarının alarmını hemen kur (ayar kapatıldıysa scheduleAll iptal eder)
+        if (HabitStore.aksamHatirlatmaAcik(context)) {
+            AlarmScheduler.schedule(context, AlarmScheduler.AKSAM_ID, AlarmScheduler.AKSAM_SAATI)
+        } else return
+        // Kendi hatırlatması henüz çalmamış olanlar (saat ≥ 21:30) burada tekrar edilmez
+        val bekleyen = HabitStore.reminders(context)
+            .filter { it.bildirimGerekli && !it.kotu && it.time < AlarmScheduler.AKSAM_SAATI }
+        if (bekleyen.isEmpty() || !izinVar(context)) return
 
         ensureChannel(context)
-        // Bildirime dokununca uygulama açılsın.
-        val open = PendingIntent.getActivity(
-            context, 0,
-            Intent(context, MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP),
-            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
-        )
+        val adlar = bekleyen.joinToString(", ") { it.name }
+        val riskli = bekleyen.filter { it.dunKacirildi }
+        val metin = when {
+            riskli.isEmpty() -> "$adlar henüz yapılmadı."
+            riskli.size == bekleyen.size && bekleyen.size == 1 ->
+                "$adlar dün de kaçtı. Bugün yaparsan seri bozulmaz."
+            else -> "$adlar henüz yapılmadı. ${riskli.joinToString(", ") { it.name }} dün de kaçtı; bugün yaparsan seri bozulmaz."
+        }
+        val n = NotificationCompat.Builder(context, CHANNEL_ID)
+            .setSmallIcon(android.R.drawable.ic_popup_reminder)
+            .setContentTitle("Gün bitmeden")
+            .setContentText(metin)
+            .setStyle(NotificationCompat.BigTextStyle().bigText(metin))
+            .setPriority(NotificationCompat.PRIORITY_DEFAULT)
+            .setContentIntent(uygulamayiAc(context))
+            .setAutoCancel(true)
+            .build()
+        try {
+            NotificationManagerCompat.from(context).notify(AlarmScheduler.AKSAM_ID.hashCode(), n)
+        } catch (e: SecurityException) {
+            // İzin son anda geri alındıysa sessizce geç.
+        }
+    }
+
+    /** Android 13+: bildirim izni verilmiş mi? */
+    private fun izinVar(context: Context): Boolean =
+        Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU ||
+            ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) ==
+            PackageManager.PERMISSION_GRANTED
+
+    /** Bildirime dokununca uygulama açılsın. */
+    private fun uygulamayiAc(context: Context): PendingIntent = PendingIntent.getActivity(
+        context, 0,
+        Intent(context, MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP),
+        PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+    )
+
+    private fun showNotification(context: Context, habit: HabitStore.Reminder) {
+        if (!izinVar(context)) return
+
+        ensureChannel(context)
+        val open = uygulamayiAc(context)
         val n = NotificationCompat.Builder(context, CHANNEL_ID)
             .setSmallIcon(android.R.drawable.ic_popup_reminder)
             .setContentTitle(habit.name)
             .setContentText(
                 if (habit.kotu) "Bugünü temiz kapatmaya az kaldı."
+                // İpucu varsa bildirim onu söyler: alışkanlığı tetikleyen şey saat değil, önceki olay
+                else if (habit.ardindan.isNotEmpty()) "${habit.ardindan} → sıra bunda."
                 else "Bugün henüz yapılmadı. Nöronların seni bekliyor!"
             )
             .setPriority(NotificationCompat.PRIORITY_DEFAULT)

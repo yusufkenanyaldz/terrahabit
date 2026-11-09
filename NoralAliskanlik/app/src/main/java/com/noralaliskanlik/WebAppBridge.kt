@@ -1,9 +1,7 @@
 package com.noralaliskanlik
 
-import android.content.ContentValues
 import android.os.Build
 import android.os.Environment
-import android.provider.MediaStore
 import android.webkit.JavascriptInterface
 import java.io.File
 import java.time.LocalDate
@@ -24,15 +22,24 @@ class WebAppBridge(private val activity: MainActivity) {
         val ok = HabitStore.save(activity, json)
         AlarmScheduler.scheduleAll(activity)
         AliskanlikWidget.guncelleHepsi(activity) // Ana ekran widget'ı da güncellensin
+        if (ok) OtomatikYedek.gerekirse(activity, json) // Haftada bir sessiz yedek
         return ok
     }
+
+    /** Son otomatik yedeğin günü (YYYY-AA-GG) ya da "". */
+    @JavascriptInterface
+    fun autoBackupInfo(): String = OtomatikYedek.sonTarih(activity)
 
     /** Ayar paneli değerleri (JSON). */
     @JavascriptInterface
     fun loadSettings(): String = HabitStore.loadSettings(activity)
 
     @JavascriptInterface
-    fun saveSettings(json: String): Boolean = HabitStore.saveSettings(activity, json)
+    fun saveSettings(json: String): Boolean {
+        val ok = HabitStore.saveSettings(activity, json)
+        AlarmScheduler.scheduleAll(activity) // Akşam hatırlatması açılıp kapanmış olabilir
+        return ok
+    }
 
     /** Telefonda kayıtlı beyin modeli bilgisi (JSON). */
     @JavascriptInterface
@@ -48,16 +55,7 @@ class WebAppBridge(private val activity: MainActivity) {
         return try {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
                 // Android 10+: izin gerektirmeyen MediaStore yolu.
-                val values = ContentValues().apply {
-                    put(MediaStore.Downloads.DISPLAY_NAME, name)
-                    put(MediaStore.Downloads.MIME_TYPE, "application/json")
-                    put(MediaStore.Downloads.RELATIVE_PATH, Environment.DIRECTORY_DOWNLOADS)
-                }
-                val resolver = activity.contentResolver
-                val uri = resolver.insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, values)
-                    ?: return "HATA: Dosya oluşturulamadı"
-                resolver.openOutputStream(uri)?.use { it.write(json.toByteArray(Charsets.UTF_8)) }
-                    ?: return "HATA: Dosyaya yazılamadı"
+                OtomatikYedek.indirilenlereYaz(activity, name, json) ?: return "HATA: Dosya oluşturulamadı"
             } else {
                 // Android 8-9: doğrudan Downloads klasörüne yaz (WRITE_EXTERNAL_STORAGE gerekir).
                 if (!activity.ensureLegacyStoragePermission()) return "HATA: Depolama izni verilmedi, tekrar deneyin"

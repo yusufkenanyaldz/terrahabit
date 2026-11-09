@@ -8,7 +8,7 @@ import {
 import { SIMGE_IDLER, emojidenSimge } from './simgeler.js';
 
 /** Kayıt biçimi sürümü. Alan eklerken artır ve migrate() içine taşıma adımı yaz. */
-export const SCHEMA_VERSION = 5;
+export const SCHEMA_VERSION = 6;
 
 /** Boş durum. */
 export function emptyState() {
@@ -91,6 +91,8 @@ function temizSrbai(liste) {
  *           gün temiz sayılıyordu. Aynı niyetin iki kurulumu zıt davranıyordu. Artık ikisi
  *           de aynı: kayıt yok = temiz, kayma "+1" ile işaretlenir. Taşınan kayıtlarda
  *           işaretli temiz günler zaten temiz sayıldığı için güç yükselir (kayıp yok).
+ *  v5 → v6: `ardindan` eklendi ("neyin ardından" ipucu, ör. "Evden çıkınca"). Eski
+ *           kayıtlarda boş metin olur; hesap değişmez.
  */
 export function migrate(raw) {
   if (raw == null || raw === '') return emptyState();
@@ -139,7 +141,14 @@ function habitTemizle(h) {
     gecKayit: [...new Set((Array.isArray(h.gecKayit) ? h.gecKayit : []).filter(isKey))].sort(),
     // v4 alanı: çizgi simge. Eski kayıtta yoksa emojisinden türetilir.
     ikon: SIMGE_IDLER.includes(h.ikon) ? h.ikon : emojidenSimge(h.icon),
+    // v6 alanı: "neyin ardından" ipucu (yoksa boş)
+    ardindan: temizArdindan(h.ardindan),
   };
+}
+
+/** "Neyin ardından" ipucu: kısa serbest metin (en fazla 40 karakter). */
+export function temizArdindan(s) {
+  return typeof s === 'string' ? s.trim().slice(0, 40) : '';
 }
 
 // ---------------------------------------------------------------------------
@@ -170,7 +179,7 @@ function kotuSinirDuzelt(miktar, tip, zamanlama) {
 }
 
 /** Yeni alışkanlık ekler. Yeni durumu döndürür. */
-export function addHabit(state, { name, icon, ikon, time, zorluk, tip, zamanlama, miktar }, today, id) {
+export function addHabit(state, { name, icon, ikon, time, zorluk, tip, zamanlama, miktar, ardindan }, today, id) {
   const clean = String(name || '').trim();
   if (!clean) throw new Error('İsim boş olamaz');
   const habit = {
@@ -193,6 +202,7 @@ export function addHabit(state, { name, icon, ikon, time, zorluk, tip, zamanlama
     asama: 0,
     gunMiktar: {},
     gecKayit: [],
+    ardindan: temizArdindan(ardindan),
   };
   return { ...state, habits: [...state.habits, habit] };
 }
@@ -201,7 +211,7 @@ export function addHabit(state, { name, icon, ikon, time, zorluk, tip, zamanlama
  * Alışkanlığın ismini, saatini, zorluğunu, türünü veya sıklığını değiştirir.
  * Tamamlanan günler korunur; güç yeni ayarlarla geçmişten yeniden hesaplanır.
  */
-export function updateHabit(state, id, { name, icon, ikon, time, zorluk, tip, zamanlama, miktar }) {
+export function updateHabit(state, id, { name, icon, ikon, time, zorluk, tip, zamanlama, miktar, ardindan }) {
   const clean = String(name || '').trim();
   if (!clean) throw new Error('İsim boş olamaz');
   return {
@@ -213,6 +223,7 @@ export function updateHabit(state, id, { name, icon, ikon, time, zorluk, tip, za
       ikon: SIMGE_IDLER.includes(ikon) ? ikon : (h.ikon || 'genel'),
       time: /^\d{2}:\d{2}$/.test(time) ? time : h.time,
       ...ayarlariTemizle({ zorluk, tip, zamanlama, miktar }, h),
+      ardindan: ardindan === undefined ? (h.ardindan || '') : temizArdindan(ardindan),
     })),
   };
 }

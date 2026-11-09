@@ -88,8 +88,29 @@ object HabitStore {
         val name: String,
         val time: String,
         val kotu: Boolean,
-        val bildirimGerekli: Boolean
+        val bildirimGerekli: Boolean,
+        /** "Neyin ardından" ipucu (ör. "Evden çıkınca"); yoksa boş. */
+        val ardindan: String = "",
+        /** Dün planlıydı ve kaçırıldı: bugün de kaçarsa seri bozulur (iki gün kuralı). */
+        val dunKacirildi: Boolean = false
     )
+
+    /** Akşam hatırlatması açık mı? (⚙ menüsü; ayar yoksa açık) */
+    fun aksamHatirlatmaAcik(context: Context): Boolean = try {
+        val raw = loadSettings(context)
+        raw.isBlank() || JSONObject(raw).optBoolean("aksamHatirlatma", true)
+    } catch (e: Exception) {
+        true
+    }
+
+    /** Dün planlı bir gündü ve yapılmadı mı? (mazeret, duraklatma ve eklenme günü hariç) */
+    private fun dunKacirildi(h: JSONObject, bugunKey: String): Boolean {
+        val dun = LocalDate.parse(bugunKey).minusDays(1)
+        val dunKey = dun.toString()
+        return planli(h.optJSONObject("zamanlama"), dun) && dunKey > h.optString("createdAt") &&
+            dunKey !in kume(h.optJSONArray("done")) && dunKey !in kume(h.optJSONArray("mazeret")) &&
+            !duraklatildi(h, dunKey) && h.optJSONObject("zamanlama")?.optString("tur") != "haftalik"
+    }
 
     /** JSON dizisini metin kümesine çevir. */
     private fun kume(a: JSONArray?): Set<String> =
@@ -165,7 +186,9 @@ object HabitStore {
                     name = h.optString("name"),
                     time = h.optString("time"),
                     kotu = h.optString("tip") == "kotu",
-                    bildirimGerekli = bildirimGerekli(h, today)
+                    bildirimGerekli = bildirimGerekli(h, today),
+                    ardindan = h.optString("ardindan").trim(),
+                    dunKacirildi = dunKacirildi(h, today)
                 )
             }.filter { it.id.isNotEmpty() }
         } catch (e: Exception) {

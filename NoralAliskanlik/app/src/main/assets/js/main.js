@@ -19,7 +19,7 @@ import {
 } from './parametreler.js';
 import {
   loadState, saveState, exportBackup, requestImport,
-  loadSettings, saveSettings, modelInfo,
+  loadSettings, saveSettings, modelInfo, autoBackupInfo,
 } from './storage.js';
 
 // Geliştirici modu: tarayıcıda ?tarih=2026-05-01 ile sahte gün (test için).
@@ -288,8 +288,16 @@ function ciz() {
 
   const listEl = $('habit-list-el');
   listEl.innerHTML = '';
+  gunOzetiCiz(liste, durumlar, bugun);
+  document.body.classList.toggle('liste-bos', liste.length === 0);
   if (liste.length === 0) {
-    listEl.innerHTML = '<div class="empty-hint">Henüz alışkanlık yok.<br>＋ Ekle ile ilk nöral yolunu başlat.</div>';
+    listEl.innerHTML = `<div class="empty-hint">
+      <b>İlk nöral yolunu başlat</b>
+      Her alışkanlık, turuncu <i class="nk turuncu"></i> çaba noktasından mavi <i class="nk mavi"></i> otomatik
+      noktasına ilerleyen bir küredir. Tekrarladıkça küre yolda ilerler; yaklaşık 66 günde yerine oturur.
+      <button class="btn-Check" id="bos-ekle">＋ İlk alışkanlığını ekle</button>
+    </div>`;
+    $('bos-ekle').addEventListener('click', () => formAc(null));
   }
   liste.forEach((h) => {
     const d = durumlar.get(h.id);
@@ -373,6 +381,95 @@ $('btn-liste-genis').addEventListener('click', () => {
 });
 
 
+/**
+ * Günün özeti (liste başlığı): bugün planlı kaç alışkanlık var, kaçı tamam.
+ * Bırakılan (kötü) alışkanlıklar sayılmaz: onlarda "yapılacak" bir şey yok, gün
+ * kendiliğinden temiz kapanır. Duraklatılan ve bugün plan dışı olanlar da sayılmaz.
+ */
+function gunOzetiCiz(liste, durumlar, bugun) {
+  const planli = liste.filter((h) => {
+    const d = durumlar.get(h.id);
+    if (kotuMu(h) || d.bugunDuraklatildi) return false;
+    // Haftalık hedef dolduysa bugün yapılacak bir şey kalmadı
+    if (d.hafta && d.hafta.yapilan >= d.hafta.hedef && !isDoneOn(h, bugun)) return false;
+    return d.bugunPlanli || isDoneOn(h, bugun);
+  });
+  const tamamMi = (h) => {
+    const d = durumlar.get(h.id);
+    return d.miktar ? d.miktar.bugun >= d.miktar.hedef : isDoneOn(h, bugun);
+  };
+  const tamam = planli.filter(tamamMi).length;
+  const yazi = $('gun-ozet-yazi');
+  const hepsi = planli.length > 0 && tamam === planli.length;
+  $('gun-ozet').classList.toggle('tamam', hepsi);
+  yazi.textContent = planli.length === 0 ? 'Alışkanlıklarım'
+    : hepsi ? 'Bugün tamam' : `Bugün ${tamam}/${planli.length}`;
+  // Çentikler: her planlı alışkanlık için bir tane, yapılan kendi aşama renginde dolu
+  $('gun-centikler').innerHTML = planli.length > 8 ? '' : planli.map((h) => {
+    const renk = asamaBilgisi(durumlar.get(h.id).asama, h).hex;
+    return `<i class="${tamamMi(h) ? 'dolu' : ''}" style="--renk:${renk}"></i>`;
+  }).join('');
+}
+
+/**
+ * Güç grafiği (detay kartı): gücün zamana göre eğrisi. Dikey eksen doğrusal değil,
+ * ana sahnedeki yolla aynı eşleme (yolKonumu): dört aşamaya eşit yükseklikte bant düşer,
+ * böylece üst aşamalar (%84,5–95–100) sıkışmaz ve bant atlamak hep aynı yükseklik eder.
+ * Veri: computeState().gecmis (her takvim günü sonunda H) — yeni kayıt alanı yok.
+ */
+const GRAFIK_EN_COK_GUN = 120;
+function gucGrafigiCiz(h, d) {
+  const W = 320, H = 96, sol = 4, sag = 6, ust = 6, alt = 6;
+  const seri = d.gecmis.slice(-GRAFIK_EN_COK_GUN);
+  const n = seri.length;
+  const x = (i) => sol + (n === 1 ? 0 : (i / (n - 1)) * (W - sol - sag));
+  const y = (v) => ust + (1 - yolKonumu(v)) * (H - ust - alt);
+  const renkler = [0, 1, 2, 3].map((a) => asamaBilgisi(a, h).hex);
+  // Bantlar (aşağıdan yukarı: Çaba → Otomatik)
+  const bantYuk = (H - ust - alt) / 4;
+  const bantlar = renkler.map((r, a) =>
+    `<rect x="0" y="${(ust + (3 - a) * bantYuk).toFixed(1)}" width="${W}" height="${bantYuk.toFixed(1)}" fill="${r}" opacity="${a === d.asama ? 0.13 : 0.05}"/>`).join('');
+  const nokta = seri.map((v, i) => `${x(i).toFixed(1)},${y(v).toFixed(1)}`);
+  const cizgi = n > 1 ? `M${nokta.join('L')}` : '';
+  const alan = n > 1 ? `${cizgi}L${x(n - 1).toFixed(1)},${H - alt}L${x(0).toFixed(1)},${H - alt}Z` : '';
+  // En yüksek güç (iz): şu anki güç belirgin altındaysa kesikli çizgi
+  const iz = d.P - d.H > 0.02
+    ? `<line x1="0" x2="${W}" y1="${y(d.P).toFixed(1)}" y2="${y(d.P).toFixed(1)}" stroke="#fff" stroke-opacity="0.28" stroke-dasharray="3 4" stroke-width="1"/>` : '';
+  const sonRenk = renkler[d.asama];
+  const adlar = [0, 1, 2, 3].map((a) => asamaBilgisi(a, h).kisa);
+  const gunSayisi = d.gecmis.length;
+  const basYazi = gunSayisi > n ? `${n} gün önce` : gunSayisi <= 1 ? 'bugün başladı' : `${gunSayisi - 1} gün önce başladı`;
+  $('det-grafik').innerHTML = `
+    <div class="grafik-govde">
+      <svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" aria-hidden="true">
+        <defs>
+          <linearGradient id="gg-cizgi" gradientUnits="userSpaceOnUse" x1="0" x2="0" y1="${H - alt}" y2="${ust}">
+            <stop offset="0" stop-color="${renkler[0]}"/><stop offset="0.25" stop-color="${renkler[0]}"/>
+            <stop offset="0.25" stop-color="${renkler[1]}"/><stop offset="0.5" stop-color="${renkler[1]}"/>
+            <stop offset="0.5" stop-color="${renkler[2]}"/><stop offset="0.75" stop-color="${renkler[2]}"/>
+            <stop offset="0.75" stop-color="${renkler[3]}"/><stop offset="1" stop-color="${renkler[3]}"/>
+          </linearGradient>
+          <linearGradient id="gg-alan" x1="0" x2="0" y1="0" y2="1">
+            <stop offset="0" stop-color="${sonRenk}" stop-opacity="0.22"/><stop offset="1" stop-color="${sonRenk}" stop-opacity="0"/>
+          </linearGradient>
+        </defs>
+        ${bantlar}${iz}
+        ${alan ? `<path d="${alan}" fill="url(#gg-alan)"/>` : ''}
+        ${cizgi ? `<path d="${cizgi}" fill="none" stroke="url(#gg-cizgi)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round" vector-effect="non-scaling-stroke"/>` : ''}
+      </svg>
+      <i class="grafik-uc" style="left:${(x(n - 1) / W * 100).toFixed(2)}%; top:${(y(seri[n - 1]) / H * 100).toFixed(2)}%; --renk:${sonRenk}"></i>
+      <div class="grafik-adlar">${adlar.map((ad, a) => `<span class="${a === d.asama ? 'on' : ''}" style="--renk:${renkler[a]}">${ad}</span>`).reverse().join('')}</div>
+    </div>
+    <div class="yol-uclar"><span>${basYazi}</span><span>bugün</span></div>`;
+}
+let detayGorunum = 'gunler'; // Detay kartında: 'gunler' (30 günlük şerit) ya da 'grafik'
+$('det-gorunum').addEventListener('click', (e) => {
+  const v = e.target.dataset?.v;
+  if (!v || v === detayGorunum) return;
+  detayGorunum = v;
+  cizDetay();
+});
+
 function cizDetay() {
   const h = state.habits.find((x) => x.id === seciliId && !x.arsiv);
   document.body.classList.toggle('detay-acik', !!h);
@@ -410,7 +507,7 @@ function cizDetay() {
   $('det-yol-hedef').textContent = `~${Math.round(d.T)} gün`;
   // Asla düşmeyen sayılar: toplam tekrar ve ulaşılan en yüksek güç (iz)
   const iz = d.P - d.H > 0.02 ? ` · en yüksek %${Math.round(d.P * 100)}` : '';
-  $('det-meta').textContent = `${d.toplamTekrar} ${kotu ? 'temiz gün' : 'tekrar'}${iz}`;
+  $('det-meta').textContent = `${h.ardindan ? `İpucu: ${h.ardindan} · ` : ''}${d.toplamTekrar} ${kotu ? 'temiz gün' : 'tekrar'}${iz}`;
   // İkincil metrikler: son 30 gün oranı (haftalıkta bu hafta) ve iki gün kuralı serisi
   const oran = d.hafta ? `bu hafta ${Math.min(d.hafta.yapilan, d.hafta.hedef)}/${d.hafta.hedef}`
     : `${d.son30.yapilan}/${d.son30.firsat}`;
@@ -436,7 +533,11 @@ function cizDetay() {
   $('det-not').hidden = !not;
   $('det-not').textContent = not;
 
-  // Son 30 gün
+  // Son 30 gün şeridi ya da güç grafiği (kullanıcının seçimi kart kapanıp açılsa da kalır)
+  $('det-gorunum').querySelectorAll('button').forEach((b) => b.classList.toggle('on', b.dataset.v === detayGorunum));
+  $('det-calendar').hidden = detayGorunum !== 'gunler';
+  $('det-grafik').hidden = detayGorunum !== 'grafik';
+  if (detayGorunum === 'grafik') gucGrafigiCiz(h, d);
   const cal = $('det-calendar');
   cal.innerHTML = '';
   last30(h, bugun).forEach((g) => {
@@ -942,6 +1043,7 @@ function formAc(h) {
   form.hedef = z.tur === 'haftalik' ? z.hedef : 3;
   form.zorluk = h ? h.zorluk || 'normal' : 'normal';
   form.ikon = (h && h.ikon) || 'genel';
+  $('add-ardindan').value = (h && h.ardindan) || '';
   $('add-miktar').value = h && h.miktar ? h.miktar.hedef : '';
   $('add-birim').value = h && h.miktar ? h.miktar.birim : '';
   formuCiz();
@@ -990,6 +1092,7 @@ $('add-form').addEventListener('submit', async (e) => {
     tip: form.tip,
     zamanlama: formZamanlama(),
     zorluk: form.zorluk,
+    ardindan: $('add-ardindan').value,
     // Boş bırakılırsa miktarsız (kötüde 0 = "hiç" geçerli bir sınır)
     miktar: form.siklik !== 'haftalik' && $('add-miktar').value !== ''
       ? { hedef: Number($('add-miktar').value), birim: $('add-birim').value } : null,
@@ -1014,7 +1117,13 @@ $('add-form').addEventListener('submit', async (e) => {
 });
 
 // Yedek
-$('btn-backup').addEventListener('click', () => $('modal-backup').classList.add('open'));
+$('btn-backup').addEventListener('click', () => {
+  // Otomatik yedek bilgisi: haftada bir sessizce alınır (Android tarafı)
+  const son = autoBackupInfo();
+  const [y, m, g] = son.split('-');
+  $('backup-oto').innerHTML = `<b>Otomatik yedek:</b> haftada bir, sen bir şey yapmadan aynı klasöre kaydedilir (son iki yedek tutulur).${son ? ` Son yedek: ${g}.${m}.${y}.` : ''}`;
+  $('modal-backup').classList.add('open');
+});
 $('backup-close').addEventListener('click', () => $('modal-backup').classList.remove('open'));
 $('backup-export').addEventListener('click', () => {
   const r = exportBackup(state);
@@ -1066,6 +1175,19 @@ btnTransparent.addEventListener('click', () => {
 });
 $('btn-clip').addEventListener('click', (e) => {
   e.currentTarget.classList.toggle('on', sahne.toggleClip());
+});
+
+// Akşam hatırlatması (21:30): gün bitmeden yapılmamışlar için tek bildirim. Bildirimi
+// Android tarafı gönderir; burada yalnız ayar tutulur.
+const btnAksam = $('btn-aksam');
+btnAksam.classList.toggle('on', ayarlar.aksamHatirlatma !== false);
+btnAksam.addEventListener('click', () => {
+  ayarlar.aksamHatirlatma = !(ayarlar.aksamHatirlatma !== false);
+  btnAksam.classList.toggle('on', ayarlar.aksamHatirlatma);
+  saveSettings(ayarlar);
+  bildirimGoster(ayarlar.aksamHatirlatma
+    ? 'Akşam hatırlatması açık — 21:30\'da, yalnız yapılmamış bir şey varsa'
+    : 'Akşam hatırlatması kapalı');
 });
 
 // Ağ görünümü: beyin düğüm ağı olarak çizilir (seçim kayıtlı kalır)

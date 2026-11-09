@@ -39,6 +39,11 @@ export function exportBackup(state) {
   return { ok: true, message: a.download };
 }
 
+/** Son otomatik yedeğin günü ('YYYY-AA-GG'); hiç alınmadıysa ya da tarayıcıdaysa ''. */
+export function autoBackupInfo() {
+  try { return (bridge && bridge.autoBackupInfo && bridge.autoBackupInfo()) || ''; } catch { return ''; }
+}
+
 /** Geri yükleme: Android dosya seçicisini açar; sonuç NoralApp.onImport ile gelir. */
 export function requestImport(onText) {
   if (bridge) { bridge.requestImport(); return; }

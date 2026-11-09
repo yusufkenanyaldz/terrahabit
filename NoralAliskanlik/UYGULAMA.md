@@ -76,17 +76,18 @@ WebView içeriği `file://` ile değil, **WebViewAssetLoader** ile
 | `BootReceiver.kt` | Telefon yeniden başlayınca / uygulama güncellenince alarmları geri kurar. |
 | `AliskanlikWidget.kt` | Ana ekran widget'ı: beyin, ışıklı yollar (kodda çizilen bitmap), satırlar. |
 | `ModelStore.kt` | Kullanıcının seçtiği `.glb` modelini iç depolamada tutar. |
+| `OtomatikYedek.kt` | Haftada bir sessiz yedek (İndirilenler, son iki dosya tutulur). |
 
 ---
 
-## 3. Veri biçimi (sürüm 4)
+## 3. Veri biçimi (sürüm 6)
 
 Tek bir JSON. SharedPreferences içinde `noral_aliskanlik/data` anahtarında durur —
 `localStorage`'da değil, çünkü uygulama güncellenince silinmemeli.
 
 ```jsonc
 {
-  "version": 5,
+  "version": 6,
   "habits": [ /* aşağıdaki alanlar */ ],
   "cop": [ { "silinme": "2026-11-01", "habit": { /* silinen alışkanlık */ } } ]
 }
@@ -111,6 +112,7 @@ Bir alışkanlık:
 | `zorluk` | `kolay` / `normal` / `zor` |
 | `tip` | `iyi` (kazanmak) / `kotu` (bırakmak) |
 | `srbai` | Otomatiklik anketi ölçümleri `[{tarih, S, asama}]` |
+| `ardindan` | "Neyin ardından" ipucu (ör. "Evden çıkınca"), en fazla 40 karakter. v6 ile geldi. |
 | `arsiv` | Arşivde mi |
 | `missAck`, `celebrated` | Kaçırma animasyonu ve 66. gün kutlaması için |
 | `guc`, `asama`, `bakim`, `widget` | **Türetilmiş** alanlar: JS hesaplar, Kotlin (bildirim/widget) okur |
@@ -129,6 +131,7 @@ Eski kayıt asla bozulmaz.
   Önceden sınırsız kötü alışkanlıkta her temiz günü elle işaretlemek gerekiyordu,
   sınırlı olanda ise kayıt olmayan gün temiz sayılıyordu. Artık ikisi de aynı:
   **kayıt yok = temiz, kayma "+1" ile işaretlenir.** Taşınan kayıtlarda güç yükselir.
+- **v5 → v6:** `ardindan` eklendi; eski kayıtlarda boş metin. Hesap değişmedi.
 
 ### Türetilmiş alanlar neden var
 
@@ -243,6 +246,12 @@ Modelin kenar durumları. Her biri testlidir (`tests/kurallar.test.mjs`).
 
 Üstte başlık ve ⚙ düğmesi, ortada 3B beyin, altta alışkanlık listesi.
 
+- **Günün özeti:** liste başlığı "Bugün 2/4" yazar; yanında her planlı alışkanlık için bir
+  çentik, yapılan kendi aşama renginde dolar. Hepsi bitince "Bugün tamam". Bırakılan (kötü)
+  alışkanlıklar, duraklatılanlar ve bugün plan dışı olanlar sayılmaz.
+- **Boş durum:** hiç alışkanlık yokken uygulamanın fikrini üç satırda anlatan metin ve büyük
+  "İlk alışkanlığını ekle" düğmesi.
+
 - **Liste** satırı: simge (aşama renginde), ad, "Güç %7 · Çaba · 0/10", onay düğmesi.
   Miktarlı alışkanlıkta onay yerine "+1"; **uzun basınca miktar hedefe çekilir**.
 - Listenin üstündeki tutamak listeyi genişletir/daraltır (135 px ↔ 54vh). Liste
@@ -267,14 +276,19 @@ Alışkanlığa dokununca liste yerine açılır:
 - Başlık: simge, ad, güç yüzdesi (aşama renginde), aşama etiketi, sıklık ve saat
 - **Mini nöral yol:** 0 → ~T günü arasında kayan küre; ana sahnedeki yolun küçük hâli,
   çentikler aşama sınırları
-- Son 30 gün noktaları, seri ve oran
+- Son 30 gün noktaları, seri ve oran; aynı yerde **"Güç grafiği"** seçilebilir: gücün
+  zamana göre eğrisi (en çok son 120 gün). Dikey eksen `yolKonumu` ile aynı eşleme, yani
+  dört aşamaya eşit bant; eğri bulunduğu bandın rengini alır, kesikli çizgi en yüksek güç (iz).
+  Veri `computeState().gecmis` — kayıtta yeni alan yok.
+- İpucu satırı ("İpucu: Evden çıkınca") — varsa
 - İşaretle satırı: son 3 gün + bugün (geçmiş sönük, bugün vurgulu)
 - Miktarlı alışkanlıkta −/+ sayaç
 - Duraklatma bandı, nazik notlar (nüks / geri dönüş vaadi)
 
 ### Ekleme formu
 
-Alttan açılır, beyin üstte görünür kalır. Alanlar: ad, simge (12 seçenek), hatırlatma
+Alttan açılır, beyin üstte görünür kalır. Alanlar: ad, **neyin ardından** (isteğe bağlı
+ipucu; mekan değil sıra sorulur, bildirimde de görünür), simge (12 seçenek), hatırlatma
 saati, tür (kazanmak/bırakmak), sıklık, günlük miktar (isteğe bağlı), zorluk.
 Yeni alışkanlık **kaydırarak** onaylanır ("Başlatmak için küreyi kaydır");
 düzenlemede sıradan Kaydet düğmesi vardır.
@@ -296,8 +310,11 @@ Zaman, Bırakma. Tek kaynak `js/simgeler.js`; widget için Android vektör çizi
   + %50 sadeleştirme ile ~1,9 MB'a indirildi. ⚙ → "Beyin modeli yükle" ile başka bir
   `.glb` seçilebilir; iç depolamaya kopyalanır.
 - **Yol:** prefrontal korteks ile bazal gangliyon arasında eğri. Küreler bu eğri
-  üzerinde `yolKonumu(H)` noktasında durur. Güçleri yakın küreler üst üste binmesin
-  diye altın açıyla yoldan yanlara açılırlar (adım 0,24; küre çapı 0,21).
+  üzerinde `yolKonumu(H)` noktasına **ince bir sapla bağlıdır** ve o noktanın üstünde durur.
+  Yol üzerinde birbirine yakın (0,07'den az) küreler aynı noktadan yelpaze gibi açılır;
+  yelpaze hep kameraya dönüktür. **Otomatik'e geçen küre** mavi merkezin etrafındaki
+  yelpazeye katılır (kullanıcının çizimi, 9 Kasım 2026). Küreler küçük ve ışıkları kısık:
+  yan yana durduklarında parıltıları birbirine karışmasın diye.
 - **Görünür alan:** `setGorunurAlan(ust, alt)` panellerle kapanmayan dikey alanı alır;
   görüntü o alanın ortasına kaydırılır (`setViewOffset`, ek çizim maliyeti yok) ve alan
   daraldıkça kamera oransal olarak uzaklaşır.
@@ -343,6 +360,10 @@ Saydam, 4×3. Duvar kâğıdının üstünde beyin, ondan çıkan ışıklı yol
   planlı değilse, haftalık hedefe ulaşıldıysa, günlük sınırlı kötü alışkanlıksa, ya da
   bakım modundaysa (dün kaçırılmadıkça).
 - Bildirimde "Yaptım" düğmesi var; dokununca uygulama açılmadan işaretlenir.
+- Alışkanlığın ipucu varsa bildirim metni onu söyler: "Evden çıkınca → sıra bunda."
+- **Akşam hatırlatması (21:30):** kendi saati geçtiği hâlde yapılmamış alışkanlıklar için
+  tek bildirim ("Gün bitmeden"). Hepsi tamamsa gelmez. Dün de kaçan varsa iki gün kuralını
+  hatırlatır. ⚙ menüsünden kapatılır (`aksamHatirlatma` ayarı).
 - Telefon yeniden başlayınca alarmlar `BootReceiver` ile geri kurulur.
 - İzinler: `POST_NOTIFICATIONS`, `RECEIVE_BOOT_COMPLETED`, `USE_EXACT_ALARM`.
 
@@ -354,7 +375,10 @@ Saydam, 4×3. Duvar kâğıdının üstünde beyin, ondan çıkan ışıklı yol
 dosya seçilir, doğrulanır ve taşınır. Bozuk yedek mevcut veriyi ezmez — `migrate()`
 hata fırlatır.
 
-Yedek almak elle yapılır; otomatik yedekleme `FIKIRLER.md` içinde öneri olarak duruyor.
+**Otomatik yedek:** veri her kaydedildiğinde `OtomatikYedek.gerekirse` çağrılır; son
+otomatik yedekten bu yana 7 gün geçtiyse İndirilenler'e
+`noral-aliskanlik-otomatik-yedek-<tarih>.json` yazılır. Son iki dosya tutulur, eskisi
+silinir; elle alınan yedeklere dokunulmaz. Boş kayıt yedeklenmez. Android 10+.
 
 ---
 
@@ -362,7 +386,7 @@ Yedek almak elle yapılır; otomatik yedekleme `FIKIRLER.md` içinde öneri olar
 
 Menü maddeleri: **Beyin modeli yükle**, **Şeffaf mod**, **Kesit görünümü**,
 **Model ayarları**, **Yedekle / geri yükle**, **Arşiv ve silinenler**,
-**Otomatiklik anketi**.
+**Otomatiklik anketi**, **Akşam hatırlatması**.
 
 "Model ayarları" paneli: model döndürme (X/Y/Z), bölge konumları (prefrontal ve bazal
 gangliyon), model kaynağı/yazar (CC BY), sıfırla.
@@ -391,7 +415,7 @@ minSdk 26 (Android 8), targetSdk 36.
 
 ## 13. Testler
 
-`node --test "NoralAliskanlik/tests/*.test.mjs"` — 50 test:
+`node --test "NoralAliskanlik/tests/*.test.mjs"` — 54 test:
 
 | Dosya | Kapsam |
 |---|---|

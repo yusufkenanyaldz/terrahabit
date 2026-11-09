@@ -1355,3 +1355,87 @@ body.sahne-hazir #labels-container.soluk { opacity: 0; }
 @media (prefers-reduced-motion: reduce) {
   .parladi { animation: none; }
 }
+
+/* ------------------------------------------------------------------------- */
+/* Günün özeti (liste başlığı): "Bugün 2/4" + çentikler                       */
+/* ------------------------------------------------------------------------- */
+.gun-ozet { display: flex; align-items: center; gap: 9px; min-width: 0; }
+.gun-ozet.tamam #gun-ozet-yazi { color: var(--auto-cyan); }
+.gun-centikler { display: flex; gap: 4px; align-items: center; }
+.gun-centikler i {
+  width: 14px;
+  height: 4px;
+  border-radius: 2px;
+  background: rgba(255, 255, 255, 0.14);
+  transition: background 0.3s ease, box-shadow 0.3s ease;
+}
+.gun-centikler i.dolu { background: var(--renk); box-shadow: 0 0 6px var(--renk); }
+
+/* Boş durum: ilk açılışta uygulamanın fikrini üç satırda anlatır */
+.empty-hint { padding: 6px 4px 4px; font-size: 12.5px; line-height: 1.55; text-wrap: pretty; }
+.empty-hint b { display: block; color: var(--text-main); font-size: 14.5px; font-weight: 700; margin-bottom: 5px; }
+.empty-hint .nk {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  vertical-align: 0;
+}
+.empty-hint .nk.turuncu { background: var(--effort-orange); box-shadow: 0 0 6px var(--effort-orange); }
+.empty-hint .nk.mavi { background: var(--auto-cyan); box-shadow: 0 0 6px var(--auto-cyan); }
+.empty-hint .btn-Check { width: 100%; margin-top: 12px; padding: 12px; font-size: 14px; }
+/* Boş listede başlıktaki küçük "Ekle" gereksiz: aynı iş büyük düğmede */
+body.liste-bos .sheet-header .add-btn { display: none; }
+body.liste-bos .habit-list { max-height: none; }
+
+/* Detay kartı: "Son 30 gün | Güç grafiği" seçimi */
+.gorunum-secim { display: inline-flex; gap: 3px; }
+.gorunum-secim button {
+  border: 0;
+  background: transparent;
+  color: var(--text-muted);
+  font: inherit;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  padding: 4px 8px;
+  margin: -4px 0 -4px -8px;
+  border-radius: 7px;
+  opacity: 0.6;
+  cursor: pointer;
+}
+.gorunum-secim button + button { margin-left: 0; }
+.gorunum-secim button.on { opacity: 1; color: var(--text-main); background: rgba(255, 255, 255, 0.07); }
+.cal-strip[hidden], .guc-grafik[hidden] { display: none; }
+
+/* Güç grafiği */
+.guc-grafik { margin-bottom: 12px; }
+.grafik-govde { position: relative; height: 96px; border-radius: 9px; overflow: hidden; }
+.grafik-govde svg { display: block; width: 100%; height: 100%; }
+.grafik-uc {
+  position: absolute;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  transform: translate(-50%, -50%);
+  background: radial-gradient(circle at 34% 32%, #fff, var(--renk) 62%);
+  box-shadow: 0 0 9px var(--renk);
+}
+.grafik-adlar {
+  position: absolute;
+  inset: 6px auto 6px 7px;
+  display: flex;
+  flex-direction: column;
+  pointer-events: none;
+}
+.grafik-adlar span {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--renk);
+  opacity: 0.4;
+}
+.grafik-adlar span.on { opacity: 0.95; }

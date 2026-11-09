@@ -283,3 +283,46 @@ test('v5: eklendiği gün kaçırma sayılmaz, bakım sayacı duraklatmada durur
   const calisarak = { ...h, done: Array.from({ length: 85 }, (_, i) => g(i)) };
   assert.equal(computeState(calisarak, g(85)).bakim, true, 'çalışılan günlerle bakım açılmalı');
 });
+
+test('v6: "neyin ardından" ipucu eklenir, eski kayıtlarda boş gelir, düzenlemede korunur', () => {
+  // Eski kayıt (v5): alan yok → boş metin, başka hiçbir şey değişmez
+  const eski = { version: 5, habits: [{ id: 'a', name: 'Kitap', createdAt: D0, done: ilkNGun(10) }] };
+  const yeni = migrate(eski);
+  assert.equal(yeni.version, 6);
+  assert.equal(yeni.habits[0].ardindan, '');
+  assert.deepEqual(yeni.habits[0].done, ilkNGun(10));
+
+  // Ekleme: kırpılır ve 40 karakterle sınırlanır
+  let s = addHabit(emptyState(), { name: 'Kitap', ardindan: '  Evden çıkınca  ' }, D0, 'k');
+  assert.equal(s.habits[0].ardindan, 'Evden çıkınca');
+  s = addHabit(s, { name: 'Su', ardindan: 'x'.repeat(60) }, D0, 's');
+  assert.equal(s.habits[1].ardindan.length, 40);
+
+  // Düzenleme: verilmezse korunur, boş verilirse silinir
+  s = updateHabit(s, 'k', { name: 'Kitap oku' });
+  assert.equal(s.habits[0].ardindan, 'Evden çıkınca');
+  s = updateHabit(s, 'k', { name: 'Kitap oku', ardindan: '' });
+  assert.equal(s.habits[0].ardindan, '');
+  // Yedekten geri gelince bozuk tür temizlenir
+  assert.equal(migrate({ version: 6, habits: [{ id: 'a', name: 'X', createdAt: D0, done: [], ardindan: 42 }] }).habits[0].ardindan, '');
+});
+
+test('güç geçmişi: her takvim günü için bir değer, sonu bugünkü güce eşit', () => {
+  const h = tam({}, ilkNGun(30).filter((_, i) => i !== 9 && i !== 10)); // 10. ve 11. gün kaçtı
+  const bugun = gun(30);
+  const d = computeState(h, bugun);
+  assert.equal(d.gecmis.length, 30, 'eklendiği günden bugüne her gün');
+  assert.equal(d.gecmis.at(-1), d.H);
+  assert.ok(d.gecmis[8] > d.gecmis[10], 'kaçırılan günlerde güç düşer');
+  assert.ok(d.gecmis[10] > 0.25 * d.gecmis[8], 'ama tabanın altına inmez');
+  for (let i = 1; i < 9; i++) assert.ok(d.gecmis[i] > d.gecmis[i - 1], 'yapılan günlerde artar');
+
+  // Duraklatmada düz çizgi
+  const durakli = tam({ duraklatmalar: [{ bas: gun(11), bit: gun(20) }] }, ilkNGun(10));
+  const dd = computeState(durakli, gun(21));
+  assert.equal(dd.gecmis.length, 21);
+  assert.equal(dd.gecmis[19], dd.gecmis[9], 'duraklatmada güç donar');
+
+  // Eklendiği gün: tek nokta
+  assert.equal(computeState({ createdAt: D0, done: [] }, D0).gecmis.length, 1);
+});

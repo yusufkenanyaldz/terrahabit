@@ -162,6 +162,8 @@ function hesapla(habit, bugun) {
   const haftalikUs = 7 / n; // Haftalıkta bir kaçırma daha uzun takvim süresini kapsar
 
   const d = { H: 0, P: 0, k: 0, asama: 0, seri: 0 };
+  // Güç geçmişi (grafik için): her takvim gününün sonunda H. İlk öğe eklendiği gün.
+  const gecmis = [];
   const sonuclar = []; // Son fırsatlar (parlaklık ve nüks için): true/false
   let bakimGun = 0;
   const kabulMazeret = []; // Kabul edilen mazeret günleri (kota için)
@@ -222,7 +224,7 @@ function hesapla(habit, bugun) {
       const hb = haftaBasi(g);
       if (hb !== hafta) { haftayiKapat(); hafta = hb; haftaYapilan = 0; haftaAktifGun = 0; haftaMazeret = 0; }
     }
-    if (duraklatildiMi(habit, g)) continue; // Duraklatma: H de bakım sayacı da donar
+    if (duraklatildiMi(habit, g)) { gecmis.push(d.H); continue; } // Duraklatma: H de bakım sayacı da donar
 
     if (haftalik) {
       haftaAktifGun++;
@@ -253,6 +255,7 @@ function hesapla(habit, bugun) {
       sonuclar.push(false);
     }
     bakimSay();
+    gecmis.push(d.H);
   }
   // Bugün: kapanmadı; kaçırma işlenmez, yapıldıysa kazanım hemen görünür
   olcumleriUygula(bugun);
@@ -263,6 +266,7 @@ function hesapla(habit, bugun) {
     if (haftalik) haftaYapilan++;
     bakimSay();
   }
+  gecmis.push(d.H); // bugün
 
   // Parlaklık: son 7 fırsatın tamamlanma oranı (hiç fırsat yoksa tam parlak)
   const son = sonuclar.slice(-PARLAKLIK_GUN);
@@ -292,6 +296,7 @@ function hesapla(habit, bugun) {
   return {
     H: d.H,
     P: d.P,
+    gecmis,
     asama: d.asama,
     toplamTekrar,
     son7Oran,
