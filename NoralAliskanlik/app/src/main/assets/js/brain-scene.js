@@ -340,6 +340,7 @@ export function createBrainScene({ container, labelsContainer, leaderSvg, ayarla
       k.halo.material.depthTest = derinlikTesti;
       k.iz.material.depthTest = derinlikTesti;
       k.sap.material.depthTest = derinlikTesti;
+      if (k.tel) k.tel.material.depthTest = derinlikTesti;
     });
   }
 
@@ -719,13 +720,16 @@ export function createBrainScene({ container, labelsContainer, leaderSvg, ayarla
       if (m) { scene.remove(m); m.geometry.dispose(); m.material.dispose(); }
     }
 
-    const tubeGeo = new THREE.TubeGeometry(neuralCurve, 72, 0.032, 16, false);
+    // Gövde: kavşaktan mavi merkeze. İlk yarı kürelerin tellerine ait (bkz. NÖRAL DELTA).
+    const govdePts = []; for (let j = 0; j <= 48; j++) govdePts.push(neuralCurve.getPointAt(KAVSAK + (1 - KAVSAK) * j / 48));
+    const govdeEgri = new THREE.CatmullRomCurve3(govdePts);
+    const tubeGeo = new THREE.TubeGeometry(govdeEgri, 72, 0.032, 16, false);
     const count = tubeGeo.attributes.position.count;
     const colors = new Float32Array(count * 3);
     const uv = tubeGeo.attributes.uv;
     const c = new THREE.Color();
     for (let i = 0; i < count; i++) {
-      hesaplaAsamaRengi(uv.getX(i), c);
+      hesaplaAsamaRengi(KAVSAK + (1 - KAVSAK) * uv.getX(i), c);
       colors[i * 3] = c.r * 2.1;
       colors[i * 3 + 1] = c.g * 2.1;
       colors[i * 3 + 2] = c.b * 2.1;
@@ -738,13 +742,47 @@ export function createBrainScene({ container, labelsContainer, leaderSvg, ayarla
     neuralTubeMesh.renderOrder = 14;
     scene.add(neuralTubeMesh);
 
-    const coreTubeGeo = new THREE.TubeGeometry(neuralCurve, 72, 0.013, 12, false);
+    const coreTubeGeo = new THREE.TubeGeometry(govdeEgri, 72, 0.013, 12, false);
+    kureler.forEach((k) => { k.telT = null; }); // bölge ayarı değişti: teller yeniden kurulsun
     coreTubeGeo.setAttribute('color', new THREE.BufferAttribute(colors, 3));
     neuralCoreTubeMesh = new THREE.Mesh(coreTubeGeo, new THREE.MeshBasicMaterial({
       vertexColors: true, transparent: true, opacity: 0.95, depthWrite: false, depthTest: !seffafModAcik,
     }));
     neuralCoreTubeMesh.renderOrder = 15;
     scene.add(neuralCoreTubeMesh);
+  }
+
+  // NÖRAL DELTA: ana yol yalnız kavşaktan (Yerleşiyor'un başı) mavi merkeze kadar kalın
+  // bir gövde olarak çizilir. Yolun ilk yarısında her küre, kendi ince "teli"nin ucunda
+  // ilerler; tel küreden kavşağa uzanır, küre ilerledikçe arkası erir (kısalır). Kavşağa
+  // varan küre teli bırakıp gövdeye biner. Aynı güçteki küreler teller yan yana olduğu
+  // için üst üste binmez; en güçlü tel en üstte.
+  const KAVSAK = 0.5, TEL_ACIK = 0.28, TEL_ARALIGI = 0.15;
+  const telKatsayi = (t) => { const u = Math.max(0, Math.min(1, (t - TEL_ACIK) / (KAVSAK - TEL_ACIK))); return 1 - u * u * (3 - 2 * u); };
+  const kY = new THREE.Vector3(0, 1, 0), kT = new THREE.Vector3(), kYan = new THREE.Vector3(), kUst = new THREE.Vector3();
+  /** Yol üzerindeki t noktasını, yola dik (beyinde yukarı) `kayma` kadar kaydırarak verir. */
+  function kaydirilmisNokta(t, kayma, hedef) {
+    neuralCurve.getPointAt(t, hedef);
+    if (Math.abs(kayma) < 1e-6) return hedef;
+    neuralCurve.getTangentAt(t, kT);
+    kYan.crossVectors(kT, kY); if (kYan.lengthSq() < 1e-6) kYan.set(1, 0, 0); kYan.normalize();
+    kUst.crossVectors(kYan, kT).normalize(); if (kUst.y < 0) kUst.negate();
+    return hedef.addScaledVector(kUst, kayma * telKatsayi(t));
+  }
+  /** Kürenin teli: t0 (küre) → KAVSAK arası ince tüp. Yalnız küre yer değiştirince yeniden kurulur. */
+  function telKur(k, t0, kayma) {
+    if (k.tel) { scene.remove(k.tel); k.tel.geometry.dispose(); k.tel.material.dispose(); k.tel = null; }
+    if (t0 >= KAVSAK - 0.01) return;
+    const pts = [];
+    for (let j = 0; j <= 20; j++) pts.push(kaydirilmisNokta(t0 + (KAVSAK - t0) * j / 20, kayma, new THREE.Vector3()));
+    const geo = new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts), 20, 0.011, 6, false);
+    const n = geo.attributes.position.count, colors = new Float32Array(n * 3), uv = geo.attributes.uv, c = new THREE.Color();
+    for (let v = 0; v < n; v++) { hesaplaAsamaRengi(t0 + (KAVSAK - t0) * uv.getX(v), c); colors[v * 3] = c.r * 2.1; colors[v * 3 + 1] = c.g * 2.1; colors[v * 3 + 2] = c.b * 2.1; }
+    geo.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+    k.tel = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ vertexColors: true, transparent: true, opacity: 0.9, depthWrite: false, depthTest: !seffafModAcik }));
+    k.tel.renderOrder = 15;
+    scene.add(k.tel);
+    k.telT = t0; k.telKayma = kayma;
   }
 
   // SVG kılavuz çizgisi + uç noktası
@@ -847,6 +885,7 @@ export function createBrainScene({ container, labelsContainer, leaderSvg, ayarla
     k.iz.material.dispose();
     k.dalga.material.dispose();
     scene.remove(k.sap); k.sap.geometry.dispose(); k.sap.material.dispose();
+    if (k.tel) { scene.remove(k.tel); k.tel.geometry.dispose(); k.tel.material.dispose(); }
     k.labelEl.remove();
     k.svgBag.polyline.remove();
     k.svgBag.dot.remove();
@@ -1286,7 +1325,7 @@ export function createBrainScene({ container, labelsContainer, leaderSvg, ayarla
 
     const posAttr = akisGeo.attributes.position;
     for (let i = 0; i < akisParcacikSayisi; i++) {
-      neuralCurve.getPointAt((akisOffsets[i] + elapsed * 0.22) % 1.0, geciciNokta);
+      neuralCurve.getPointAt(KAVSAK + (1 - KAVSAK) * ((akisOffsets[i] + elapsed * 0.22) % 1.0), geciciNokta);
       posAttr.setXYZ(i, geciciNokta.x, geciciNokta.y, geciciNokta.z);
     }
     posAttr.needsUpdate = true;
@@ -1329,9 +1368,14 @@ export function createBrainScene({ container, labelsContainer, leaderSvg, ayarla
         emissiveYogunluk = 0.45;
       }
 
-      // Yoldaki yer: gücün olduğu noktadan çıkan sapın ucunda, grubunun yelpazesinde
-      neuralCurve.getPointAt(Math.max(0, Math.min(1, egriOrani)), geciciCapa);
-      yelpazeKonumu(geciciCapa, k.grupSira || 0, k.grupAdet || 1, YOL_SAP_BOYU, 90 + 30 * (1 - egriOrani), k.grup.position); // turuncu uçta beynin içine doğru eğik
+      // Yoldaki yer: kendi telinin ucunda (yolun ilk yarısında teller yan yana, en güçlü üstte)
+      const yolSira = k.asama === 3 ? -1 : yoldakiler.indexOf(k);
+      const telKayma = yolSira < 0 ? 0 : (yolSira - (yoldakiler.length - 1) / 2) * TEL_ARALIGI;
+      const tKure = Math.max(0, Math.min(1, egriOrani));
+      kaydirilmisNokta(tKure, telKayma, geciciCapa);
+      k.grup.position.copy(geciciCapa);
+      if (k.asama !== 3 && (k.telT === null || k.telT === undefined || Math.abs(k.telT - tKure) > 0.004 || k.telKayma !== telKayma)) telKur(k, tKure, telKayma);
+      else if (k.asama === 3 && k.tel) telKur(k, 1, 0);
 
       // Otomatik yelpazesi: aşama Otomatik ise küre yavaşça mavi merkezin etrafına geçer
       k.yelpaze += ((k.asama === 3 ? 1 : 0) - k.yelpaze) * yumusat(1.5, dt);
@@ -1348,8 +1392,8 @@ export function createBrainScene({ container, labelsContainer, leaderSvg, ayarla
       sp.needsUpdate = true;
       hesaplaAsamaRengi(k.mevcutOran, sapRengi);
       k.sap.material.color.copy(sapRengi).multiplyScalar(1.6);
-      k.sap.material.opacity = 0.7;
-      k.sap.visible = true;
+      k.sap.material.opacity = 0.7 * k.yelpaze;
+      k.sap.visible = k.yelpaze > 0.001;
 
       // Aşama dalgası: halka büyüyerek söner
       if (k.dalgaZamanlayici > 0) {
