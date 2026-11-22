@@ -12,6 +12,8 @@ import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Paint
 import android.graphics.Path
+import android.graphics.RadialGradient
+import android.graphics.Shader
 import android.os.Bundle
 import android.util.TypedValue
 import android.view.View
@@ -170,7 +172,52 @@ class AliskanlikWidget : AppWidgetProvider() {
             // Beyinden satırlara ışıklı yollar
             yollariCiz(context, manager, widgetId, satirlar)?.let { views.setImageViewBitmap(R.id.widget_yollar, it) }
 
+            // Mevsim beyni: beyin, alışkanlıkların yol üzerindeki ortalama konumunun renginde
+            // hafifçe boyanır (saydam). Başta neredeyse renksiz, alışkanlıklar oturdukça belirginleşir.
+            val ortalama = if (tum.isEmpty()) 0f else tum.map { yolKonumu(it.guc / 100f) }.average().toFloat()
+            val mevsim = yolRengi(ortalama)
+            views.setInt(R.id.widget_beyin_renk, "setColorFilter", mevsim)
+            views.setInt(R.id.widget_beyin_renk, "setImageAlpha", if (tum.isEmpty()) 0 else (30 + 80 * ortalama).roundToInt())
+
+            // Gün bitimi halesi: bugün yapılacak her şey tamamsa beynin arkasında yumuşak ışık.
+            // Bırakılan (sınırlı) alışkanlıklar, duraklatılanlar ve bugün plan dışı olanlar sayılmaz.
+            val yapilacak = tum.filter { !it.sinirli && it.durum != "duraklatildi" && it.durum != "plansiz" }
+            val hepsiTamam = yapilacak.isNotEmpty() && yapilacak.all { it.durum == "yapildi" }
+            views.setViewVisibility(R.id.widget_hale, if (hepsiTamam) View.VISIBLE else View.GONE)
+            if (hepsiTamam) views.setImageViewBitmap(R.id.widget_hale, haleCiz(mevsim))
+
             manager.updateAppWidget(widgetId, views)
+        }
+
+        /** Yol konumu (0..1) → aşama renklerinin arasında yumuşak geçiş (turuncu → mor → mavi → camgöbeği). */
+        private fun yolRengi(t: Float): Int {
+            val renkler = HabitStore.asamaRenkleri()
+            val x = (t.coerceIn(0f, 1f) * (renkler.size - 1))
+            val i = x.toInt().coerceAtMost(renkler.size - 2)
+            val f = x - i
+            val a = renkler[i]; val b = renkler[i + 1]
+            fun kar(p: Int, q: Int) = (p + (q - p) * f).roundToInt()
+            return Color.rgb(kar(Color.red(a), Color.red(b)), kar(Color.green(a), Color.green(b)), kar(Color.blue(a), Color.blue(b)))
+        }
+
+        /** Gün bitimi halesi: beyin görseliyle aynı oranlı küçük bir bitmap'te yumuşak ışık. */
+        private fun haleCiz(renk: Int): Bitmap {
+            val w = 192; val h = (192 * BEYIN_BOY / BEYIN_EN).roundToInt()
+            val bmp = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
+            val cx = w * 0.5f; val cy = h * 0.47f
+            val p = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                shader = RadialGradient(
+                    cx, cy, w * 0.5f,
+                    intArrayOf(
+                        Color.argb(150, Color.red(renk), Color.green(renk), Color.blue(renk)),
+                        Color.argb(70, Color.red(renk), Color.green(renk), Color.blue(renk)),
+                        Color.argb(0, Color.red(renk), Color.green(renk), Color.blue(renk))
+                    ),
+                    floatArrayOf(0f, 0.55f, 1f), Shader.TileMode.CLAMP
+                )
+            }
+            Canvas(bmp).drawCircle(cx, cy, w * 0.5f, p)
+            return bmp
         }
 
         /** Widget boyutu (dp). Dikey ekranda: genişlik = en küçük genişlik, yükseklik = en büyük yükseklik. */

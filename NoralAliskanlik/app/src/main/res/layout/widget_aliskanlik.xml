@@ -11,14 +11,34 @@
         android:layout_width="match_parent"
         android:layout_height="match_parent"
         android:orientation="horizontal">
-        <ImageView
-            android:id="@+id/widget_beyin_img"
+        <FrameLayout
             android:layout_width="0dp"
             android:layout_height="match_parent"
-            android:layout_weight="52"
-            android:contentDescription="@string/app_name"
-            android:scaleType="fitCenter"
-            android:src="@drawable/widget_beyin" />
+            android:layout_weight="52">
+            <!-- Gün bitimi halesi: bugünün hepsi tamamlanınca beynin arkasında yumuşak ışık -->
+            <ImageView
+                android:id="@+id/widget_hale"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:importantForAccessibility="no"
+                android:scaleType="fitCenter"
+                android:visibility="gone" />
+            <ImageView
+                android:id="@+id/widget_beyin_img"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:contentDescription="@string/app_name"
+                android:scaleType="fitCenter"
+                android:src="@drawable/widget_beyin" />
+            <!-- Mevsim beyni: aynı görsel, ortalama aşama renginde ve saydam, üste biner -->
+            <ImageView
+                android:id="@+id/widget_beyin_renk"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:importantForAccessibility="no"
+                android:scaleType="fitCenter"
+                android:src="@drawable/widget_beyin" />
+        </FrameLayout>
         <FrameLayout
             android:layout_width="0dp"
             android:layout_height="match_parent"

@@ -352,6 +352,12 @@ Saydam, 4×3. Duvar kâğıdının üstünde beyin, ondan çıkan ışıklı yol
 - En fazla 4 satır; widget'ın yüksekliğine göre sığan kadarı gösterilir.
 - ✓ bugünü işaretler (miktarlıda hedefe çeker), "+" bir tane ekler. Uygulama açılmadan
   yüzde de güncellenir (bkz. `widget` önbelleği).
+- **Mevsim beyni:** beyin görselinin üstüne aynı görsel, alışkanlıkların yol üzerindeki
+  ortalama konumunun renginde (turuncu → mor → mavi → camgöbeği arası geçiş) ve saydam
+  biner. Saydamlık konumla artar (%12 → %43): başta neredeyse renksiz, oturdukça belirgin.
+- **Gün bitimi halesi:** bugün yapılacak her şey tamamsa (bırakılan, duraklatılan ve plan
+  dışı olanlar hariç) beynin arkasında aynı renkte yumuşak bir ışık. Yazı yok. Ertesi gün
+  (04:00) kendiliğinden kalkar.
 - Aşama renkleri uygulamadakiyle aynı; `HabitStore.ASAMA_RENK` ve
   `brain-scene.js` birlikte güncellenmeli.
 

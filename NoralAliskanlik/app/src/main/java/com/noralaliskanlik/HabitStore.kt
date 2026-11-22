@@ -203,6 +203,9 @@ object HabitStore {
     /** Aşama adları ve renkleri (JS brain-scene.js ile aynı). */
     private val ASAMA_RENK = arrayOf("#FF7B1C", "#A855F7", "#0EA5E9", "#00E5FF")
 
+    /** Aşama renkleri (widget'taki mevsim beyni için). */
+    fun asamaRenkleri(): IntArray = ASAMA_RENK.map { android.graphics.Color.parseColor(it) }.toIntArray()
+
     /**
      * Widget'ın bir satırı.
      * durum: "yapildi" | "bekliyor" | "duraklatildi" | "plansiz"
