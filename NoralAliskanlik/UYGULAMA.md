@@ -390,7 +390,8 @@ karşılaştırarak buldu).
   sayacı (Health Connect "phone" kaynağı). Hazır toplam (aggregate) ikisini ekliyordu
   (14.325 → 26.959); dakika dakika birleştirme de tutmadı (kaynaklar farklı uzunlukta
   aralıklar yazıyor). `SaglikVerisi.adimlar` kaynak (uygulama) başına günlük toplamı alır ve
-  **en büyüğünü** kullanır. Detay kartında kaynak başına toplamlar da görünür.
+  **en büyüğünü** kullanır. (Kaynak başına toplamlar Kotlin'den hâlâ geliyor ama arayüzde
+  gösterilmiyor; doğrulama bittikten sonra kaldırıldı.)
 - İlk seçimde izin penceresi açılır. Kotlin: `SaglikVerisi`, `MainActivity.saglik…`,
   sonuçlar `NoralApp.onSaglikDurum / onSaglikIzin / onSaglikAdim` ile JS'e döner.
 - Widget ve bildirim adımları okumaz; uygulama açılınca güncellenir.
