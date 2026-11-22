@@ -7,9 +7,11 @@ bir bilgi).
 Bir maddenin nasıl yapılacağı konuşulup karara bağlandıysa, kararlar maddenin içine yazılır.
 Kullanıcı "yap" dediğinde o maddeler yeniden tartışılmaz, yazıldığı gibi uygulanır.
 
-## Beklemede
+## Yapılanlar
 
-### 1. Alışkanlıklarım listesi açılıp kapanabilsin
+_22 Kasım 2026: buradaki maddelerin hepsi yapıldı ya da karara bağlandı. Açık madde yok._
+
+### 1. Alışkanlıklarım listesi açılıp kapanabilsin — YAPILDI (liste tutamağı, beyin küçülür)
 _2 Kasım 2026 — kullanıcı_
 
 Liste şu an sabit yükseklikte; içinde aşağı yukarı kayıyor ama genişlemiyor. Bu, beyin iyi
@@ -75,7 +77,7 @@ Bilinmesi gerekenler:
 
 Şu anki ikon: düz renk zemin `#282725` + beyin ön katmanı.
 
-### 5. Tasarım önerisi: ekleme ekranı ve detay kartı — KARARA BAĞLANDI
+### 5. Tasarım önerisi: ekleme ekranı ve detay kartı — YAPILDI (1–7 hepsi)
 _3 Kasım 2026 — kullanıcı (karşılaştırmalı görseller); değerlendirme kullanıcı tarafından onaylandı_
 
 **Durum (3 Kasım 2026): 1–6 yapıldı, 7 bekliyor.**
@@ -136,7 +138,7 @@ Not: kodlama yapılmadı, yalnızca değerlendirme.
 **Maliyet**: simge seti dışındaki her şey arayüz katmanında (index.html + main.js). Modele,
 kayıt biçimine ve 3B sahneye dokunmaz.
 
-### 6. İki aylık kullanım denemesinden çıkanlar
+### 6. İki aylık kullanım denemesinden çıkanlar — YAPILDI (a–e)
 _3 Kasım 2026 — Claude, uygulamayı 60 gün boyunca kullanarak gözden geçirdi_
 
 Yöntem: 1. gün dört alışkanlık (Kitap oku 10 sayfa / Spor "zor" / Erken yat / Sigara-bırakma)
@@ -213,31 +215,6 @@ birebir dondurması, çöp kutusu 30 gün + geri yükleme, arşiv, anket zamanla
 widget önbelleğinin uygulamayla dört hane aynı çıkması, 04:00 gün sınırının iki tarafta
 da aynı olması.
 
-### 8. Beyne benzer başka benzetmeler (yavaş, küçük ama güçlü)
-_17 Kasım 2026 — kullanıcı sordu ("damlayan suyun taşı delmesi gibi"), Claude önerdi_
-
-Ortak mantık: her gün küçük bir adım, kaçırınca biraz geri gitme ama izin hiç silinmemesi,
-geri dönüşün ilk seferden hızlı olması (modelin üç kuralı: kazanım, taban, tasarruf).
-
-- **Çimenlikte patika (Claude'un favorisi).** Her gün aynı yerden geçince patika açılır;
-  birkaç gün geçilmezse çimen biraz büyür ama iz kaybolmaz, tekrar yürüyünce hemen açılır.
-  Nörobilimde beyindeki yollar için kullanılan benzetmenin ta kendisi; modelin bütün
-  kuralları içinde var.
-- **Sarkıt ve dikit.** Damla damla biriken taş; tavandan ve yerden büyüyen iki uç bir gün
-  birleşip sütun olur. Bir **varış anı** var: birleşme = 66. gün / Otomatik.
-- **Damla ve taş** (kullanıcının örneği). Oyulan taş eski hâline dönmez = "iz silinmez"
-  kuralı. Kaçırılan gün oluğa biraz kum dolar, damla gelince kum gider.
-- **Ağaç halkaları.** Günden güne fark edilmez, kesitte her hafta bir halka; düzenli haftalar
-  kalın, kaçırılanlar ince. Güç grafiğinin şiirsel hâli.
-- **İnci.** Tek bir kum tanesi kat kat sarılıp inciye döner. Kötü alışkanlık bırakmaya
-  yakışıyor: her temiz gün bir katman.
-
-Claude'un görüşü: beyin uygulamanın kimliği, değişmesin. Benzetmeler iki yerde işe yarar:
-- **Kutlama ekranı:** sarkıt ile dikitin birleşmesi 66. günü tek görüntüyle anlatır.
-- **Widget ya da ayrı görünüm:** patika ya da ağaç halkası; günlük ilerleme beyindeki
-  küreden daha kolay görünür ("küreler kımıldamıyor" şikâyetine cevap olabilir —
-  yol üzerinde günde ~%1,3 ilerleme telefonda birkaç piksel).
-
 ## Claude'un önerdikleri — ÜÇÜ DE YAPILDI (9 Kasım 2026)
 
 Kullanıcı "uygulamayı olabilecek en iyi sürümüne yükselt" dedi; üç öneri de uygulandı
@@ -289,6 +266,32 @@ bir alışkanlık yok. Kod geri alındı (işlenmedi).
 Soruya verilen cevap (tekrar sorulursa): küre sigarayı değil, **bırakma gücünü** gösterir.
 Bırakmak eski yolu silmek değil, prefrontalden yeni bir yol kurmaktır; o yol da zamanla
 otomatikleşir (Özgür). Eski yol hiç tamamen silinmez, nüks riski buradan gelir.
+
+### Beyne benzer başka benzetmeler (yavaş, küçük ama güçlü)
+_17 Kasım 2026 — kullanıcı sordu ("damlayan suyun taşı delmesi gibi"), Claude önerdi._
+_22 Kasım 2026 — kullanıcı: önemi yok, yapılmayacak._
+
+Ortak mantık: her gün küçük bir adım, kaçırınca biraz geri gitme ama izin hiç silinmemesi,
+geri dönüşün ilk seferden hızlı olması (modelin üç kuralı: kazanım, taban, tasarruf).
+
+- **Çimenlikte patika (Claude'un favorisi).** Her gün aynı yerden geçince patika açılır;
+  birkaç gün geçilmezse çimen biraz büyür ama iz kaybolmaz, tekrar yürüyünce hemen açılır.
+  Nörobilimde beyindeki yollar için kullanılan benzetmenin ta kendisi; modelin bütün
+  kuralları içinde var.
+- **Sarkıt ve dikit.** Damla damla biriken taş; tavandan ve yerden büyüyen iki uç bir gün
+  birleşip sütun olur. Bir **varış anı** var: birleşme = 66. gün / Otomatik.
+- **Damla ve taş** (kullanıcının örneği). Oyulan taş eski hâline dönmez = "iz silinmez"
+  kuralı. Kaçırılan gün oluğa biraz kum dolar, damla gelince kum gider.
+- **Ağaç halkaları.** Günden güne fark edilmez, kesitte her hafta bir halka; düzenli haftalar
+  kalın, kaçırılanlar ince. Güç grafiğinin şiirsel hâli.
+- **İnci.** Tek bir kum tanesi kat kat sarılıp inciye döner. Kötü alışkanlık bırakmaya
+  yakışıyor: her temiz gün bir katman.
+
+Claude'un görüşü: beyin uygulamanın kimliği, değişmesin. Benzetmeler iki yerde işe yarar:
+- **Kutlama ekranı:** sarkıt ile dikitin birleşmesi 66. günü tek görüntüyle anlatır.
+- **Widget ya da ayrı görünüm:** patika ya da ağaç halkası; günlük ilerleme beyindeki
+  küreden daha kolay görünür ("küreler kımıldamıyor" şikâyetine cevap olabilir —
+  yol üzerinde günde ~%1,3 ilerleme telefonda birkaç piksel).
 
 ## Bilgi notları
 
