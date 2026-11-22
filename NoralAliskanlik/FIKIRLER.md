@@ -278,6 +278,18 @@ ince bir lif (yoldan 30-55 derece ayrılan, iki yan dallı). Kullanıcı GIF ön
 bakıp "hayal ettiğim gibi olmadı" dedi; düz ışıkta karar kılındı. Kod geri alındı
 (commit 10b6150 ve 94541eb'nin revert'i); denemek isteyen o iki işleme bakabilir.
 
+### Sönen kor (bırakılan alışkanlık)
+_22 Kasım 2026 — kullanıcının sorusu ("Sigara zaten otomatik değil mi?"), denendi ve vazgeçildi_
+
+Kontrol küresi turuncudan ilerlerken mavi uçta eski otomatik yolu temsil eden kırmızı bir kor
+dursun; kontrol arttıkça sönsün, Özgür'de gri kül halkası olarak kalsın, kayma gününde bir an
+parlasın. Bilgisayarda çalıştı; kullanıcı "gereksiz bir detay" dedi, ayrıca henüz bırakılacak
+bir alışkanlık yok. Kod geri alındı (işlenmedi).
+
+Soruya verilen cevap (tekrar sorulursa): küre sigarayı değil, **bırakma gücünü** gösterir.
+Bırakmak eski yolu silmek değil, prefrontalden yeni bir yol kurmaktır; o yol da zamanla
+otomatikleşir (Özgür). Eski yol hiç tamamen silinmez, nüks riski buradan gelir.
+
 ## Bilgi notları
 
 Soruldu, cevaplandı; bir daha sorulmasın diye burada.
