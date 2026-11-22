@@ -26,6 +26,16 @@ class WebAppBridge(private val activity: MainActivity) {
         return ok
     }
 
+    // Samsung Health (Health Connect): sonuçlar NoralApp.onSaglik… ile JS'e döner
+    @JavascriptInterface
+    fun saglikDurum() { activity.runOnUiThread { activity.saglikDurumSor() } }
+
+    @JavascriptInterface
+    fun saglikIzinIste() { activity.runOnUiThread { activity.saglikIzinIste() } }
+
+    @JavascriptInterface
+    fun saglikAdimOku(gunlerJson: String) { activity.runOnUiThread { activity.saglikAdimOku(gunlerJson) } }
+
     /** Son otomatik yedeğin günü (YYYY-AA-GG) ya da "". */
     @JavascriptInterface
     fun autoBackupInfo(): String = OtomatikYedek.sonTarih(activity)

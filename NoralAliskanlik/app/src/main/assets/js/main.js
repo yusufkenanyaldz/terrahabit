@@ -9,17 +9,19 @@ import {
   setArchived, startPause, endPause, activePause, expiredPause, answerExpiredPause,
   addSrbai, srbaiDue, syncDerived,
   setAmount, amountOn, isLateEditable, restoreHabit, deleteForever, purgeTrash,
+  saglikUygula, adimaUygunBirim,
 } from './habits.js';
 import { todayKey, setNow, addDays } from './clock.js';
 import { SIMGELER, simgeSvg } from './simgeler.js';
 import { computeState, geriDonusTahmini, planliMi, yolKonumu } from './guc.js';
 import {
   CABA_UYARI_SAYISI, DURAKLATMA_EN_UZUN, MAZERET_HAKKI, MAZERET_PENCERE,
-  GERIYE_DONUK_GUN, GEC_KAYIT_EN_ESKI, COP_GUN,
+  GERIYE_DONUK_GUN, GEC_KAYIT_EN_ESKI, COP_GUN, ADIM_DAKIKA,
 } from './parametreler.js';
 import {
   loadState, saveState, exportBackup, requestImport,
   loadSettings, saveSettings, modelInfo, autoBackupInfo,
+  saglikVar, saglikDurumSor, saglikIzinIste, saglikAdimOku,
 } from './storage.js';
 
 // Geliştirici modu: tarayıcıda ?tarih=2026-05-01 ile sahte gün (test için).
@@ -507,7 +509,9 @@ function cizDetay() {
   $('det-yol-hedef').textContent = `~${Math.round(d.T)} gün`;
   // Asla düşmeyen sayılar: toplam tekrar ve ulaşılan en yüksek güç (iz)
   const iz = d.P - d.H > 0.02 ? ` · en yüksek %${Math.round(d.P * 100)}` : '';
-  $('det-meta').textContent = `${h.ardindan ? `İpucu: ${h.ardindan} · ` : ''}${d.toplamTekrar} ${kotu ? 'temiz gün' : 'tekrar'}${iz}`;
+  const saglikYazi = h.kaynak === 'adim' && saglikSonAdim[bugun] != null
+    ? ` · Samsung Health: ${saglikSonAdim[bugun].toLocaleString('tr-TR')} adım ≈ ${Math.floor(saglikSonAdim[bugun] / ADIM_DAKIKA)} dk` : '';
+  $('det-meta').textContent = `${h.ardindan ? `İpucu: ${h.ardindan} · ` : ''}${d.toplamTekrar} ${kotu ? 'temiz gün' : 'tekrar'}${iz}${saglikYazi}`;
   // İkincil metrikler: son 30 gün oranı (haftalıkta bu hafta) ve iki gün kuralı serisi
   const oran = d.hafta ? `bu hafta ${Math.min(d.hafta.yapilan, d.hafta.hedef)}/${d.hafta.hedef}`
     : `${d.son30.yapilan}/${d.son30.firsat}`;
@@ -975,7 +979,7 @@ async function onayIste(baslik, metin, evetYazi = 'Evet', kaydir = false) {
 let duzenlenenId = null; // null: yeni alışkanlık, değilse düzenleme
 
 // Form seçim grupları (tek seçim; "Belirli günler" çoklu)
-const form = { tip: 'iyi', siklik: 'gunluk', gunler: new Set([1, 3, 5]), hedef: 3, zorluk: 'normal', ikon: 'genel' };
+const form = { tip: 'iyi', siklik: 'gunluk', gunler: new Set([1, 3, 5]), hedef: 3, zorluk: 'normal', ikon: 'genel', kaynak: '' };
 
 // Simge seçici düğmeleri bir kez kurulur
 $('sec-simge').innerHTML = SIMGELER.map((sg) =>
@@ -997,6 +1001,15 @@ function formuCiz() {
   secimGrubu('sec-hedef', form.hedef);
   secimGrubu('sec-zorluk', form.zorluk);
   secimGrubu('sec-simge', form.ikon);
+  secimGrubu('sec-kaynak', form.kaynak);
+  // Samsung Health yalnız telefonda, iyi alışkanlıkta ve günlük miktarla anlamlı
+  $('kaynak-alani').hidden = !saglikVar() || form.tip === 'kotu' || form.siklik === 'haftalik';
+  const birim = $('add-birim').value;
+  const kaynakNot = $('kaynak-not');
+  kaynakNot.hidden = form.kaynak !== 'adim';
+  kaynakNot.textContent = !$('add-miktar').value ? 'Önce günlük miktarı yaz (ör. 2 saat).'
+    : adimaUygunBirim(birim) ? `Bugünkü adımların kendiliğinden yazılır: ${ADIM_DAKIKA} adım = 1 dakika. Yalnız artırır, elle girdiğini silmez.`
+    : 'Birim "saat", "dakika" ya da "adım" olmalı.';
   // Beyindeki etikette artık yalnız simge görünüyor: aynı simgeden iki alışkanlık olursa
   // hangisi hangisi belli olmaz. Başkasının kullandığı simgeler soluk gösterilir (engel değil).
   const kullanilan = new Set(aktifler().filter((x) => x.id !== duzenlenenId).map((x) => x.ikon));
@@ -1022,6 +1035,8 @@ $('sec-tip').addEventListener('click', (e) => { if (e.target.dataset.v) { form.t
 $('sec-siklik').addEventListener('click', (e) => { if (e.target.dataset.v) { form.siklik = e.target.dataset.v; formuCiz(); } });
 $('sec-hedef').addEventListener('click', (e) => { if (e.target.dataset.v) { form.hedef = Number(e.target.dataset.v); formuCiz(); } });
 $('sec-zorluk').addEventListener('click', (e) => { if (e.target.dataset.v) { form.zorluk = e.target.dataset.v; formuCiz(); } });
+$('sec-kaynak').addEventListener('click', (e) => { if (e.target.dataset.v !== undefined) { form.kaynak = e.target.dataset.v; formuCiz(); } });
+['add-miktar', 'add-birim'].forEach((id) => $(id).addEventListener('input', () => { if (form.kaynak) formuCiz(); }));
 $('sec-gunler').addEventListener('click', (e) => {
   if (!e.target.dataset.v) return;
   const g = Number(e.target.dataset.v);
@@ -1043,6 +1058,7 @@ function formAc(h) {
   form.hedef = z.tur === 'haftalik' ? z.hedef : 3;
   form.zorluk = h ? h.zorluk || 'normal' : 'normal';
   form.ikon = (h && h.ikon) || 'genel';
+  form.kaynak = (h && h.kaynak) || '';
   $('add-ardindan').value = (h && h.ardindan) || '';
   $('add-miktar').value = h && h.miktar ? h.miktar.hedef : '';
   $('add-birim').value = h && h.miktar ? h.miktar.birim : '';
@@ -1093,6 +1109,8 @@ $('add-form').addEventListener('submit', async (e) => {
     zamanlama: formZamanlama(),
     zorluk: form.zorluk,
     ardindan: $('add-ardindan').value,
+    // Samsung Health yalnız birim uygunsa; değilse sessizce elle kalır
+    kaynak: form.kaynak === 'adim' && adimaUygunBirim($('add-birim').value) && $('add-miktar').value !== '' ? 'adim' : '',
     // Boş bırakılırsa miktarsız (kötüde 0 = "hiç" geçerli bir sınır)
     miktar: form.siklik !== 'haftalik' && $('add-miktar').value !== ''
       ? { hedef: Number($('add-miktar').value), birim: $('add-birim').value } : null,
@@ -1106,6 +1124,7 @@ $('add-form').addEventListener('submit', async (e) => {
   ekleModali(false);
   $('add-name').blur();
   kaydet(); // Android tarafı alarmları yeni saate göre yeniden kurar
+  if (veri.kaynak === 'adim') saglikBaslat(true); // İzin yoksa ister, varsa hemen okur
   if (duzenlenenId) {
     ciz();
     bildirimGoster('Değişiklikler kaydedildi');
@@ -1236,6 +1255,65 @@ function bekleyenKutlamalar() {
 }
 
 // -------------------------------------------------------------------------
+// Samsung Health (Health Connect): kaynağı 'adim' olan alışkanlıkların miktarı
+// adımlardan kendiliğinden dolar. Akış: durum sor → (izin yoksa iste) → son 3 gün +
+// bugünün adımlarını oku → habits.saglikUygula (yalnız artırır).
+// -------------------------------------------------------------------------
+let saglikSonAdim = {};       // Son okunan adımlar (detay kartında gösterilir)
+let saglikIzinIstendi = false; // Bir açılışta izin penceresi en fazla bir kez açılsın
+let saglikIzinIsteSonra = false;
+function saglikBaslat(izinIste) {
+  if (!saglikVar() || !aktifler().some((h) => h.kaynak === 'adim')) return;
+  saglikIzinIsteSonra = izinIste;
+  saglikDurumSor();
+}
+function saglikDurumGeldi(d) {
+  if (!d || !d.var) {
+    if (saglikIzinIsteSonra) {
+      bildirimGoster(d && d.guncelle ? 'Health Connect güncellenmeli (Play Store)' : 'Bu telefonda Health Connect bulunamadı');
+    }
+    return;
+  }
+  if (d.izin) { saglikOku(); return; }
+  if (saglikIzinIsteSonra && !saglikIzinIstendi) { saglikIzinIstendi = true; saglikIzinIste(); }
+}
+function saglikIzinGeldi(tamam) {
+  if (tamam) { bildirimGoster('Samsung Health bağlandı'); saglikOku(); }
+  else bildirimGoster('Adım izni verilmedi — Health Connect ayarlarından açabilirsin');
+}
+function saglikOku() {
+  const bugun = todayKey();
+  saglikAdimOku(Array.from({ length: GERIYE_DONUK_GUN + 1 }, (_, i) => addDays(bugun, -i)));
+}
+function saglikAdimGeldi(adimlar) {
+  if (!adimlar || typeof adimlar !== 'object' || kayitBozuk) return;
+  saglikSonAdim = adimlar;
+  const bugun = todayKey();
+  const yazilan = [];
+  let kutlanacak = null;
+  for (const h of aktifler().filter((x) => x.kaynak === 'adim')) {
+    const onceki = asamaOnce(h.id);
+    for (const [gun, adim] of Object.entries(adimlar)) {
+      const r = saglikUygula(state, h.id, gun, adim, bugun);
+      if (!r.changed) continue;
+      state = r.state;
+      if (gun === bugun) yazilan.push(h);
+      if (r.reachedGoal) kutlanacak = h.id;
+    }
+    if (yazilan.includes(h)) asamaSonra(h.id, onceki);
+  }
+  if (!yazilan.length && !kutlanacak) { if (seciliId) cizDetay(); return; }
+  kaydet();
+  ciz();
+  for (const h of yazilan) {
+    const g = state.habits.find((x) => x.id === h.id);
+    odulAnimasyonu(h.id, $('habit-list-el').querySelector(`[data-id="${h.id}"]`));
+    bildirimGoster(`Samsung Health: ${g.name} ${amountOn(g, bugun)} ${g.miktar.birim} (${Number(adimlar[bugun]).toLocaleString('tr-TR')} adım)`.replace(/\s+\)/, ')'));
+  }
+  if (kutlanacak) kutlamaGoster(state.habits.find((x) => x.id === kutlanacak));
+}
+
+// -------------------------------------------------------------------------
 // Android köprüsü için genel fonksiyonlar (MainActivity çağırır)
 // -------------------------------------------------------------------------
 window.NoralApp = {
@@ -1259,6 +1337,7 @@ window.NoralApp = {
   onResume() {
     this.reload();
     acilisKontrolleri();
+    saglikBaslat(false); // Yürüyüşten dönünce adımlar kendiliğinden yazılsın
     // Geri dönüşte boyut olayı kaçmış olabilir: kamera ve yerleşim yeniden ölçülsün.
     window.dispatchEvent(new Event('resize'));
   },
@@ -1276,6 +1355,12 @@ window.NoralApp = {
   },
   /** Seçilen yedek dosyasının içeriği. */
   onImport(metin) { yedekGeldi(metin); },
+  /** Samsung Health: Health Connect durumu { var, guncelle, izin } */
+  onSaglikDurum(d) { saglikDurumGeldi(d); },
+  /** Samsung Health: izin penceresinin sonucu */
+  onSaglikIzin(tamam) { saglikIzinGeldi(tamam); },
+  /** Samsung Health: { 'YYYY-AA-GG': adım } */
+  onSaglikAdim(adimlar) { saglikAdimGeldi(adimlar); },
   /** Model dosyası iç depolamaya kopyalanmaya başladı (büyük dosyada birkaç saniye). */
   onModelCopyStart() {
     yuklemeGoster(true, 'Model telefona kaydediliyor…');
@@ -1544,4 +1629,7 @@ async function acilisKontrolleri() {
 ciz();
 kayitliModeliYukle();
 if (kayitBozuk) bildirimGoster('Kayıt okunamadı. Yedekten geri yükleyebilirsiniz.');
-else setTimeout(acilisKontrolleri, 1200);
+else {
+  setTimeout(acilisKontrolleri, 1200);
+  setTimeout(() => saglikBaslat(false), 2500); // Samsung Health adımları (izin varsa)
+}

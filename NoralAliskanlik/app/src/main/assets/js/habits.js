@@ -3,12 +3,12 @@ import { addDays } from './clock.js';
 import { computeState, OTOMATIK, duraklatildiMi, planliMi } from './guc.js';
 import {
   GERIYE_DONUK_GUN, ZORLUK_T, DURAKLATMA_EN_UZUN, SRBAI_ARALIK, SRBAI_BAKIM_ARALIK,
-  GEC_KAYIT_EN_ESKI, COP_GUN, KISMI_ESIK,
+  GEC_KAYIT_EN_ESKI, COP_GUN, KISMI_ESIK, ADIM_DAKIKA,
 } from './parametreler.js';
 import { SIMGE_IDLER, emojidenSimge } from './simgeler.js';
 
 /** Kayıt biçimi sürümü. Alan eklerken artır ve migrate() içine taşıma adımı yaz. */
-export const SCHEMA_VERSION = 6;
+export const SCHEMA_VERSION = 7;
 
 /** Boş durum. */
 export function emptyState() {
@@ -93,6 +93,8 @@ function temizSrbai(liste) {
  *           işaretli temiz günler zaten temiz sayıldığı için güç yükselir (kayıp yok).
  *  v5 → v6: `ardindan` eklendi ("neyin ardından" ipucu, ör. "Evden çıkınca"). Eski
  *           kayıtlarda boş metin olur; hesap değişmez.
+ *  v6 → v7: `kaynak` eklendi: '' (elle) ya da 'adim' (miktar Samsung Health adımlarından
+ *           doldurulur, ADIM_DAKIKA adım = 1 dakika). Eski kayıtlarda ''; hesap değişmez.
  */
 export function migrate(raw) {
   if (raw == null || raw === '') return emptyState();
@@ -143,7 +145,44 @@ function habitTemizle(h) {
     ikon: SIMGE_IDLER.includes(h.ikon) ? h.ikon : emojidenSimge(h.icon),
     // v6 alanı: "neyin ardından" ipucu (yoksa boş)
     ardindan: temizArdindan(h.ardindan),
+    // v7 alanı: miktarın kaynağı ('' elle, 'adim' Samsung Health)
+    kaynak: KAYNAKLAR.includes(h.kaynak) ? h.kaynak : '',
   };
+}
+
+/** Miktarın nereden geldiği: '' elle, 'adim' Samsung Health (Health Connect) adımları. */
+export const KAYNAKLAR = ['', 'adim'];
+
+/**
+ * Adım sayısını alışkanlığın kendi birimine çevirir (ADIM_DAKIKA adım = 1 dakika).
+ * Birim "saat" ise tam saat (aşağı yuvarlanır: 90 dk = 1 saat, eksik sayılır ama fazla
+ * sayılmaz), "dk/dakika" ise dakika, "adım" ise adımın kendisi. Tanınmayan birimde null.
+ */
+export function adimdanMiktar(birim, adim) {
+  const b = String(birim || '').toLocaleLowerCase('tr');
+  const n = Math.max(0, Math.floor(Number(adim) || 0));
+  if (/^(adım|adim)/.test(b)) return n;
+  const dakika = Math.floor(n / ADIM_DAKIKA);
+  if (/^(saat|sa\b|sa$)/.test(b)) return Math.floor(dakika / 60);
+  if (/^(dk|dak)/.test(b)) return dakika;
+  return null;
+}
+/** Birim adımdan doldurulabilir mi? (formda uyarı için) */
+export const adimaUygunBirim = (birim) => adimdanMiktar(birim, 0) !== null;
+
+/**
+ * Samsung Health'ten gelen günün adımını uygular. Yalnız ARTIRIR: elle girilen ya da
+ * daha önce yazılan miktar asla azaltılmaz (veri kaybı olmasın). Kaynağı 'adim' olmayan,
+ * miktarsız, kötü ya da değiştirilemeyen günlerde (son 3 gün + bugün dışı) dokunmaz.
+ */
+export function saglikUygula(state, id, key, adim, today) {
+  const h = state.habits.find((x) => x.id === id);
+  const bos = { state, changed: false, reachedGoal: false };
+  if (!h || h.kaynak !== 'adim' || !h.miktar || h.tip === 'kotu' || h.arsiv) return bos;
+  if (!isEditable(h, key, today) || duraklatildiMi(h, key)) return bos;
+  const yeni = adimdanMiktar(h.miktar.birim, adim);
+  if (yeni == null || yeni <= (amountOn(h, key) ?? 0)) return bos;
+  return setAmount(state, id, key, yeni, today);
 }
 
 /** "Neyin ardından" ipucu: kısa serbest metin (en fazla 40 karakter). */
@@ -179,7 +218,7 @@ function kotuSinirDuzelt(miktar, tip, zamanlama) {
 }
 
 /** Yeni alışkanlık ekler. Yeni durumu döndürür. */
-export function addHabit(state, { name, icon, ikon, time, zorluk, tip, zamanlama, miktar, ardindan }, today, id) {
+export function addHabit(state, { name, icon, ikon, time, zorluk, tip, zamanlama, miktar, ardindan, kaynak }, today, id) {
   const clean = String(name || '').trim();
   if (!clean) throw new Error('İsim boş olamaz');
   const habit = {
@@ -203,6 +242,7 @@ export function addHabit(state, { name, icon, ikon, time, zorluk, tip, zamanlama
     gunMiktar: {},
     gecKayit: [],
     ardindan: temizArdindan(ardindan),
+    kaynak: KAYNAKLAR.includes(kaynak) ? kaynak : '',
   };
   return { ...state, habits: [...state.habits, habit] };
 }
@@ -211,7 +251,7 @@ export function addHabit(state, { name, icon, ikon, time, zorluk, tip, zamanlama
  * Alışkanlığın ismini, saatini, zorluğunu, türünü veya sıklığını değiştirir.
  * Tamamlanan günler korunur; güç yeni ayarlarla geçmişten yeniden hesaplanır.
  */
-export function updateHabit(state, id, { name, icon, ikon, time, zorluk, tip, zamanlama, miktar, ardindan }) {
+export function updateHabit(state, id, { name, icon, ikon, time, zorluk, tip, zamanlama, miktar, ardindan, kaynak }) {
   const clean = String(name || '').trim();
   if (!clean) throw new Error('İsim boş olamaz');
   return {
@@ -224,6 +264,7 @@ export function updateHabit(state, id, { name, icon, ikon, time, zorluk, tip, za
       time: /^\d{2}:\d{2}$/.test(time) ? time : h.time,
       ...ayarlariTemizle({ zorluk, tip, zamanlama, miktar }, h),
       ardindan: ardindan === undefined ? (h.ardindan || '') : temizArdindan(ardindan),
+      kaynak: kaynak === undefined ? (h.kaynak || '') : (KAYNAKLAR.includes(kaynak) ? kaynak : ''),
     })),
   };
 }

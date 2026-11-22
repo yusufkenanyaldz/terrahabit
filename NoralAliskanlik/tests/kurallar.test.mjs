@@ -288,7 +288,7 @@ test('v6: "neyin ardından" ipucu eklenir, eski kayıtlarda boş gelir, düzenle
   // Eski kayıt (v5): alan yok → boş metin, başka hiçbir şey değişmez
   const eski = { version: 5, habits: [{ id: 'a', name: 'Kitap', createdAt: D0, done: ilkNGun(10) }] };
   const yeni = migrate(eski);
-  assert.equal(yeni.version, 6);
+  assert.equal(yeni.version, SCHEMA_VERSION);
   assert.equal(yeni.habits[0].ardindan, '');
   assert.deepEqual(yeni.habits[0].done, ilkNGun(10));
 
@@ -325,4 +325,45 @@ test('güç geçmişi: her takvim günü için bir değer, sonu bugünkü güce 
 
   // Eklendiği gün: tek nokta
   assert.equal(computeState({ createdAt: D0, done: [] }, D0).gecmis.length, 1);
+});
+
+test('v7: Samsung Health adımları miktara çevrilir, yalnız artırır', async () => {
+  const { adimdanMiktar, saglikUygula, adimaUygunBirim } = await import('../app/src/main/assets/js/habits.js');
+  // 102 adım = 1 dakika
+  assert.equal(adimdanMiktar('dk', 12629), 123);
+  assert.equal(adimdanMiktar('Dakika', 10200), 100);
+  assert.equal(adimdanMiktar('Saat', 12629), 2);           // 123 dk → 2 saat
+  assert.equal(adimdanMiktar('saat', 9180), 1);            // 90 dk → 1 saat (aşağı)
+  assert.equal(adimdanMiktar('Adım', 12629), 12629);
+  assert.equal(adimdanMiktar('sayfa', 5000), null);
+  assert.equal(adimaUygunBirim('Saat'), true);
+  assert.equal(adimaUygunBirim('bardak'), false);
+
+  const B = '2026-11-01';
+  let s = addHabit(emptyState(), { name: 'Yürüyüş', miktar: { hedef: 2, birim: 'Saat' }, kaynak: 'adim' }, B, 'y');
+  assert.equal(s.habits[0].kaynak, 'adim');
+  const bugun = addDays(B, 5);
+  // Bugün 12.629 adım → 2 saat, hedef tamam
+  let r = saglikUygula(s, 'y', bugun, 12629, bugun);
+  assert.equal(r.changed, true);
+  assert.equal(r.state.habits[0].gunMiktar[bugun], 2);
+  assert.ok(r.state.habits[0].done.includes(bugun));
+  s = r.state;
+  // Daha az adım geldi (ör. saat henüz eşitlenmedi): azaltmaz
+  r = saglikUygula(s, 'y', bugun, 3000, bugun);
+  assert.equal(r.changed, false);
+  // Elle 3 saat girilmişse adım onu ezmez
+  s = { ...s, habits: [{ ...s.habits[0], gunMiktar: { [bugun]: 3 } }] };
+  assert.equal(saglikUygula(s, 'y', bugun, 20000, bugun).changed, false);
+  // Son 3 günden eskisine yazmaz
+  assert.equal(saglikUygula(s, 'y', addDays(bugun, -5), 20000, bugun).changed, false);
+  // Kaynağı elle olan alışkanlığa dokunmaz
+  const elle = addHabit(emptyState(), { name: 'X', miktar: { hedef: 2, birim: 'Saat' } }, B, 'x');
+  assert.equal(elle.habits[0].kaynak, '');
+  assert.equal(saglikUygula(elle, 'x', bugun, 20000, bugun).changed, false);
+  // Eski kayıt (v6) taşınınca kaynak boş
+  assert.equal(migrate({ version: 6, habits: [{ id: 'a', name: 'X', createdAt: B, done: [] }] }).habits[0].kaynak, '');
+  // Düzenlemede verilmezse korunur
+  s = updateHabit(s, 'y', { name: 'Yürüyüş' });
+  assert.equal(s.habits[0].kaynak, 'adim');
 });

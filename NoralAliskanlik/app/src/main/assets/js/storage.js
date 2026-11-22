@@ -44,6 +44,15 @@ export function autoBackupInfo() {
   try { return (bridge && bridge.autoBackupInfo && bridge.autoBackupInfo()) || ''; } catch { return ''; }
 }
 
+/**
+ * Samsung Health (Health Connect). Hepsi eşzamansız: sonuçlar NoralApp.onSaglikDurum /
+ * onSaglikIzin / onSaglikAdim ile döner. Tarayıcıda ya da eski APK'da false döner.
+ */
+export const saglikVar = () => !!(bridge && bridge.saglikAdimOku);
+export function saglikDurumSor() { if (saglikVar()) bridge.saglikDurum(); }
+export function saglikIzinIste() { if (saglikVar()) bridge.saglikIzinIste(); }
+export function saglikAdimOku(gunler) { if (saglikVar()) bridge.saglikAdimOku(JSON.stringify(gunler)); }
+
 /** Geri yükleme: Android dosya seçicisini açar; sonuç NoralApp.onImport ile gelir. */
 export function requestImport(onText) {
   if (bridge) { bridge.requestImport(); return; }

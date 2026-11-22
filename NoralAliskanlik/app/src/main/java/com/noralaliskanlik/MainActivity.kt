@@ -26,7 +26,14 @@ import androidx.core.content.ContextCompat
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
+import androidx.health.connect.client.PermissionController
 import androidx.webkit.WebViewAssetLoader
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.launch
+import org.json.JSONArray
 import org.json.JSONObject
 import kotlin.concurrent.thread
 
@@ -43,6 +50,56 @@ class MainActivity : AppCompatActivity() {
     private val dataChanged = object : BroadcastReceiver() {
         override fun onReceive(context: Context, intent: Intent) {
             webView.evaluateJavascript("window.NoralApp && NoralApp.reload()", null)
+        }
+    }
+
+    // Samsung Health (Health Connect) okuma işleri; ekran kapanınca iptal edilir
+    private val saglikKapsami = CoroutineScope(SupervisorJob() + Dispatchers.Main)
+
+    // Health Connect adım okuma izni
+    private val saglikIzni =
+        registerForActivityResult(PermissionController.createRequestPermissionResultContract()) { verilen ->
+            val tamam = verilen.containsAll(SaglikVerisi.IZINLER)
+            webView.evaluateJavascript("window.NoralApp && NoralApp.onSaglikIzin($tamam)", null)
+        }
+
+    /** JS: Health Connect durumu. Sonuç NoralApp.onSaglikDurum({var, guncelle, izin}) ile gelir. */
+    fun saglikDurumSor() {
+        saglikKapsami.launch {
+            val durum = SaglikVerisi.durum(this@MainActivity)
+            val izin = try { SaglikVerisi.izinVar(this@MainActivity) } catch (e: Exception) { false }
+            val json = JSONObject()
+                .put("var", durum == androidx.health.connect.client.HealthConnectClient.SDK_AVAILABLE)
+                .put("guncelle", durum == androidx.health.connect.client.HealthConnectClient.SDK_UNAVAILABLE_PROVIDER_UPDATE_REQUIRED)
+                .put("izin", izin)
+            webView.evaluateJavascript("window.NoralApp && NoralApp.onSaglikDurum($json)", null)
+        }
+    }
+
+    /** JS: adım okuma iznini iste. */
+    fun saglikIzinIste() {
+        if (!SaglikVerisi.kullanilabilir(this)) {
+            webView.evaluateJavascript("window.NoralApp && NoralApp.onSaglikIzin(false)", null)
+            return
+        }
+        try {
+            saglikIzni.launch(SaglikVerisi.IZINLER)
+        } catch (e: Exception) {
+            webView.evaluateJavascript("window.NoralApp && NoralApp.onSaglikIzin(false)", null)
+        }
+    }
+
+    /** JS: verilen günlerin adımlarını oku. Sonuç NoralApp.onSaglikAdim({gün: adım}) ile gelir. */
+    fun saglikAdimOku(gunlerJson: String) {
+        saglikKapsami.launch {
+            val gunler = try {
+                val a = JSONArray(gunlerJson)
+                (0 until a.length()).map { a.getString(it) }
+            } catch (e: Exception) { emptyList() }
+            val sonuc = try {
+                if (SaglikVerisi.izinVar(this@MainActivity)) SaglikVerisi.adimlar(this@MainActivity, gunler) else JSONObject()
+            } catch (e: Exception) { JSONObject() }
+            webView.evaluateJavascript("window.NoralApp && NoralApp.onSaglikAdim($sonuc)", null)
         }
     }
 
@@ -229,6 +286,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     override fun onDestroy() {
+        saglikKapsami.cancel()
         unregisterReceiver(dataChanged)
         webView.destroy()
         super.onDestroy()

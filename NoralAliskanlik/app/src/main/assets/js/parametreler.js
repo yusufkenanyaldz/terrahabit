@@ -82,3 +82,9 @@ export const GEC_KAYIT_CARPANI = 0.5;
 
 /** Silinen alışkanlık bu kadar gün çöp kutusunda kalır, sonra kalıcı silinir (kural 10). */
 export const COP_GUN = 30;
+
+/**
+ * Samsung Health (Health Connect) adımlarından süre: kullanıcının kendi oranı.
+ * Kendi yürüyüşlerinde Samsung'un "Etkin süre"siyle karşılaştırarak buldu (22 Kasım 2026).
+ */
+export const ADIM_DAKIKA = 102;

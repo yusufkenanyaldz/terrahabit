@@ -63,4 +63,7 @@ dependencies {
     implementation 'androidx.activity:activity-ktx:1.11.0'
     // WebViewAssetLoader: assets'i https://appassets.androidplatform.net üzerinden sunar.
     implementation 'androidx.webkit:webkit:1.14.0'
+    // Samsung Health adımlarını okumak için (kullanıcı onayı: 22 Kasım 2026)
+    implementation 'androidx.health.connect:connect-client:1.1.0'
+    implementation 'org.jetbrains.kotlinx:kotlinx-coroutines-android:1.9.0'
 }

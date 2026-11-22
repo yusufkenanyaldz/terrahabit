@@ -77,17 +77,19 @@ WebView içeriği `file://` ile değil, **WebViewAssetLoader** ile
 | `AliskanlikWidget.kt` | Ana ekran widget'ı: beyin, ışıklı yollar (kodda çizilen bitmap), satırlar. |
 | `ModelStore.kt` | Kullanıcının seçtiği `.glb` modelini iç depolamada tutar. |
 | `OtomatikYedek.kt` | Haftada bir sessiz yedek (İndirilenler, son iki dosya tutulur). |
+| `SaglikVerisi.kt` | Health Connect'ten günlük adımları okur (yalnız okuma). |
+| `SaglikIzinActivity.kt` | Health Connect'in istediği "neden bu izin" açıklama ekranı. |
 
 ---
 
-## 3. Veri biçimi (sürüm 6)
+## 3. Veri biçimi (sürüm 7)
 
 Tek bir JSON. SharedPreferences içinde `noral_aliskanlik/data` anahtarında durur —
 `localStorage`'da değil, çünkü uygulama güncellenince silinmemeli.
 
 ```jsonc
 {
-  "version": 6,
+  "version": 7,
   "habits": [ /* aşağıdaki alanlar */ ],
   "cop": [ { "silinme": "2026-11-01", "habit": { /* silinen alışkanlık */ } } ]
 }
@@ -113,6 +115,7 @@ Bir alışkanlık:
 | `tip` | `iyi` (kazanmak) / `kotu` (bırakmak) |
 | `srbai` | Otomatiklik anketi ölçümleri `[{tarih, S, asama}]` |
 | `ardindan` | "Neyin ardından" ipucu (ör. "Evden çıkınca"), en fazla 40 karakter. v6 ile geldi. |
+| `kaynak` | Miktarın kaynağı: `''` elle, `'adim'` Samsung Health adımları. v7 ile geldi. |
 | `arsiv` | Arşivde mi |
 | `missAck`, `celebrated` | Kaçırma animasyonu ve 66. gün kutlaması için |
 | `guc`, `asama`, `bakim`, `widget` | **Türetilmiş** alanlar: JS hesaplar, Kotlin (bildirim/widget) okur |
@@ -132,6 +135,7 @@ Eski kayıt asla bozulmaz.
   sınırlı olanda ise kayıt olmayan gün temiz sayılıyordu. Artık ikisi de aynı:
   **kayıt yok = temiz, kayma "+1" ile işaretlenir.** Taşınan kayıtlarda güç yükselir.
 - **v5 → v6:** `ardindan` eklendi; eski kayıtlarda boş metin. Hesap değişmedi.
+- **v6 → v7:** `kaynak` eklendi; eski kayıtlarda `''` (elle). Hesap değişmedi.
 
 ### Türetilmiş alanlar neden var
 
@@ -369,6 +373,23 @@ Saydam, 4×3. Duvar kâğıdının üstünde beyin, ondan çıkan ışıklı yol
 
 ---
 
+## 9b. Samsung Health (Health Connect)
+
+Miktarlı iyi alışkanlıkta formda **"Miktar nereden gelsin? → Samsung Health"** seçilebilir.
+Samsung Health adımları Health Connect'e yazar; uygulama oradan **yalnız okur**
+(`READ_STEPS`). Adım, kullanıcının kendi oranıyla süreye çevrilir:
+**102 adım = 1 dakika** (`ADIM_DAKIKA`, kendi yürüyüşlerinde Samsung'un "Etkin süre"siyle
+karşılaştırarak buldu).
+
+- Birim "saat" ise tam saat (aşağı yuvarlanır: 90 dk = 1 saat), "dk/dakika" ise dakika,
+  "adım" ise adımın kendisi. Başka birimde seçenek uyarı verir ve elle kalır.
+- Okuma zamanı: açılışta ve uygulama öne her geldiğinde. Bugün + son 3 gün okunur
+  (değiştirilebilen günler). Gün sınırı takvim günü (Samsung'un "Bugün"üyle aynı).
+- **Yalnız artırır** (`habits.saglikUygula`): elle girilen ya da daha yüksek miktar ezilmez.
+- İlk seçimde izin penceresi açılır. Kotlin: `SaglikVerisi`, `MainActivity.saglik…`,
+  sonuçlar `NoralApp.onSaglikDurum / onSaglikIzin / onSaglikAdim` ile JS'e döner.
+- Widget ve bildirim adımları okumaz; uygulama açılınca güncellenir.
+
 ## 10. Yedekleme
 
 ⚙ → Yedek al: JSON dosyası İndirilenler klasörüne yazılır. ⚙ → Yedek geri yükle:
@@ -415,7 +436,7 @@ minSdk 26 (Android 8), targetSdk 36.
 
 ## 13. Testler
 
-`node --test "NoralAliskanlik/tests/*.test.mjs"` — 54 test:
+`node --test "NoralAliskanlik/tests/*.test.mjs"` — 55 test:
 
 | Dosya | Kapsam |
 |---|---|
