@@ -510,7 +510,7 @@ function cizDetay() {
   // Asla düşmeyen sayılar: toplam tekrar ve ulaşılan en yüksek güç (iz)
   const iz = d.P - d.H > 0.02 ? ` · en yüksek %${Math.round(d.P * 100)}` : '';
   const saglikYazi = h.kaynak === 'adim' && saglikSonAdim[bugun] != null
-    ? ` · Samsung Health: ${saglikSonAdim[bugun].toLocaleString('tr-TR')} adım ≈ ${Math.floor(saglikSonAdim[bugun] / ADIM_DAKIKA)} dk` : '';
+    ? ` · Samsung Health: ${saglikSonAdim[bugun].toLocaleString('tr-TR')} adım ≈ ${Math.floor(saglikSonAdim[bugun] / ADIM_DAKIKA)} dk${saglikCihazYazisi(bugun)}` : '';
   $('det-meta').textContent = `${h.ardindan ? `İpucu: ${h.ardindan} · ` : ''}${d.toplamTekrar} ${kotu ? 'temiz gün' : 'tekrar'}${iz}${saglikYazi}`;
   // İkincil metrikler: son 30 gün oranı (haftalıkta bu hafta) ve iki gün kuralı serisi
   const oran = d.hafta ? `bu hafta ${Math.min(d.hafta.yapilan, d.hafta.hedef)}/${d.hafta.hedef}`
@@ -1260,8 +1260,15 @@ function bekleyenKutlamalar() {
 // bugünün adımlarını oku → habits.saglikUygula (yalnız artırır).
 // -------------------------------------------------------------------------
 let saglikSonAdim = {};       // Son okunan adımlar (detay kartında gösterilir)
+let saglikKaynaklar = {};     // Gün → { cihaz: adım } (telefon ve saat ayrı; doğrulama için)
 let saglikIzinIstendi = false; // Bir açılışta izin penceresi en fazla bir kez açılsın
 let saglikIzinIsteSonra = false;
+/** Birden çok cihaz yazdıysa ayrı toplamları: "(saat 13.910 · telefon 12.040)". */
+function saglikCihazYazisi(gun) {
+  const k = Object.entries(saglikKaynaklar[gun] || {});
+  if (k.length < 2) return '';
+  return ` (${k.map(([ad, n]) => `${ad} ${Number(n).toLocaleString('tr-TR')}`).join(' · ')})`;
+}
 function saglikBaslat(izinIste) {
   if (!saglikVar() || !aktifler().some((h) => h.kaynak === 'adim')) return;
   saglikIzinIsteSonra = izinIste;
@@ -1285,8 +1292,11 @@ function saglikOku() {
   const bugun = todayKey();
   saglikAdimOku(Array.from({ length: GERIYE_DONUK_GUN + 1 }, (_, i) => addDays(bugun, -i)));
 }
-function saglikAdimGeldi(adimlar) {
-  if (!adimlar || typeof adimlar !== 'object' || kayitBozuk) return;
+function saglikAdimGeldi(veri) {
+  if (!veri || typeof veri !== 'object' || kayitBozuk) return;
+  // Yeni biçim { adim, kaynaklar }; eski APK düz { gün: adım } gönderiyordu
+  const adimlar = veri.adim && typeof veri.adim === 'object' ? veri.adim : veri;
+  saglikKaynaklar = veri.kaynaklar || {};
   saglikSonAdim = adimlar;
   const bugun = todayKey();
   const yazilan = [];

@@ -386,6 +386,11 @@ karşılaştırarak buldu).
 - Okuma zamanı: açılışta ve uygulama öne her geldiğinde. Bugün + son 3 gün okunur
   (değiştirilebilen günler). Gün sınırı takvim günü (Samsung'un "Bugün"üyle aynı).
 - **Yalnız artırır** (`habits.saglikUygula`): elle girilen ya da daha yüksek miktar ezilmez.
+- **Telefon + saat çift sayımı:** Samsung Health iki cihazın adımlarını aynı uygulama adıyla
+  ayrı ayrı yazıyor; Health Connect'in hazır toplamı (aggregate) bunları ekliyordu
+  (ilk denemede 14.325 adım 26.959 okundu). `SaglikVerisi.adimlar` ham kayıtları okur,
+  her kaydı dakikalara böler ve her dakikada cihazlar arasından en yükseğini alır
+  (Samsung'un kendi birleştirmesi gibi). Detay kartında cihaz başına toplamlar da görünür.
 - İlk seçimde izin penceresi açılır. Kotlin: `SaglikVerisi`, `MainActivity.saglik…`,
   sonuçlar `NoralApp.onSaglikDurum / onSaglikIzin / onSaglikAdim` ile JS'e döner.
 - Widget ve bildirim adımları okumaz; uygulama açılınca güncellenir.
