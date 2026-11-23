@@ -1,6 +1,6 @@
 // Alışkanlık mantığı: saf fonksiyonlar, DOM/Three.js yok. Testleri: NoralAliskanlik/tests
 import { addDays } from './clock.js';
-import { computeState, OTOMATIK, duraklatildiMi, planliMi } from './guc.js';
+import { computeState, OTOMATIK, duraklatildiMi, planliMi, gunHedefi } from './guc.js';
 import {
   GERIYE_DONUK_GUN, ZORLUK_T, DURAKLATMA_EN_UZUN, SRBAI_ARALIK, SRBAI_BAKIM_ARALIK,
   GEC_KAYIT_EN_ESKI, COP_GUN, KISMI_ESIK, ADIM_DAKIKA,
@@ -8,7 +8,7 @@ import {
 import { SIMGE_IDLER, emojidenSimge } from './simgeler.js';
 
 /** Kayıt biçimi sürümü. Alan eklerken artır ve migrate() içine taşıma adımı yaz. */
-export const SCHEMA_VERSION = 7;
+export const SCHEMA_VERSION = 8;
 
 /** Boş durum. */
 export function emptyState() {
@@ -95,6 +95,9 @@ function temizSrbai(liste) {
  *           kayıtlarda boş metin olur; hesap değişmez.
  *  v6 → v7: `kaynak` eklendi: '' (elle) ya da 'adim' (miktar Samsung Health adımlarından
  *           doldurulur, ADIM_DAKIKA adım = 1 dakika). Eski kayıtlarda ''; hesap değişmez.
+ *  v7 → v8: `hedefGecmisi` eklendi: [{ bit, hedef }]. Miktar hedefi değiştirilince eski
+ *           günler eski hedefle değerlendirilsin (yoksa 10 → 20 sayfa yapınca geçmişteki
+ *           10'luk günler yarım sayılıp güç düşüyordu). Eski kayıtlarda []; hesap değişmez.
  */
 export function migrate(raw) {
   if (raw == null || raw === '') return emptyState();
@@ -147,7 +150,17 @@ function habitTemizle(h) {
     ardindan: temizArdindan(h.ardindan),
     // v7 alanı: miktarın kaynağı ('' elle, 'adim' Samsung Health)
     kaynak: KAYNAKLAR.includes(h.kaynak) ? h.kaynak : '',
+    // v8 alanı: eski miktar hedefleri
+    hedefGecmisi: temizHedefGecmisi(h.hedefGecmisi),
   };
+}
+
+/** Hedef geçmişi: [{ bit: 'YYYY-AA-GG', hedef }] — bit'e göre sıralı, geçersizler atılır. */
+function temizHedefGecmisi(liste) {
+  return (Array.isArray(liste) ? liste : [])
+    .filter((k) => k && isKey(k.bit) && Number.isInteger(k.hedef) && k.hedef >= 0 && k.hedef <= 999)
+    .map((k) => ({ bit: k.bit, hedef: k.hedef }))
+    .sort((a, b) => (a.bit < b.bit ? -1 : 1));
 }
 
 /** Miktarın nereden geldiği: '' elle, 'adim' Samsung Health (Health Connect) adımları. */
@@ -243,6 +256,7 @@ export function addHabit(state, { name, icon, ikon, time, zorluk, tip, zamanlama
     gecKayit: [],
     ardindan: temizArdindan(ardindan),
     kaynak: KAYNAKLAR.includes(kaynak) ? kaynak : '',
+    hedefGecmisi: [],
   };
   return { ...state, habits: [...state.habits, habit] };
 }
@@ -251,13 +265,14 @@ export function addHabit(state, { name, icon, ikon, time, zorluk, tip, zamanlama
  * Alışkanlığın ismini, saatini, zorluğunu, türünü veya sıklığını değiştirir.
  * Tamamlanan günler korunur; güç yeni ayarlarla geçmişten yeniden hesaplanır.
  */
-export function updateHabit(state, id, { name, icon, ikon, time, zorluk, tip, zamanlama, miktar, ardindan, kaynak }) {
+export function updateHabit(state, id, { name, icon, ikon, time, zorluk, tip, zamanlama, miktar, ardindan, kaynak }, today) {
   const clean = String(name || '').trim();
   if (!clean) throw new Error('İsim boş olamaz');
   return {
     ...state,
     habits: state.habits.map((h) => (h.id !== id ? h : {
       ...h,
+      hedefGecmisi: hedefDegisimi(h, ayarlariTemizle({ zorluk, tip, zamanlama, miktar }, h).miktar, today),
       name: clean.slice(0, 40),
       icon: (icon || '').trim() || h.icon,
       ikon: SIMGE_IDLER.includes(ikon) ? ikon : (h.ikon || 'genel'),
@@ -267,6 +282,18 @@ export function updateHabit(state, id, { name, icon, ikon, time, zorluk, tip, za
       kaynak: kaynak === undefined ? (h.kaynak || '') : (KAYNAKLAR.includes(kaynak) ? kaynak : ''),
     })),
   };
+}
+
+/**
+ * Miktar hedefi değiştiyse eski hedef geçmişe yazılır: bugünden ÖNCEKİ günler eski hedefle
+ * değerlendirilir, bugün ve sonrası yeni hedefle. Aynı gün birden çok değişiklikte yalnız
+ * ilk (günün başındaki) hedef saklanır. `today` verilmezse geçmiş değişmez.
+ */
+function hedefDegisimi(h, yeniMiktar, today) {
+  const gecmis = h.hedefGecmisi || [];
+  if (!today || !h.miktar || !yeniMiktar || yeniMiktar.hedef === h.miktar.hedef) return gecmis;
+  if (today <= h.createdAt || gecmis.some((k) => k.bit >= today)) return gecmis;
+  return [...gecmis, { bit: today, hedef: h.miktar.hedef }];
 }
 
 /**
@@ -376,7 +403,7 @@ export function setDayStatus(state, id, key, durum, today) {
   if (durum === 'done') {
     done.push(key);
     if (gecPencere) gecKayit.push(key);
-    if (habit.miktar && habit.tip !== 'kotu') gunMiktar[key] = habit.miktar.hedef;
+    if (habit.miktar && habit.tip !== 'kotu') gunMiktar[key] = gunHedefi(habit, key);
   }
   if (durum === 'mazeret') mazeret.push(key);
   done.sort();
@@ -394,7 +421,8 @@ export function setAmount(state, id, key, miktar, today) {
   if (!habit || !habit.miktar || !isEditable(habit, key, today)) return { state, changed: false, reachedGoal: false };
   const m = Math.max(0, Math.min(9999, Math.round(miktar)));
   const gunMiktar = { ...(habit.gunMiktar || {}), [key]: m };
-  const basari = habit.tip === 'kotu' ? m <= habit.miktar.hedef : m >= habit.miktar.hedef * KISMI_ESIK;
+  const hedef = gunHedefi(habit, key);
+  const basari = habit.tip === 'kotu' ? m <= hedef : m >= hedef * KISMI_ESIK;
   const done = habit.done.filter((d) => d !== key);
   if (basari) done.push(key);
   done.sort();
@@ -617,7 +645,7 @@ export function last30(habit, today) {
     const key = addDays(today, -i);
     let status;
     const m = habit.miktar ? (habit.gunMiktar || {})[key] : undefined;
-    if (habit.miktar && habit.tip === 'kotu' && m != null && m > habit.miktar.hedef) status = 'kayma';
+    if (habit.miktar && habit.tip === 'kotu' && m != null && m > gunHedefi(habit, key)) status = 'kayma';
     else if (habit.miktar && habit.tip === 'kotu' && key >= habit.createdAt && key < today
       && !duraklatildiMi(habit, key) && planliMi(habit, key) && m == null) status = 'done'; // Kayıt yok = temiz
     else if (isDoneOn(habit, key)) status = 'done';

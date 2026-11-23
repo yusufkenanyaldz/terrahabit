@@ -13,7 +13,7 @@ import {
 } from './habits.js';
 import { todayKey, setNow, addDays } from './clock.js';
 import { SIMGELER, simgeSvg } from './simgeler.js';
-import { computeState, geriDonusTahmini, planliMi, yolKonumu } from './guc.js';
+import { computeState, geriDonusTahmini, planliMi, yolKonumu, gunHedefi } from './guc.js';
 import {
   CABA_UYARI_SAYISI, DURAKLATMA_EN_UZUN, MAZERET_HAKKI, MAZERET_PENCERE,
   GERIYE_DONUK_GUN, GEC_KAYIT_EN_ESKI, COP_GUN, ADIM_DAKIKA,
@@ -578,8 +578,9 @@ function cizDetay() {
   $('det-miktar').hidden = !d.miktar || !!durak;
   if (d.miktar) {
     $('miktar-sayi').textContent = amountOn(h, miktarGun) ?? 0;
-    $('miktar-hedef').textContent = (kotu && d.miktar.hedef === 0) ? 'kayma'
-      : `${kotu ? 'sınır' : '/'} ${d.miktar.hedef} ${d.miktar.birim}`.trim();
+    const gh = gunHedefi(h, miktarGun); // Seçili günün hedefi (hedef sonradan değiştiyse eskisi)
+    $('miktar-hedef').textContent = (kotu && gh === 0) ? 'kayma'
+      : `${kotu ? 'sınır' : '/'} ${gh} ${d.miktar.birim}`.trim();
   }
   // Geç kayıt: miktarlı alışkanlıkta ve gün yeterince eskiyse anlamlı
   $('btn-gec').hidden = !!d.miktar || addDays(bugun, -GERIYE_DONUK_GUN - 1) < h.createdAt;
@@ -1030,13 +1031,19 @@ function formuCiz() {
   $('form-not').textContent = form.siklik === 'haftalik'
     ? `Daha seyrek davranışlar daha yavaş otomatikleşir (haftada ${form.hedef}: yaklaşık ${Math.round(T * Math.sqrt(form.hedef / 7))} tekrar).`
     : `Kusursuz takipte ortalama ${T} günde otomatikleşir; kişiden kişiye çok değişir.`;
+  // Düzenlemede miktar hedefi değiştiyse: geçmiş eski hedefle sayılır (v8, hedefGecmisi)
+  const duzenlenen = duzenlenenId && state.habits.find((x) => x.id === duzenlenenId);
+  const yeniHedef = Number($('add-miktar').value);
+  if (duzenlenen && duzenlenen.miktar && $('add-miktar').value !== '' && yeniHedef !== duzenlenen.miktar.hedef) {
+    $('form-not').textContent += ` Yeni hedef bugünden itibaren geçerli; önceki günler eski hedefle (${duzenlenen.miktar.hedef}) sayılır, gücün düşmez.`;
+  }
 }
 $('sec-tip').addEventListener('click', (e) => { if (e.target.dataset.v) { form.tip = e.target.dataset.v; formuCiz(); } });
 $('sec-siklik').addEventListener('click', (e) => { if (e.target.dataset.v) { form.siklik = e.target.dataset.v; formuCiz(); } });
 $('sec-hedef').addEventListener('click', (e) => { if (e.target.dataset.v) { form.hedef = Number(e.target.dataset.v); formuCiz(); } });
 $('sec-zorluk').addEventListener('click', (e) => { if (e.target.dataset.v) { form.zorluk = e.target.dataset.v; formuCiz(); } });
 $('sec-kaynak').addEventListener('click', (e) => { if (e.target.dataset.v !== undefined) { form.kaynak = e.target.dataset.v; formuCiz(); } });
-['add-miktar', 'add-birim'].forEach((id) => $(id).addEventListener('input', () => { if (form.kaynak) formuCiz(); }));
+['add-miktar', 'add-birim'].forEach((id) => $(id).addEventListener('input', () => formuCiz()));
 $('sec-gunler').addEventListener('click', (e) => {
   if (!e.target.dataset.v) return;
   const g = Number(e.target.dataset.v);
@@ -1116,7 +1123,7 @@ $('add-form').addEventListener('submit', async (e) => {
       ? { hedef: Number($('add-miktar').value), birim: $('add-birim').value } : null,
   };
   try {
-    state = duzenlenenId ? updateHabit(state, duzenlenenId, veri) : addHabit(state, veri, todayKey());
+    state = duzenlenenId ? updateHabit(state, duzenlenenId, veri, todayKey()) : addHabit(state, veri, todayKey());
   } catch (err) {
     bildirimGoster(err.message);
     return;

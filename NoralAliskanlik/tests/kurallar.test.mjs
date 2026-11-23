@@ -367,3 +367,43 @@ test('v7: Samsung Health adımları miktara çevrilir, yalnız artırır', async
   s = updateHabit(s, 'y', { name: 'Yürüyüş' });
   assert.equal(s.habits[0].kaynak, 'adim');
 });
+
+test('v8: miktar hedefi yükseltilince geçmiş günler eski hedefle sayılır, güç düşmez', () => {
+  const B = '2026-11-01';
+  const g = (i) => addDays(B, i);
+  let s = addHabit(emptyState(), { name: 'Kitap', miktar: { hedef: 10, birim: 'sayfa' }, zorluk: 'zor' }, B, 'k');
+  const gm = {}; const done = [];
+  for (let i = 0; i < 60; i++) { gm[g(i)] = 10; done.push(g(i)); }
+  s = { ...s, habits: [{ ...s.habits[0], gunMiktar: gm, done }] };
+  const bugun = g(60);
+  const once = computeState(s.habits[0], bugun);
+  assert.equal(once.asama, 2);
+
+  // 60. gün hedefi 20 yap: güç aynen kalır
+  s = updateHabit(s, 'k', { name: 'Kitap', miktar: { hedef: 20, birim: 'sayfa' } }, bugun);
+  assert.deepEqual(s.habits[0].hedefGecmisi, [{ bit: bugun, hedef: 10 }]);
+  const sonra = computeState(s.habits[0], bugun);
+  assert.ok(Math.abs(sonra.H - once.H) < 1e-12, 'hedef değişince geçmiş güç değişmemeli');
+  assert.equal(sonra.miktar.hedef, 20);
+
+  // Bugünden itibaren yeni hedef: 10 sayfa artık yarım, 20 sayfa tam kazanç
+  const yarim = computeState({ ...s.habits[0], gunMiktar: { ...gm, [bugun]: 10 }, done: [...done, bugun] }, bugun).H;
+  const tam = computeState({ ...s.habits[0], gunMiktar: { ...gm, [bugun]: 20 }, done: [...done, bugun] }, bugun).H;
+  assert.ok(tam > yarim && yarim > once.H);
+
+  // Aynı gün ikinci değişiklik: günün başındaki hedef (10) korunur
+  s = updateHabit(s, 'k', { name: 'Kitap', miktar: { hedef: 25, birim: 'sayfa' } }, bugun);
+  assert.deepEqual(s.habits[0].hedefGecmisi, [{ bit: bugun, hedef: 10 }]);
+  // Hedef aynıysa ya da today verilmezse geçmiş değişmez
+  assert.deepEqual(updateHabit(s, 'k', { name: 'X' }, g(70)).habits[0].hedefGecmisi, [{ bit: bugun, hedef: 10 }]);
+  assert.deepEqual(updateHabit(s, 'k', { name: 'X', miktar: { hedef: 30, birim: 'sayfa' } }).habits[0].hedefGecmisi, [{ bit: bugun, hedef: 10 }]);
+
+  // Geriye dönük düzeltme: dünü "yapıldı" işaretlemek eski hedefi (10) yazar
+  const r = setDayStatus({ ...s, habits: [{ ...s.habits[0], done: done.filter((d) => d !== g(59)) }] }, 'k', g(59), 'done', bugun);
+  assert.equal(r.state.habits[0].gunMiktar[g(59)], 10);
+
+  // Kayıt taşıma: eski kayıtta boş, bozuk girdiler atılır
+  assert.deepEqual(migrate({ version: 7, habits: [{ id: 'a', name: 'X', createdAt: B, done: [] }] }).habits[0].hedefGecmisi, []);
+  assert.deepEqual(migrate({ version: 8, habits: [{ id: 'a', name: 'X', createdAt: B, done: [],
+    hedefGecmisi: [{ bit: g(5), hedef: 10 }, { bit: 'x', hedef: 3 }, { bit: g(2), hedef: 1.5 }] }] }).habits[0].hedefGecmisi, [{ bit: g(5), hedef: 10 }]);
+});

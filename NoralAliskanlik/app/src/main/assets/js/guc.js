@@ -38,6 +38,18 @@ export function duraklatildiMi(habit, key) {
   return false;
 }
 
+/**
+ * O günün geçerli miktar hedefi. Hedef sonradan değiştirilirse (ör. 10 → 20 sayfa) eski
+ * günler eski hedefle değerlendirilir: `hedefGecmisi` = [{ bit, hedef }] → `bit` gününden
+ * ÖNCEKİ günlerde geçerli olan hedef. Kayıt yoksa ya da gün en son değişiklikten sonraysa
+ * güncel hedef. Miktarsız alışkanlıkta null.
+ */
+export function gunHedefi(habit, key) {
+  if (!habit.miktar) return null;
+  for (const k of habit.hedefGecmisi || []) if (key < k.bit) return k.hedef;
+  return habit.miktar.hedef;
+}
+
 /** Gün planlı mı? (yalnızca "belirli günler" türünde false olabilir) */
 export function planliMi(habit, key) {
   const z = habit.zamanlama;
@@ -135,9 +147,10 @@ function hesapla(habit, bugun) {
       // kapanmış günlerde; bugün bitmeden "temiz gün" kazanımı verilmez.
       if (m == null && kotuSinir && g < bugun) m = 0;
       if (m != null) {
-        if (kotuSinir) q = m <= miktar.hedef ? 1 : (miktar.hedef > 0 ? miktar.hedef / m : 0);
-        else q = Math.min(1, m / miktar.hedef);
-        if (kotuSinir && m > miktar.hedef) return { basari: false, q };
+        const hedef = gunHedefi(habit, g); // Hedef sonradan değiştiyse o günün hedefi
+        if (kotuSinir) q = m <= hedef ? 1 : (hedef > 0 ? hedef / m : 0);
+        else q = Math.min(1, m / hedef);
+        if (kotuSinir && m > hedef) return { basari: false, q };
       }
     }
     if (q == null) q = isaretli.has(g) ? 1 : null;

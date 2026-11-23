@@ -82,14 +82,14 @@ WebView içeriği `file://` ile değil, **WebViewAssetLoader** ile
 
 ---
 
-## 3. Veri biçimi (sürüm 7)
+## 3. Veri biçimi (sürüm 8)
 
 Tek bir JSON. SharedPreferences içinde `noral_aliskanlik/data` anahtarında durur —
 `localStorage`'da değil, çünkü uygulama güncellenince silinmemeli.
 
 ```jsonc
 {
-  "version": 7,
+  "version": 8,
   "habits": [ /* aşağıdaki alanlar */ ],
   "cop": [ { "silinme": "2026-11-01", "habit": { /* silinen alışkanlık */ } } ]
 }
@@ -115,6 +115,7 @@ Bir alışkanlık:
 | `tip` | `iyi` (kazanmak) / `kotu` (bırakmak) |
 | `srbai` | Otomatiklik anketi ölçümleri `[{tarih, S, asama}]` |
 | `ardindan` | "Neyin ardından" ipucu (ör. "Evden çıkınca"), en fazla 40 karakter. v6 ile geldi. |
+| `hedefGecmisi` | Eski miktar hedefleri `[{bit, hedef}]`: `bit` gününden önceki günlerde geçerli hedef. v8 ile geldi. |
 | `kaynak` | Miktarın kaynağı: `''` elle, `'adim'` Samsung Health adımları. v7 ile geldi. |
 | `arsiv` | Arşivde mi |
 | `missAck`, `celebrated` | Kaçırma animasyonu ve 66. gün kutlaması için |
@@ -136,6 +137,7 @@ Eski kayıt asla bozulmaz.
   **kayıt yok = temiz, kayma "+1" ile işaretlenir.** Taşınan kayıtlarda güç yükselir.
 - **v5 → v6:** `ardindan` eklendi; eski kayıtlarda boş metin. Hesap değişmedi.
 - **v6 → v7:** `kaynak` eklendi; eski kayıtlarda `''` (elle). Hesap değişmedi.
+- **v7 → v8:** `hedefGecmisi` eklendi; eski kayıtlarda `[]`. Hesap değişmedi.
 
 ### Türetilmiş alanlar neden var
 
@@ -222,6 +224,8 @@ Modelin kenar durumları. Her biri testlidir (`tests/kurallar.test.mjs`).
    vardır; belirtilmezse 0 ("hiç").** Kayıt olmayan kapanmış gün temiz sayılır, kullanıcı
    yalnız kaymayı "+1" ile işaretler. Sınır 0 iken arayüz "0 kayma" yazar.
 5. **Miktarlı takip** — Günlük hedef (8 bardak, 10 sayfa). Oran `q = yapılan/hedef`.
+   **Hedef sonradan değiştirilirse** (ör. 10 → 20 sayfa) yeni hedef o günden geçerlidir;
+   önceki günler eski hedefle değerlendirilir (`gunHedefi`, `hedefGecmisi`), güç düşmez.
    `q ≥ 0,5` ise kazanım `α · q`, altındaysa kısmi kaçırma (`λ · (1 − q)`).
 6. **Gün 04:00'te başlar** — Gece 01:00'de yapılan "akşam" alışkanlığı önceki güne yazılır.
    **Alışkanlığın eklendiği gün fırsat sayılmaz:** akşam eklenip o gün yapılmazsa kaçırma
@@ -448,7 +452,7 @@ minSdk 26 (Android 8), targetSdk 36.
 
 ## 13. Testler
 
-`node --test "NoralAliskanlik/tests/*.test.mjs"` — 55 test:
+`node --test "NoralAliskanlik/tests/*.test.mjs"` — 56 test:
 
 | Dosya | Kapsam |
 |---|---|
